@@ -65,7 +65,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     uptime: process.uptime(),
-    version: '1.5.0',
+    version: '1.6.0',
     timestamp: new Date().toISOString(),
   });
 });
@@ -247,13 +247,53 @@ app.post('/api/trade/:signalId', requireAuth, async (req: Request, res: Response
   const { signalId } = req.params;
   const { direction } = req.body;
 
-  // TODO: Echte Trade-Ausführung implementieren
-  logger.info(`Trade bestätigt: ${signalId} -> ${direction}`);
+  // 1. Prüfe ob Trading aktiviert
+  if (!config.trading.enabled) {
+    res.json({
+      success: false,
+      error: 'Trading ist deaktiviert. Aktiviere TRADING_ENABLED=true in .env',
+    });
+    return;
+  }
 
-  res.json({
-    success: true,
-    message: `Trade ${direction} für Signal ${signalId} wird ausgeführt`,
-  });
+  // 2. Prüfe ob Wallet konfiguriert
+  if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
+    res.json({
+      success: false,
+      error: 'Wallet nicht konfiguriert. Setze WALLET_PRIVATE_KEY und WALLET_ADDRESS in .env',
+    });
+    return;
+  }
+
+  // 3. Prüfe Balance
+  try {
+    const balance = await tradingClient.getWalletBalance();
+    if (balance.usdc < 1) {
+      res.json({
+        success: false,
+        error: `Nicht genug USDC. Verfügbar: $${balance.usdc.toFixed(2)}. Minimum: $1.00`,
+      });
+      return;
+    }
+
+    // 4. Trade loggen (echte CLOB Integration kommt später)
+    logger.info(`Trade bestätigt: ${signalId} -> ${direction}`);
+    logger.info(`Balance: $${balance.usdc.toFixed(2)} USDC`);
+
+    res.json({
+      success: true,
+      message: `Trade ${direction} für Signal ${signalId} vorbereitet`,
+      note: 'CLOB API Integration kommt im nächsten Update. Trade wurde geloggt.',
+      balance: balance.usdc,
+    });
+  } catch (err) {
+    const error = err as Error;
+    logger.error(`Trade Fehler: ${error.message}`);
+    res.json({
+      success: false,
+      error: `Trade fehlgeschlagen: ${error.message}`,
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

@@ -7,6 +7,21 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.6.0] - 2026-02-01
+
+### Hinzugefügt
+- **Trading-Feedback**
+  - Trade-Buttons zeigen klare Fehlermeldungen
+  - Prüfung: Trading aktiviert? Wallet konfiguriert? Genug Balance?
+  - Detaillierte Log-Ausgaben bei Trade-Versuchen
+
+### Geändert
+- `/api/trade` prüft jetzt alle Voraussetzungen
+- Frontend zeigt Trading-Feedback in der Konsole
+- Version auf 1.6.0 aktualisiert
+
+---
+
 ## [1.5.0] - 2026-02-01
 
 ### Hinzugefügt

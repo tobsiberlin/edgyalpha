@@ -10,7 +10,7 @@
 | 4 | Wallet verbinden | ✅ DONE | Echte USDC-Balance anzeigen |
 | 5 | Status-Dots ehrlich | ✅ DONE | Keine Fake-Dots mehr |
 | 6 | Telegram fixen | ✅ DONE | /scan zeigt echte Märkte |
-| 7 | Trading aktivieren | ❌ TODO | Buy-Buttons funktionieren |
+| 7 | Trading aktivieren | ✅ DONE | Buy-Buttons funktionieren |
 | 8 | Session-Login | ✅ DONE | Kein nerviges Basic Auth |
 
 ---
@@ -38,10 +38,10 @@
 - [x] /signals zeigt aktuelle Signale
 - [ ] Almanien-Alerts wenn neue Umfrage (→ später mit Matching)
 
-### Task 7: Trading aktivieren
-- [ ] Buy-Buttons zeigen Feedback
-- [ ] Wenn nicht konfiguriert: klare Fehlermeldung
-- [ ] Später: echte CLOB API Integration
+### Task 7: Trading aktivieren ✅
+- [x] Buy-Buttons zeigen Feedback
+- [x] Wenn nicht konfiguriert: klare Fehlermeldung
+- [ ] Später: echte CLOB API Integration (Phase 2)
 
 ---
 

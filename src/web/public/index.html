@@ -1484,16 +1484,29 @@
             const dirText = direction === 'YES' ? 'JA' : 'NEIN';
             try {
                 addLog('info', `Führe ${dirText}-Trade aus...`);
-                await fetch(`/api/trade/${signalId}`, {
+                const response = await fetch(`/api/trade/${signalId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ direction })
                 });
-                addLog('success', `Trade ausgeführt: ${dirText}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    addLog('success', `Trade ${dirText} vorbereitet`);
+                    if (result.note) {
+                        addLog('info', result.note);
+                    }
+                    if (result.balance !== undefined) {
+                        addLog('info', `Verfügbar: $${result.balance.toFixed(2)} USDC`);
+                    }
+                } else {
+                    addLog('error', result.error || 'Unbekannter Fehler');
+                }
                 closeModal();
             } catch (err) {
                 addLog('error', 'Trade fehlgeschlagen: ' + err.message);
+                closeModal();
             }
         }
 
