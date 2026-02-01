@@ -1,44 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a">
     <title>POLYMARKET ALPHA SCANNER</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* ═══════════════════════════════════════════════════════════════
+           TERMINAL STYLE - MATRIX AESTHETICS
+           ═══════════════════════════════════════════════════════════════ */
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
         :root {
             --bg-dark: #0a0a0a;
-            --bg-panel: #0d0d0d;
-            --bg-card: #111111;
+            --bg-panel: #0f0f0f;
+            --bg-card: #141414;
             --border: #1a1a1a;
+            --border-light: #2a2a2a;
             --green: #00ff00;
             --green-dim: #00aa00;
-            --green-dark: #004400;
+            --green-dark: #006600;
             --red: #ff3333;
             --yellow: #ffcc00;
+            --cyan: #00ffff;
             --white: #ffffff;
             --gray: #666666;
-            --gray-dim: #333333;
+            --gray-dark: #333333;
         }
 
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
             background: var(--bg-dark);
             color: var(--green);
+            min-height: 100vh;
             font-size: 12px;
             line-height: 1.4;
             overflow: hidden;
-            height: 100vh;
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           LAYOUT
+           MAIN LAYOUT
            ═══════════════════════════════════════════════════════════════ */
         .app {
             display: grid;
@@ -50,7 +57,7 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           HEADER
+           HEADER BAR
            ═══════════════════════════════════════════════════════════════ */
         .header {
             grid-column: 1 / -1;
@@ -59,7 +66,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 0 16px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
         }
 
         .header-left {
@@ -77,7 +84,7 @@
 
         .status-indicators {
             display: flex;
-            gap: 20px;
+            gap: 16px;
         }
 
         .status-item {
@@ -96,24 +103,9 @@
             box-shadow: 0 0 6px var(--green);
         }
 
-        .status-dot.warning {
-            background: var(--yellow);
-            box-shadow: 0 0 6px var(--yellow);
-        }
-
-        .status-dot.error {
-            background: var(--red);
-            box-shadow: 0 0 6px var(--red);
-        }
-
-        .status-dot.scanning {
-            animation: pulse 0.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
+        .status-dot.warning { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+        .status-dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+        .status-dot.inactive { background: var(--gray-dark); box-shadow: none; }
 
         .header-right {
             display: flex;
@@ -124,7 +116,8 @@
         }
 
         .clock {
-            font-variant-numeric: tabular-nums;
+            font-family: inherit;
+            color: var(--green-dim);
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -141,7 +134,7 @@
 
         .panel {
             background: var(--bg-card);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-light);
             padding: 12px;
         }
 
@@ -152,13 +145,21 @@
             color: var(--green);
             margin-bottom: 12px;
             padding-bottom: 8px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header::before {
+            content: '>';
+            color: var(--green-dim);
         }
 
         .panel-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 6px;
+            padding: 4px 0;
             font-size: 11px;
         }
 
@@ -171,19 +172,11 @@
             font-weight: 500;
         }
 
-        .panel-value.warning {
-            color: var(--yellow);
-        }
+        .panel-value.positive { color: var(--green); }
+        .panel-value.negative { color: var(--red); }
+        .panel-value.warning { color: var(--yellow); }
 
-        .panel-value.error {
-            color: var(--red);
-        }
-
-        .panel-value.success {
-            color: var(--green);
-        }
-
-        /* Progress Bar */
+        /* Progress Bars */
         .progress-container {
             margin-top: 8px;
         }
@@ -196,64 +189,52 @@
         }
 
         .progress-bar {
-            height: 12px;
+            height: 8px;
             background: var(--bg-dark);
-            border: 1px solid var(--border);
-            font-size: 9px;
-            display: flex;
-            align-items: center;
-            padding: 0 4px;
-            font-family: inherit;
+            border: 1px solid var(--border-light);
+            overflow: hidden;
         }
 
         .progress-fill {
-            color: var(--green);
-        }
-
-        .progress-empty {
-            color: var(--gray-dim);
-        }
-
-        /* Scan Button */
-        .scan-button {
-            background: var(--bg-dark);
-            border: 1px solid var(--green);
-            color: var(--green);
-            padding: 12px;
-            font-family: inherit;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            margin-top: auto;
-        }
-
-        .scan-button:hover {
+            height: 100%;
             background: var(--green);
-            color: var(--bg-dark);
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            transition: width 0.3s;
         }
 
-        .scan-button:disabled {
-            border-color: var(--yellow);
-            color: var(--yellow);
-            cursor: not-allowed;
+        .progress-fill.warning { background: var(--yellow); }
+        .progress-fill.danger { background: var(--red); }
+
+        /* Scan Animation */
+        .scan-progress {
+            display: none;
         }
 
-        .scan-button:disabled:hover {
+        .scan-progress.active {
+            display: block;
+        }
+
+        .scan-bar {
+            height: 4px;
             background: var(--bg-dark);
-            box-shadow: none;
+            margin-top: 8px;
+            overflow: hidden;
+            position: relative;
         }
 
-        .scan-button.scanning {
-            animation: border-pulse 1s ease-in-out infinite;
+        .scan-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--green), transparent);
+            animation: scan 1.5s infinite;
         }
 
-        @keyframes border-pulse {
-            0%, 100% { border-color: var(--yellow); }
-            50% { border-color: var(--green); }
+        @keyframes scan {
+            0% { left: -50%; }
+            100% { left: 100%; }
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -266,10 +247,11 @@
             overflow: hidden;
         }
 
+        /* Tabs */
         .tabs {
             display: flex;
             background: var(--bg-card);
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
         }
 
         .tab {
@@ -293,17 +275,19 @@
         .tab.active {
             color: var(--green);
             border-bottom-color: var(--green);
+            background: var(--bg-panel);
         }
 
+        /* Tab Content */
         .tab-content {
             flex: 1;
             overflow: hidden;
             display: none;
+            flex-direction: column;
         }
 
         .tab-content.active {
             display: flex;
-            flex-direction: column;
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -326,13 +310,14 @@
         }
 
         .console::-webkit-scrollbar-thumb {
-            background: var(--gray-dim);
+            background: var(--border-light);
         }
 
         .log-entry {
-            padding: 2px 0;
+            padding: 3px 0;
             display: flex;
             gap: 8px;
+            border-bottom: 1px solid var(--border);
         }
 
         .log-time {
@@ -340,29 +325,27 @@
             flex-shrink: 0;
         }
 
-        .log-prefix {
+        .log-level {
+            width: 50px;
             flex-shrink: 0;
-            width: 70px;
+            font-weight: 500;
         }
 
-        .log-prefix.system { color: var(--gray); }
-        .log-prefix.info { color: var(--green); }
-        .log-prefix.scan { color: var(--yellow); }
-        .log-prefix.signal { color: #00ffff; }
-        .log-prefix.trade { color: #ff00ff; }
-        .log-prefix.error { color: var(--red); }
+        .log-level.info { color: var(--cyan); }
+        .log-level.warn { color: var(--yellow); }
+        .log-level.error { color: var(--red); }
+        .log-level.success { color: var(--green); }
+        .log-level.system { color: var(--gray); }
 
         .log-message {
             color: var(--green-dim);
-        }
-
-        .log-message.highlight {
-            color: var(--green);
+            word-break: break-word;
         }
 
         .log-progress {
             display: inline-block;
             margin-left: 8px;
+            color: var(--green);
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -376,14 +359,18 @@
 
         .market-card {
             background: var(--bg-card);
-            border: 1px solid var(--border);
-            padding: 12px;
+            border: 1px solid var(--border-light);
             margin-bottom: 8px;
+            padding: 12px;
         }
 
         .market-card.high-alpha {
             border-color: var(--green);
             box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        }
+
+        .market-card.german {
+            border-left: 3px solid var(--yellow);
         }
 
         .market-header {
@@ -395,29 +382,24 @@
 
         .market-badges {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .badge {
             font-size: 9px;
             padding: 2px 6px;
             background: var(--bg-dark);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-light);
             color: var(--gray);
             letter-spacing: 0.5px;
         }
 
-        .badge.high {
-            border-color: var(--green);
-            color: var(--green);
-        }
-
-        .badge.category {
-            border-color: var(--gray-dim);
-        }
+        .badge.german { border-color: var(--yellow); color: var(--yellow); }
+        .badge.high { border-color: var(--green); color: var(--green); }
+        .badge.politics { border-color: var(--cyan); color: var(--cyan); }
 
         .market-score {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
             color: var(--green);
         }
@@ -425,39 +407,33 @@
         .market-question {
             font-size: 12px;
             color: var(--white);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             line-height: 1.4;
         }
 
-        .market-metrics {
+        .market-stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 10px;
             padding: 8px;
             background: var(--bg-dark);
-            border: 1px solid var(--border);
         }
 
-        .metric {
+        .market-stat {
             text-align: center;
         }
 
-        .metric-label {
+        .market-stat-label {
             font-size: 9px;
             color: var(--gray);
-            letter-spacing: 0.5px;
             margin-bottom: 2px;
         }
 
-        .metric-value {
+        .market-stat-value {
             font-size: 12px;
             font-weight: 500;
         }
-
-        .metric-value.positive { color: var(--green); }
-        .metric-value.negative { color: var(--red); }
-        .metric-value.neutral { color: var(--white); }
 
         .market-reasoning {
             font-size: 10px;
@@ -465,7 +441,7 @@
             padding: 8px;
             background: var(--bg-dark);
             border-left: 2px solid var(--green-dark);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .market-actions {
@@ -473,43 +449,43 @@
             gap: 8px;
         }
 
-        .action-btn {
+        .btn {
             flex: 1;
-            padding: 8px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-light);
             background: var(--bg-dark);
-            border: 1px solid var(--border);
             color: var(--gray);
             font-family: inherit;
             font-size: 10px;
-            font-weight: 700;
+            font-weight: 500;
             letter-spacing: 1px;
             cursor: pointer;
             transition: all 0.2s;
         }
 
-        .action-btn.yes {
-            border-color: var(--green-dark);
+        .btn:hover {
+            border-color: var(--green);
             color: var(--green);
         }
 
-        .action-btn.yes:hover {
+        .btn.primary {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .btn.primary:hover {
             background: var(--green);
             color: var(--bg-dark);
         }
 
-        .action-btn.no {
-            border-color: #440000;
+        .btn.danger {
+            border-color: var(--red);
             color: var(--red);
         }
 
-        .action-btn.no:hover {
+        .btn.danger:hover {
             background: var(--red);
             color: var(--bg-dark);
-        }
-
-        .action-btn.details:hover {
-            border-color: var(--gray);
-            color: var(--white);
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -519,56 +495,107 @@
             flex: 1;
             overflow-y: auto;
             padding: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            align-content: start;
         }
 
-        .research-card {
+        .research-section {
             background: var(--bg-card);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-light);
             padding: 12px;
-            margin-bottom: 8px;
         }
 
         .research-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .research-source {
-            font-size: 10px;
-            color: var(--gray);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .research-time {
-            font-size: 10px;
-            color: var(--gray-dim);
-        }
-
-        .research-title {
-            font-size: 12px;
-            color: var(--white);
-            margin-bottom: 8px;
-        }
-
-        .research-content {
             font-size: 11px;
-            color: var(--gray);
-            line-height: 1.5;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--green);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
         }
 
-        .research-link {
-            display: inline-block;
-            margin-top: 8px;
+        .poll-bar-row {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            gap: 8px;
+        }
+
+        .poll-party {
+            width: 50px;
+            font-size: 10px;
+            color: var(--gray);
+        }
+
+        .poll-bar-bg {
+            flex: 1;
+            height: 12px;
+            background: var(--bg-dark);
+            position: relative;
+        }
+
+        .poll-bar-fill {
+            height: 100%;
+            background: var(--green);
+            position: relative;
+        }
+
+        .poll-bar-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--green);
+            box-shadow: 0 0 4px var(--green);
+        }
+
+        .poll-value {
+            width: 40px;
+            text-align: right;
             font-size: 10px;
             color: var(--green);
+        }
+
+        /* Party Colors */
+        .poll-cdu .poll-bar-fill { background: #1a1a1a; }
+        .poll-cdu .poll-bar-fill::after { background: #666; box-shadow: 0 0 4px #666; }
+        .poll-spd .poll-bar-fill { background: #cc0000; }
+        .poll-spd .poll-bar-fill::after { background: #ff3333; box-shadow: 0 0 4px #ff3333; }
+        .poll-gruene .poll-bar-fill { background: #1a8a2a; }
+        .poll-gruene .poll-bar-fill::after { background: #22cc33; box-shadow: 0 0 4px #22cc33; }
+        .poll-fdp .poll-bar-fill { background: #ccaa00; }
+        .poll-fdp .poll-bar-fill::after { background: #ffdd00; box-shadow: 0 0 4px #ffdd00; }
+        .poll-afd .poll-bar-fill { background: #0066aa; }
+        .poll-afd .poll-bar-fill::after { background: #00aaff; box-shadow: 0 0 4px #00aaff; }
+
+        .news-item {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .news-source {
+            font-size: 9px;
+            color: var(--gray);
+            margin-bottom: 2px;
+        }
+
+        .news-title {
+            font-size: 11px;
+            color: var(--green-dim);
+        }
+
+        .news-link {
+            font-size: 9px;
+            color: var(--cyan);
             text-decoration: none;
         }
 
-        .research-link:hover {
+        .news-link:hover {
             text-decoration: underline;
         }
 
@@ -577,53 +604,85 @@
            ═══════════════════════════════════════════════════════════════ */
         .footer {
             grid-column: 1 / -1;
-            background: var(--bg-panel);
+            background: var(--bg-card);
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 0 16px;
+            border-top: 1px solid var(--border-light);
             font-size: 10px;
-            color: var(--gray-dim);
-            border-top: 1px solid var(--border);
         }
 
         .footer-left {
+            color: var(--gray);
+        }
+
+        .footer-right {
             display: flex;
             align-items: center;
             gap: 16px;
         }
 
-        .footer-right {
+        .scan-btn {
+            padding: 6px 16px;
+            background: var(--green);
+            border: none;
+            color: var(--bg-dark);
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .scan-btn:hover {
+            box-shadow: 0 0 10px var(--green);
+        }
+
+        .scan-btn:disabled {
+            background: var(--gray-dark);
             color: var(--gray);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .scan-btn.scanning {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
 
         /* ═══════════════════════════════════════════════════════════════
            MODAL
            ═══════════════════════════════════════════════════════════════ */
-        .modal-overlay {
+        .modal {
             display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
 
-        .modal-overlay.open {
+        .modal.open {
             display: flex;
         }
 
-        .modal {
+        .modal-content {
             background: var(--bg-card);
             border: 1px solid var(--green);
-            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
             max-width: 500px;
             width: 90%;
-            box-shadow: 0 0 40px rgba(0, 255, 0, 0.2);
+            padding: 20px;
         }
 
         .modal-header {
@@ -632,7 +691,7 @@
             align-items: center;
             margin-bottom: 16px;
             padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
         }
 
         .modal-title {
@@ -654,113 +713,36 @@
             color: var(--red);
         }
 
-        .modal-body {
-            font-size: 11px;
-            color: var(--gray);
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-        }
-
         /* ═══════════════════════════════════════════════════════════════
-           EMPTY STATE
+           ASCII ART LOADER
            ═══════════════════════════════════════════════════════════════ */
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-            color: var(--gray);
+        .ascii-loader {
             text-align: center;
-        }
-
-        .empty-icon {
-            font-size: 32px;
-            margin-bottom: 12px;
-            opacity: 0.5;
-        }
-
-        .empty-text {
+            padding: 40px;
+            color: var(--green-dim);
             font-size: 11px;
-            margin-bottom: 4px;
         }
 
-        .empty-hint {
-            font-size: 10px;
-            color: var(--gray-dim);
+        .ascii-loader pre {
+            margin-bottom: 16px;
+            line-height: 1.2;
         }
 
         /* ═══════════════════════════════════════════════════════════════
            RESPONSIVE
            ═══════════════════════════════════════════════════════════════ */
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
             .app {
                 grid-template-columns: 1fr;
-                grid-template-rows: 40px 1fr auto 32px;
             }
 
             .sidebar {
                 display: none;
-                position: fixed;
-                top: 40px;
-                left: 0;
-                width: 280px;
-                height: calc(100vh - 72px);
-                z-index: 100;
-                border-right: 1px solid var(--border);
             }
 
-            .sidebar.open {
-                display: flex;
+            .research-container {
+                grid-template-columns: 1fr;
             }
-
-            .mobile-toggle {
-                display: flex;
-            }
-
-            .status-indicators {
-                display: none;
-            }
-
-            .mobile-scan-btn {
-                display: block;
-                position: fixed;
-                bottom: 48px;
-                right: 16px;
-                z-index: 50;
-            }
-        }
-
-        @media (min-width: 901px) {
-            .mobile-toggle {
-                display: none;
-            }
-
-            .mobile-scan-btn {
-                display: none;
-            }
-        }
-
-        .mobile-toggle {
-            background: none;
-            border: 1px solid var(--border);
-            color: var(--green);
-            padding: 6px 10px;
-            font-family: inherit;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        /* ASCII Art Animation */
-        .ascii-loader {
-            font-family: inherit;
-            color: var(--green-dim);
-            white-space: pre;
-            line-height: 1.2;
         }
     </style>
 </head>
@@ -769,7 +751,6 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
                 <span class="logo">POLYMARKET ALPHA SCANNER</span>
                 <div class="status-indicators">
                     <div class="status-item">
@@ -792,13 +773,13 @@
         </header>
 
         <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
+        <aside class="sidebar">
             <!-- System Status -->
             <div class="panel">
-                <div class="panel-header">[ SYSTEM STATUS ]</div>
+                <div class="panel-header">SYSTEM STATUS</div>
                 <div class="panel-row">
                     <span class="panel-label">Status</span>
-                    <span class="panel-value success" id="system-status">ONLINE</span>
+                    <span class="panel-value" id="system-status">ONLINE</span>
                 </div>
                 <div class="panel-row">
                     <span class="panel-label">Uptime</span>
@@ -806,86 +787,84 @@
                 </div>
                 <div class="panel-row">
                     <span class="panel-label">Memory</span>
-                    <span class="panel-value" id="memory">-- MB</span>
+                    <span class="panel-value" id="memory">--</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">WebSocket</span>
-                    <span class="panel-value" id="ws-status">CONNECTING</span>
+                    <span class="panel-label">Last Scan</span>
+                    <span class="panel-value" id="last-scan">--:--</span>
                 </div>
             </div>
 
             <!-- Scan Config -->
             <div class="panel">
-                <div class="panel-header">[ SCAN CONFIG ]</div>
+                <div class="panel-header">SCAN CONFIG</div>
                 <div class="panel-row">
                     <span class="panel-label">Interval</span>
                     <span class="panel-value">5 MIN</span>
+                </div>
+                <div class="panel-row">
+                    <span class="panel-label">Categories</span>
+                    <span class="panel-value">POL/ECO</span>
                 </div>
                 <div class="panel-row">
                     <span class="panel-label">Min Volume</span>
                     <span class="panel-value">$100K</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Categories</span>
-                    <span class="panel-value">POLITICS</span>
-                </div>
-                <div class="panel-row">
-                    <span class="panel-label">Alpha Threshold</span>
-                    <span class="panel-value">0.65</span>
+                    <span class="panel-label">DE Mode</span>
+                    <span class="panel-value positive">ACTIVE</span>
                 </div>
             </div>
 
             <!-- Current Scan -->
             <div class="panel">
-                <div class="panel-header">[ CURRENT SCAN ]</div>
+                <div class="panel-header">CURRENT SCAN</div>
                 <div class="panel-row">
                     <span class="panel-label">Markets</span>
                     <span class="panel-value" id="markets-scanned">0</span>
                 </div>
                 <div class="panel-row">
                     <span class="panel-label">Signals</span>
-                    <span class="panel-value" id="signals-found">0</span>
+                    <span class="panel-value positive" id="signals-found">0</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Last Scan</span>
-                    <span class="panel-value" id="last-scan">--:--</span>
+                    <span class="panel-label">High Alpha</span>
+                    <span class="panel-value" id="high-alpha">0</span>
                 </div>
-                <div class="progress-container">
+                <div class="scan-progress" id="scan-progress">
                     <div class="progress-label">
-                        <span>Progress</span>
-                        <span id="progress-pct">0%</span>
+                        <span>Scanning...</span>
+                        <span id="scan-percent">0%</span>
                     </div>
-                    <div class="progress-bar" id="progress-bar">
-                        <span class="progress-fill"></span><span class="progress-empty">░░░░░░░░░░░░░░░░░░░░</span>
-                    </div>
+                    <div class="scan-bar"></div>
                 </div>
             </div>
 
             <!-- Performance -->
             <div class="panel">
-                <div class="panel-header">[ PERFORMANCE ]</div>
+                <div class="panel-header">PERFORMANCE</div>
                 <div class="panel-row">
                     <span class="panel-label">Win Rate</span>
-                    <span class="panel-value success" id="win-rate">--%</span>
+                    <span class="panel-value positive" id="win-rate">--</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Total Trades</span>
+                    <span class="panel-label">ROI</span>
+                    <span class="panel-value" id="roi">--</span>
+                </div>
+                <div class="panel-row">
+                    <span class="panel-label">Trades</span>
                     <span class="panel-value" id="total-trades">0</span>
                 </div>
-                <div class="panel-row">
-                    <span class="panel-label">P/L Today</span>
-                    <span class="panel-value success" id="pnl-today">$0.00</span>
-                </div>
-                <div class="panel-row">
-                    <span class="panel-label">P/L All Time</span>
-                    <span class="panel-value success" id="pnl-total">$0.00</span>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Bankroll</span>
+                        <span id="bankroll">$1,000</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="bankroll-bar" style="width: 100%"></div>
+                    </div>
                 </div>
             </div>
-
-            <!-- Scan Button -->
-            <button class="scan-button" id="scan-btn" onclick="launchScan()">
-                ▶ LAUNCH SCAN
-            </button>
         </aside>
 
         <!-- Main Content -->
@@ -899,10 +878,17 @@
             <!-- Console Tab -->
             <div class="tab-content active" id="tab-console">
                 <div class="console" id="console">
-                    <div class="log-entry">
-                        <span class="log-time">[--:--:--]</span>
-                        <span class="log-prefix system">[SYSTEM]</span>
-                        <span class="log-message">Initializing Polymarket Alpha Scanner...</span>
+                    <div class="ascii-loader" id="initial-loader">
+<pre>
+ ██████╗  ██████╗ ██╗  ██╗   ██╗███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗████████╗
+ ██╔══██╗██╔═══██╗██║  ╚██╗ ██╔╝████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝╚══██╔══╝
+ ██████╔╝██║   ██║██║   ╚████╔╝ ██╔████╔██║███████║██████╔╝█████╔╝ █████╗     ██║
+ ██╔═══╝ ██║   ██║██║    ╚██╔╝  ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝     ██║
+ ██║     ╚██████╔╝███████╗██║   ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗   ██║
+ ╚═╝      ╚═════╝ ╚══════╝╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝
+                      A L P H A   S C A N N E R   v 1 . 0
+</pre>
+                        <p>Initializing system...</p>
                     </div>
                 </div>
             </div>
@@ -910,50 +896,84 @@
             <!-- Markets Tab -->
             <div class="tab-content" id="tab-markets">
                 <div class="markets-container" id="markets-list">
-                    <div class="empty-state">
-                        <div class="empty-icon">◇</div>
-                        <div class="empty-text">No signals detected</div>
-                        <div class="empty-hint">Launch a scan to find alpha opportunities</div>
+                    <div class="ascii-loader">
+                        <p>> Waiting for scan results...</p>
+                        <p>> Launch scan to find alpha opportunities</p>
                     </div>
                 </div>
             </div>
 
             <!-- Research Tab -->
             <div class="tab-content" id="tab-research">
-                <div class="research-container" id="research-list">
-                    <div class="empty-state">
-                        <div class="empty-icon">◈</div>
-                        <div class="empty-text">No research data</div>
-                        <div class="empty-hint">Research will appear here during scans</div>
+                <div class="research-container">
+                    <div class="research-section">
+                        <div class="research-header">GERMAN POLLS (DAWUM)</div>
+                        <div id="polls-container">
+                            <div class="poll-bar-row poll-cdu">
+                                <span class="poll-party">CDU/CSU</span>
+                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 30%"></div></div>
+                                <span class="poll-value">--</span>
+                            </div>
+                            <div class="poll-bar-row poll-spd">
+                                <span class="poll-party">SPD</span>
+                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 15%"></div></div>
+                                <span class="poll-value">--</span>
+                            </div>
+                            <div class="poll-bar-row poll-gruene">
+                                <span class="poll-party">GRÜNE</span>
+                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 12%"></div></div>
+                                <span class="poll-value">--</span>
+                            </div>
+                            <div class="poll-bar-row poll-afd">
+                                <span class="poll-party">AfD</span>
+                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 20%"></div></div>
+                                <span class="poll-value">--</span>
+                            </div>
+                            <div class="poll-bar-row poll-fdp">
+                                <span class="poll-party">FDP</span>
+                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 5%"></div></div>
+                                <span class="poll-value">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="research-section">
+                        <div class="research-header">BUNDESTAG FEED</div>
+                        <div id="bundestag-feed">
+                            <p style="color: var(--gray); font-size: 10px;">Loading legislative data...</p>
+                        </div>
+                    </div>
+
+                    <div class="research-section" style="grid-column: 1 / -1;">
+                        <div class="research-header">GERMAN NEWS (RSS)</div>
+                        <div id="news-feed">
+                            <p style="color: var(--gray); font-size: 10px;">Loading news feeds...</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
 
-        <!-- Mobile Scan Button -->
-        <button class="scan-button mobile-scan-btn" onclick="launchScan()">▶ SCAN</button>
-
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-left">
-                <span>CLAUDE CODE + PERPLEXITY MCP</span>
-                <span>|</span>
-                <span>Real-time Prediction Market Analysis</span>
+                CLAUDE CODE + PERPLEXITY MCP | Real-time Prediction Market Analysis
             </div>
             <div class="footer-right">
-                <span id="version">v1.0.0</span>
+                <span id="scan-status">READY</span>
+                <button class="scan-btn" id="scan-btn">LAUNCH SCAN</button>
             </div>
         </footer>
     </div>
 
     <!-- Trade Modal -->
-    <div class="modal-overlay" id="modal-overlay">
-        <div class="modal">
+    <div class="modal" id="trade-modal">
+        <div class="modal-content">
             <div class="modal-header">
                 <span class="modal-title">CONFIRM TRADE</span>
-                <button class="modal-close" onclick="closeModal()">×</button>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
-            <div class="modal-body" id="modal-body"></div>
+            <div id="modal-body"></div>
         </div>
     </div>
 
@@ -965,7 +985,6 @@
         let socket = null;
         let isScanning = false;
         let signals = [];
-        let logs = [];
         let startTime = Date.now();
 
         // ═══════════════════════════════════════════════════════════════
@@ -978,51 +997,70 @@
             initUptime();
             loadInitialData();
 
-            // Initial console messages
-            setTimeout(() => addLog('system', 'Loading configuration...'), 100);
-            setTimeout(() => addLog('system', 'Connecting to Polymarket API...'), 300);
-            setTimeout(() => addLog('info', 'WebSocket connection established'), 600);
-            setTimeout(() => addLog('system', 'Scanner ready. Awaiting commands.'), 900);
+            // Boot sequence
+            setTimeout(() => bootSequence(), 500);
         });
+
+        function bootSequence() {
+            const loader = document.getElementById('initial-loader');
+            const console = document.getElementById('console');
+
+            setTimeout(() => {
+                loader.style.display = 'none';
+                addLog('system', 'System initialized');
+                addLog('info', 'Connecting to Polymarket API...');
+            }, 1000);
+
+            setTimeout(() => {
+                document.getElementById('api-status').classList.remove('inactive');
+                addLog('success', 'Polymarket API connected');
+                addLog('info', 'Loading German data sources...');
+            }, 1500);
+
+            setTimeout(() => {
+                document.getElementById('perplexity-status').classList.remove('inactive');
+                addLog('success', 'Perplexity MCP ready');
+            }, 2000);
+
+            setTimeout(() => {
+                document.getElementById('claude-status').classList.remove('inactive');
+                addLog('success', 'Claude Code integration active');
+                addLog('info', 'Scanner ready. Awaiting commands...');
+            }, 2500);
+        }
 
         function initSocket() {
             socket = io();
 
             socket.on('connect', () => {
-                updateStatus('ws-status', 'CONNECTED', 'success');
-                setStatusDot('api-status', 'online');
-                setStatusDot('perplexity-status', 'online');
-                setStatusDot('claude-status', 'online');
+                addLog('success', 'WebSocket connected');
             });
 
             socket.on('disconnect', () => {
-                updateStatus('ws-status', 'DISCONNECTED', 'error');
-                setStatusDot('api-status', 'error');
+                addLog('warn', 'WebSocket disconnected');
             });
 
             socket.on('scan_started', () => {
                 isScanning = true;
-                addLog('scan', 'Scan initiated...');
+                updateScanUI(true);
+                addLog('info', 'Scan initiated...');
             });
 
             socket.on('scan_progress', (data) => {
-                updateProgress(data.progress, data.current, data.total);
+                document.getElementById('scan-percent').textContent = `${data.percent}%`;
+                document.getElementById('markets-scanned').textContent = data.markets;
             });
 
             socket.on('scan_completed', (result) => {
                 isScanning = false;
+                updateScanUI(false);
                 handleScanResult(result);
             });
 
             socket.on('signal_found', (signal) => {
-                addLog('signal', `ALPHA DETECTED: ${signal.market.question.substring(0, 50)}...`);
+                addLog('success', `ALPHA FOUND: ${signal.market.question.substring(0, 50)}...`);
                 signals.unshift(signal);
                 renderMarkets();
-            });
-
-            socket.on('research_update', (data) => {
-                addLog('info', `Research: ${data.title}`);
-                renderResearch(data);
             });
 
             socket.on('error', (err) => {
@@ -1045,12 +1083,8 @@
         function initClock() {
             function updateClock() {
                 const now = new Date();
-                document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
+                document.getElementById('clock').textContent =
+                    now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
             updateClock();
             setInterval(updateClock, 1000);
@@ -1067,48 +1101,46 @@
         }
 
         // ═══════════════════════════════════════════════════════════════
-        //                        DATA
+        //                        DATA LOADING
         // ═══════════════════════════════════════════════════════════════
         async function loadInitialData() {
             try {
-                const [status, signalsData] = await Promise.all([
+                const [status, signalsData, polls, news] = await Promise.all([
                     fetch('/api/status').then(r => r.json()).catch(() => ({})),
-                    fetch('/api/signals').then(r => r.json()).catch(() => [])
+                    fetch('/api/signals').then(r => r.json()).catch(() => []),
+                    fetch('/api/germany/polls').then(r => r.json()).catch(() => []),
+                    fetch('/api/germany/news').then(r => r.json()).catch(() => [])
                 ]);
-
-                if (status.totalScans) {
-                    document.getElementById('markets-scanned').textContent = status.marketsScanned || 0;
-                    document.getElementById('signals-found').textContent = status.signalsToday || 0;
-                }
 
                 if (signalsData.length) {
                     signals = signalsData;
                     renderMarkets();
                 }
 
-                document.getElementById('memory').textContent = `${Math.round(performance.memory?.usedJSHeapSize / 1024 / 1024 || 50)} MB`;
+                renderPolls(polls);
+                renderNews(news);
+
+                if (status.lastScan) {
+                    document.getElementById('last-scan').textContent =
+                        new Date(status.lastScan).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                }
             } catch (err) {
                 addLog('error', 'Failed to load initial data');
             }
         }
 
-        async function launchScan() {
+        // ═══════════════════════════════════════════════════════════════
+        //                        SCANNING
+        // ═══════════════════════════════════════════════════════════════
+        document.getElementById('scan-btn').addEventListener('click', async () => {
             if (isScanning) return;
 
-            const btn = document.getElementById('scan-btn');
-            btn.disabled = true;
-            btn.textContent = '◉ SCANNING...';
-            btn.classList.add('scanning');
             isScanning = true;
+            updateScanUI(true);
 
-            addLog('scan', '═══════════════════════════════════════════════');
-            addLog('scan', 'INITIATING MARKET SCAN');
-            addLog('scan', '═══════════════════════════════════════════════');
-
-            // Simulate scan phases
-            await simulateScanPhase('Connecting to Polymarket CLOB API...', 500);
-            await simulateScanPhase('Fetching active markets...', 800);
-            await simulateScanPhase('Analyzing market data...', 600);
+            addLog('info', '═══════════════════════════════════════');
+            addLog('info', 'INITIATING MARKET SCAN');
+            addLog('info', '═══════════════════════════════════════');
 
             try {
                 const result = await fetch('/api/scan', { method: 'POST' }).then(r => r.json());
@@ -1116,331 +1148,262 @@
             } catch (err) {
                 addLog('error', 'Scan failed: ' + err.message);
             } finally {
-                btn.disabled = false;
-                btn.textContent = '▶ LAUNCH SCAN';
-                btn.classList.remove('scanning');
                 isScanning = false;
-                resetProgress();
+                updateScanUI(false);
             }
-        }
+        });
 
-        async function simulateScanPhase(message, delay) {
-            addLog('info', message);
-            await new Promise(r => setTimeout(r, delay));
+        function updateScanUI(scanning) {
+            const btn = document.getElementById('scan-btn');
+            const status = document.getElementById('scan-status');
+            const progress = document.getElementById('scan-progress');
+
+            if (scanning) {
+                btn.disabled = true;
+                btn.textContent = 'SCANNING...';
+                btn.classList.add('scanning');
+                status.textContent = 'SCANNING';
+                progress.classList.add('active');
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'LAUNCH SCAN';
+                btn.classList.remove('scanning');
+                status.textContent = 'READY';
+                progress.classList.remove('active');
+            }
         }
 
         function handleScanResult(result) {
             const marketsScanned = result.marketsScanned || 0;
-            const signalsFound = result.signalsFound?.length || 0;
+            const signalsFound = result.signalsFound || [];
+            const highAlpha = signalsFound.filter(s => s.score > 0.7).length;
 
             document.getElementById('markets-scanned').textContent = marketsScanned;
-            document.getElementById('signals-found').textContent = signalsFound;
-            document.getElementById('last-scan').textContent = new Date().toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            document.getElementById('signals-found').textContent = signalsFound.length;
+            document.getElementById('high-alpha').textContent = highAlpha;
+            document.getElementById('last-scan').textContent =
+                new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-            addLog('scan', '───────────────────────────────────────────────');
-            addLog('info', `Markets scanned: ${marketsScanned}`);
-            addLog('info', `Signals detected: ${signalsFound}`);
+            addLog('info', `Scanned ${marketsScanned} markets`);
+            addLog('success', `Found ${signalsFound.length} signals (${highAlpha} high alpha)`);
+            addLog('info', '═══════════════════════════════════════');
 
-            if (signalsFound > 0) {
-                addLog('signal', `★ ${signalsFound} ALPHA OPPORTUNITIES FOUND ★`);
-                signals = result.signalsFound || [];
+            if (signalsFound.length) {
+                signals = signalsFound;
                 renderMarkets();
 
                 // Switch to markets tab
                 document.querySelector('.tab[data-tab="markets"]').click();
-            } else {
-                addLog('info', 'No significant alpha detected in current scan');
             }
-
-            addLog('scan', '───────────────────────────────────────────────');
-            addLog('system', 'Scan complete. Ready for next scan.');
         }
 
         // ═══════════════════════════════════════════════════════════════
         //                        RENDERING
         // ═══════════════════════════════════════════════════════════════
+        function addLog(level, message) {
+            const console = document.getElementById('console');
+            const loader = document.getElementById('initial-loader');
+            if (loader) loader.style.display = 'none';
+
+            const time = new Date().toLocaleTimeString('de-DE');
+            const levelText = level.toUpperCase().padEnd(7);
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="log-level ${level}">${levelText}</span>
+                <span class="log-message">${message}</span>
+            `;
+
+            console.appendChild(entry);
+            console.scrollTop = console.scrollHeight;
+        }
+
         function renderMarkets() {
             const container = document.getElementById('markets-list');
 
-            if (!signals || signals.length === 0) {
+            if (!signals.length) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">◇</div>
-                        <div class="empty-text">No signals detected</div>
-                        <div class="empty-hint">Launch a scan to find alpha opportunities</div>
+                    <div class="ascii-loader">
+                        <p>> No signals found</p>
+                        <p>> Launch scan to find alpha opportunities</p>
                     </div>
                 `;
                 return;
             }
 
-            container.innerHTML = signals.map((signal, idx) => {
+            container.innerHTML = signals.map(signal => {
                 const isHigh = signal.score > 0.7;
-                const edge = ((signal.edge || 0) * 100).toFixed(1);
-                const score = ((signal.score || 0) * 100).toFixed(0);
-                const volume = signal.market?.volume24h ? `$${(signal.market.volume24h / 1000).toFixed(0)}K` : '--';
-                const liquidity = signal.market?.liquidity ? `$${(signal.market.liquidity / 1000).toFixed(0)}K` : '--';
+                const isGerman = signal.germanSource !== undefined;
 
                 return `
-                    <div class="market-card ${isHigh ? 'high-alpha' : ''}">
+                    <div class="market-card ${isHigh ? 'high-alpha' : ''} ${isGerman ? 'german' : ''}">
                         <div class="market-header">
                             <div class="market-badges">
+                                ${isGerman ? '<span class="badge german">DE</span>' : ''}
                                 ${isHigh ? '<span class="badge high">HIGH ALPHA</span>' : ''}
-                                <span class="badge category">${signal.market?.category || 'UNKNOWN'}</span>
+                                <span class="badge">${signal.market.category || 'MARKET'}</span>
                             </div>
-                            <div class="market-score">${score}%</div>
+                            <div class="market-score">${(signal.score * 100).toFixed(0)}%</div>
                         </div>
-                        <div class="market-question">${signal.market?.question || 'Unknown market'}</div>
-                        <div class="market-metrics">
-                            <div class="metric">
-                                <div class="metric-label">EDGE</div>
-                                <div class="metric-value positive">+${edge}%</div>
+
+                        <div class="market-question">${signal.market.question}</div>
+
+                        <div class="market-stats">
+                            <div class="market-stat">
+                                <div class="market-stat-label">EDGE</div>
+                                <div class="market-stat-value" style="color: var(--green)">+${(signal.edge * 100).toFixed(1)}%</div>
                             </div>
-                            <div class="metric">
-                                <div class="metric-label">DIRECTION</div>
-                                <div class="metric-value neutral">${signal.direction || '--'}</div>
+                            <div class="market-stat">
+                                <div class="market-stat-label">DIRECTION</div>
+                                <div class="market-stat-value">${signal.direction}</div>
                             </div>
-                            <div class="metric">
-                                <div class="metric-label">VOLUME 24H</div>
-                                <div class="metric-value neutral">${volume}</div>
+                            <div class="market-stat">
+                                <div class="market-stat-label">VOLUME</div>
+                                <div class="market-stat-value">$${(signal.market.volume24h / 1000).toFixed(0)}K</div>
                             </div>
-                            <div class="metric">
-                                <div class="metric-label">LIQUIDITY</div>
-                                <div class="metric-value neutral">${liquidity}</div>
+                            <div class="market-stat">
+                                <div class="market-stat-label">KELLY</div>
+                                <div class="market-stat-value">$${signal.kellyBet?.toFixed(2) || '--'}</div>
                             </div>
                         </div>
-                        <div class="market-reasoning">${signal.reasoning || 'No analysis available'}</div>
+
+                        <div class="market-reasoning">${signal.reasoning}</div>
+
                         <div class="market-actions">
-                            <button class="action-btn yes" onclick="confirmTrade(${idx}, 'YES')">◉ BUY YES</button>
-                            <button class="action-btn no" onclick="confirmTrade(${idx}, 'NO')">◉ BUY NO</button>
-                            <button class="action-btn details" onclick="showDetails(${idx})">◈ DETAILS</button>
+                            <button class="btn primary" onclick="confirmTrade('${signal.id}', 'YES')">BUY YES</button>
+                            <button class="btn danger" onclick="confirmTrade('${signal.id}', 'NO')">BUY NO</button>
+                            <button class="btn" onclick="showDetails('${signal.id}')">DETAILS</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function renderResearch(data) {
-            const container = document.getElementById('research-list');
+        function renderPolls(polls) {
+            if (!polls || !polls.length) return;
 
-            // Remove empty state if exists
-            const emptyState = container.querySelector('.empty-state');
-            if (emptyState) {
-                emptyState.remove();
-            }
+            const poll = polls[0];
+            const parties = ['CDU/CSU', 'SPD', 'GRÜNE', 'AfD', 'FDP'];
+            const partyClasses = ['cdu', 'spd', 'gruene', 'afd', 'fdp'];
 
-            const card = document.createElement('div');
-            card.className = 'research-card';
-            card.innerHTML = `
-                <div class="research-header">
-                    <div class="research-source">
-                        <span>◈</span>
-                        <span>${data.source || 'Research'}</span>
+            const container = document.getElementById('polls-container');
+            container.innerHTML = parties.map((party, i) => {
+                const value = poll.results?.[party] || 0;
+                return `
+                    <div class="poll-bar-row poll-${partyClasses[i]}">
+                        <span class="poll-party">${party}</span>
+                        <div class="poll-bar-bg">
+                            <div class="poll-bar-fill" style="width: ${value * 2}%"></div>
+                        </div>
+                        <span class="poll-value">${value}%</span>
                     </div>
-                    <span class="research-time">${new Date().toLocaleTimeString('en-US', { hour12: false })}</span>
+                `;
+            }).join('');
+        }
+
+        function renderNews(news) {
+            const container = document.getElementById('news-feed');
+
+            if (!news || !news.length) {
+                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">No news available</p>';
+                return;
+            }
+
+            container.innerHTML = news.slice(0, 8).map(item => `
+                <div class="news-item">
+                    <div class="news-source">${item.data?.source || 'NEWS'}</div>
+                    <div class="news-title">${item.title}</div>
+                    ${item.url ? `<a href="${item.url}" target="_blank" class="news-link">→ Read more</a>` : ''}
                 </div>
-                <div class="research-title">${data.title}</div>
-                <div class="research-content">${data.content || ''}</div>
-                ${data.url ? `<a href="${data.url}" target="_blank" class="research-link">→ View source</a>` : ''}
-            `;
-
-            container.insertBefore(card, container.firstChild);
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        //                        UI HELPERS
-        // ═══════════════════════════════════════════════════════════════
-        function addLog(type, message) {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            const prefix = type.toUpperCase();
-
-            logs.unshift({ time, type, prefix, message });
-            logs = logs.slice(0, 200);
-
-            const container = document.getElementById('console');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `
-                <span class="log-time">[${time}]</span>
-                <span class="log-prefix ${type}">[${prefix}]</span>
-                <span class="log-message ${type === 'signal' ? 'highlight' : ''}">${message}</span>
-            `;
-
-            container.insertBefore(entry, container.firstChild);
-
-            // Keep only last 200 entries in DOM
-            while (container.children.length > 200) {
-                container.removeChild(container.lastChild);
-            }
-        }
-
-        function updateProgress(progress, current, total) {
-            const pct = Math.round(progress * 100);
-            document.getElementById('progress-pct').textContent = `${pct}%`;
-
-            const filled = Math.round(progress * 20);
-            const empty = 20 - filled;
-            const bar = document.getElementById('progress-bar');
-            bar.innerHTML = `<span class="progress-fill">${'█'.repeat(filled)}</span><span class="progress-empty">${'░'.repeat(empty)}</span>`;
-        }
-
-        function resetProgress() {
-            document.getElementById('progress-pct').textContent = '0%';
-            document.getElementById('progress-bar').innerHTML = `<span class="progress-fill"></span><span class="progress-empty">░░░░░░░░░░░░░░░░░░░░</span>`;
-        }
-
-        function updateStatus(id, text, type) {
-            const el = document.getElementById(id);
-            el.textContent = text;
-            el.className = 'panel-value ' + type;
-        }
-
-        function setStatusDot(id, status) {
-            const dot = document.getElementById(id);
-            dot.className = 'status-dot';
-            if (status === 'online') {
-                // Default green
-            } else if (status === 'warning') {
-                dot.classList.add('warning');
-            } else if (status === 'error') {
-                dot.classList.add('error');
-            }
-        }
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
+            `).join('');
         }
 
         // ═══════════════════════════════════════════════════════════════
         //                        TRADING
         // ═══════════════════════════════════════════════════════════════
-        function confirmTrade(idx, direction) {
-            const signal = signals[idx];
+        function confirmTrade(signalId, direction) {
+            const signal = signals.find(s => s.id === signalId);
             if (!signal) return;
-
-            const edge = ((signal.edge || 0) * 100).toFixed(1);
-            const price = direction === 'YES'
-                ? signal.market?.outcomes?.[0]?.price
-                : signal.market?.outcomes?.[1]?.price;
 
             document.getElementById('modal-body').innerHTML = `
-                <p style="color: var(--white); margin-bottom: 16px;">${signal.market?.question}</p>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-                    <div>
-                        <div style="font-size: 10px; color: var(--gray); margin-bottom: 4px;">DIRECTION</div>
-                        <div style="font-size: 14px; color: ${direction === 'YES' ? 'var(--green)' : 'var(--red)'};">${direction}</div>
+                <p style="color: var(--white); margin-bottom: 16px;">${signal.market.question}</p>
+                <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-dark);">
+                    <div class="panel-row">
+                        <span class="panel-label">Direction</span>
+                        <span class="panel-value">${direction}</span>
                     </div>
-                    <div>
-                        <div style="font-size: 10px; color: var(--gray); margin-bottom: 4px;">EDGE</div>
-                        <div style="font-size: 14px; color: var(--green);">+${edge}%</div>
+                    <div class="panel-row">
+                        <span class="panel-label">Edge</span>
+                        <span class="panel-value positive">+${(signal.edge * 100).toFixed(1)}%</span>
                     </div>
-                    <div>
-                        <div style="font-size: 10px; color: var(--gray); margin-bottom: 4px;">PRICE</div>
-                        <div style="font-size: 14px; color: var(--white);">$${(price || 0).toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 10px; color: var(--gray); margin-bottom: 4px;">KELLY BET</div>
-                        <div style="font-size: 14px; color: var(--white);">$${signal.kellyBet?.toFixed(2) || '10.00'}</div>
+                    <div class="panel-row">
+                        <span class="panel-label">Kelly Size</span>
+                        <span class="panel-value">$${signal.kellyBet?.toFixed(2) || '--'}</span>
                     </div>
                 </div>
-                <div class="modal-actions">
-                    <button class="action-btn yes" style="flex: 1;" onclick="executeTrade(${idx}, '${direction}')">◉ EXECUTE TRADE</button>
-                    <button class="action-btn details" style="flex: 1;" onclick="closeModal()">◇ CANCEL</button>
-                </div>
+                <button class="btn primary" style="width: 100%;" onclick="executeTrade('${signalId}', '${direction}')">
+                    EXECUTE TRADE
+                </button>
             `;
-            document.getElementById('modal-overlay').classList.add('open');
+            document.getElementById('trade-modal').classList.add('open');
         }
 
-        async function executeTrade(idx, direction) {
-            const signal = signals[idx];
-            if (!signal) return;
-
-            addLog('trade', `Executing ${direction} trade on ${signal.market?.question?.substring(0, 30)}...`);
-            closeModal();
-
+        async function executeTrade(signalId, direction) {
             try {
-                const result = await fetch(`/api/trade/${signal.id}`, {
+                addLog('info', `Executing ${direction} trade...`);
+                await fetch(`/api/trade/${signalId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ direction })
-                }).then(r => r.json());
-
-                if (result.success) {
-                    addLog('trade', `✓ Trade executed successfully`);
-                    const trades = parseInt(document.getElementById('total-trades').textContent) + 1;
-                    document.getElementById('total-trades').textContent = trades;
-                } else {
-                    addLog('error', `Trade failed: ${result.error || 'Unknown error'}`);
-                }
+                });
+                addLog('success', `Trade executed: ${direction}`);
+                closeModal();
             } catch (err) {
-                addLog('error', `Trade failed: ${err.message}`);
+                addLog('error', 'Trade failed: ' + err.message);
             }
         }
 
-        function showDetails(idx) {
-            const signal = signals[idx];
+        function showDetails(signalId) {
+            const signal = signals.find(s => s.id === signalId);
             if (!signal) return;
 
             document.getElementById('modal-body').innerHTML = `
-                <p style="color: var(--white); margin-bottom: 16px; font-size: 13px;">${signal.market?.question}</p>
-
+                <p style="color: var(--white); margin-bottom: 16px;">${signal.market.question}</p>
                 <div style="margin-bottom: 16px;">
-                    <div style="font-size: 10px; color: var(--gray); margin-bottom: 8px;">ANALYSIS</div>
-                    <div style="font-size: 11px; color: var(--green-dim); line-height: 1.5;">
-                        ${signal.reasoning || 'No detailed analysis available'}
-                    </div>
+                    <div class="research-header">ANALYSIS</div>
+                    <p style="color: var(--gray); font-size: 11px;">${signal.reasoning}</p>
                 </div>
-
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border);">
-                    <div>
-                        <div style="font-size: 9px; color: var(--gray);">SCORE</div>
-                        <div style="font-size: 16px; color: var(--green);">${((signal.score || 0) * 100).toFixed(0)}%</div>
+                <div style="padding: 12px; background: var(--bg-dark);">
+                    <div class="panel-row">
+                        <span class="panel-label">Score</span>
+                        <span class="panel-value">${(signal.score * 100).toFixed(0)}%</span>
                     </div>
-                    <div>
-                        <div style="font-size: 9px; color: var(--gray);">EDGE</div>
-                        <div style="font-size: 16px; color: var(--green);">+${((signal.edge || 0) * 100).toFixed(1)}%</div>
+                    <div class="panel-row">
+                        <span class="panel-label">Edge</span>
+                        <span class="panel-value positive">+${(signal.edge * 100).toFixed(1)}%</span>
                     </div>
-                    <div>
-                        <div style="font-size: 9px; color: var(--gray);">VOLUME 24H</div>
-                        <div style="font-size: 14px; color: var(--white);">$${(signal.market?.volume24h || 0).toLocaleString()}</div>
+                    <div class="panel-row">
+                        <span class="panel-label">Volume 24h</span>
+                        <span class="panel-value">$${signal.market.volume24h?.toLocaleString() || '--'}</span>
                     </div>
-                    <div>
-                        <div style="font-size: 9px; color: var(--gray);">CATEGORY</div>
-                        <div style="font-size: 14px; color: var(--white);">${signal.market?.category || 'Unknown'}</div>
+                    <div class="panel-row">
+                        <span class="panel-label">Category</span>
+                        <span class="panel-value">${signal.market.category || '--'}</span>
                     </div>
-                </div>
-
-                <div style="font-size: 10px; color: var(--gray-dim);">
-                    Market ID: ${signal.market?.id || 'N/A'}<br>
-                    End Date: ${signal.market?.endDate ? new Date(signal.market.endDate).toLocaleDateString() : 'N/A'}
                 </div>
             `;
-            document.getElementById('modal-overlay').classList.add('open');
+            document.getElementById('trade-modal').classList.add('open');
         }
 
         function closeModal() {
-            document.getElementById('modal-overlay').classList.remove('open');
+            document.getElementById('trade-modal').classList.remove('open');
         }
 
-        // Close modal on overlay click
-        document.getElementById('modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'modal-overlay') {
-                closeModal();
-            }
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-            if (e.key === 's' && e.ctrlKey) {
-                e.preventDefault();
-                launchScan();
-            }
+        // Close modal on outside click
+        document.getElementById('trade-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'trade-modal') closeModal();
         });
     </script>
 </body>
