@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>Polymarket Alpha Scanner</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           CSS VARIABLES
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: #1a1a1a;
+            --text-primary: #00ff00;
+            --text-secondary: #00cc00;
+            --text-dim: #008800;
+            --text-white: #ffffff;
+            --accent: #00ff00;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --success: #00ff00;
+            --border: #333333;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════════════════════════ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           LAYOUT
+           ═══════════════════════════════════════════════════════════════ */
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.scanning {
+            background: var(--warning);
+            animation: blink 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .refresh-btn:active {
+            background: var(--bg-card);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            overflow-x: auto;
+            scrollbar-width: none;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab {
+            flex: 0 0 auto;
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Main Content */
+        .content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           STATS GRID
+           ═══════════════════════════════════════════════════════════════ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .stat-value.positive {
+            color: var(--success);
+        }
+
+        .stat-value.negative {
+            color: var(--danger);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           SIGNAL CARDS
+           ═══════════════════════════════════════════════════════════════ */
+        .signals-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .signal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .signal-card.high-alpha {
+            border-color: var(--success);
+        }
+
+        .signal-card.german {
+            border-left: 3px solid #ffcc00;
+        }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .signal-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-dim);
+        }
+
+        .badge.german {
+            background: rgba(255, 204, 0, 0.2);
+            color: #ffcc00;
+        }
+
+        .badge.high {
+            background: rgba(0, 255, 0, 0.2);
+            color: var(--success);
+        }
+
+        .signal-score {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .signal-question {
+            font-size: 14px;
+            color: var(--text-white);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .signal-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: var(--text-dim);
+        }
+
+        .metric-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .signal-reasoning {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .signal-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-yes {
+            background: rgba(0, 255, 0, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .btn-no {
+            background: rgba(255, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-details {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           CONSOLE / LOG
+           ═══════════════════════════════════════════════════════════════ */
+        .console {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid var(--bg-secondary);
+        }
+
+        .log-time {
+            color: var(--text-dim);
+        }
+
+        .log-info { color: var(--text-primary); }
+        .log-warn { color: var(--warning); }
+        .log-error { color: var(--danger); }
+
+        /* ═══════════════════════════════════════════════════════════════
+           GERMANY TAB
+           ═══════════════════════════════════════════════════════════════ */
+        .poll-chart {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .poll-bar {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+
+        .poll-party {
+            width: 60px;
+            font-size: 12px;
+        }
+
+        .poll-bar-bg {
+            flex: 1;
+            height: 20px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .poll-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.3s;
+        }
+
+        .poll-value {
+            width: 50px;
+            text-align: right;
+            font-size: 12px;
+        }
+
+        /* Party Colors */
+        .party-cdu .poll-bar-fill { background: #000000; }
+        .party-spd .poll-bar-fill { background: #e3000f; }
+        .party-gruene .poll-bar-fill { background: #1fa12d; }
+        .party-fdp .poll-bar-fill { background: #ffed00; }
+        .party-afd .poll-bar-fill { background: #009ee0; }
+        .party-linke .poll-bar-fill { background: #be3075; }
+        .party-bsw .poll-bar-fill { background: #6e1e3d; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           SIDEBAR (Desktop)
+           ═══════════════════════════════════════════════════════════════ */
+        .sidebar {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            z-index: 200;
+            padding: 20px;
+            transform: translateX(-100%);
+            transition: transform 0.3s;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 199;
+        }
+
+        .sidebar-overlay.open {
+            display: block;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════════════════════════ */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            padding-bottom: calc(16px + var(--safe-bottom));
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+        }
+
+        .scan-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .scan-btn:disabled {
+            background: var(--text-dim);
+            cursor: not-allowed;
+        }
+
+        .scan-btn.scanning {
+            animation: pulse 1s infinite;
+        }
+
+        /* Platz für Footer */
+        .content {
+            padding-bottom: 100px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           RESPONSIVE - TABLET+
+           ═══════════════════════════════════════════════════════════════ */
+        @media (min-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .signals-list {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .signal-actions {
+                flex-wrap: nowrap;
+            }
+
+            .btn {
+                flex: 0 1 auto;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           RESPONSIVE - DESKTOP
+           ═══════════════════════════════════════════════════════════════ */
+        @media (min-width: 1024px) {
+            .menu-btn {
+                display: none;
+            }
+
+            .sidebar {
+                display: block;
+                transform: translateX(0);
+            }
+
+            .app {
+                margin-left: 280px;
+            }
+
+            .footer {
+                left: 280px;
+            }
+
+            .signals-list {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           LOADING & EMPTY STATES
+           ═══════════════════════════════════════════════════════════════ */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--text-dim);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           MODAL
+           ═══════════════════════════════════════════════════════════════ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 24px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar (Desktop) -->
+        <div class="sidebar" id="sidebar">
+            <h2 style="margin-bottom: 24px;">⚡ ALPHA SCANNER</h2>
+
+            <nav style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="#" class="nav-item" onclick="switchTab('dashboard')">📊 Dashboard</a>
+                <a href="#" class="nav-item" onclick="switchTab('signals')">🎯 Signale</a>
+                <a href="#" class="nav-item" onclick="switchTab('germany')">🇩🇪 Deutschland</a>
+                <a href="#" class="nav-item" onclick="switchTab('console')">💻 Konsole</a>
+                <a href="#" class="nav-item" onclick="switchTab('settings')">⚙️ Einstellungen</a>
+            </nav>
+
+            <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+                <div class="stat-card">
+                    <div class="stat-label">UPTIME</div>
+                    <div class="stat-value" id="sidebar-uptime">--:--:--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+                <span class="logo">⚡ ALPHA</span>
+                <div class="status-indicator">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">Bereit</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="refresh-btn" onclick="manualScan()">⟳</button>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="dashboard">Dashboard</button>
+            <button class="tab" data-tab="signals">Signale</button>
+            <button class="tab" data-tab="germany">🇩🇪 Deutschland</button>
+            <button class="tab" data-tab="console">Konsole</button>
+            <button class="tab" data-tab="settings">Einstellungen</button>
+        </div>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- Dashboard Tab -->
+            <div class="tab-content active" id="tab-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">SIGNALE HEUTE</div>
+                        <div class="stat-value" id="stat-signals">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">MÄRKTE</div>
+                        <div class="stat-value" id="stat-markets">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">SCANS</div>
+                        <div class="stat-value" id="stat-scans">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">LETZTER SCAN</div>
+                        <div class="stat-value" id="stat-last-scan" style="font-size: 16px;">--:--</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 12px;">🔥 Top Signale</h3>
+                <div class="signals-list" id="top-signals">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Lade Signale...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signals Tab -->
+            <div class="tab-content" id="tab-signals">
+                <div class="signals-list" id="all-signals">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <p>Noch keine Signale</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Starte einen Scan um Alpha zu finden</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Germany Tab -->
+            <div class="tab-content" id="tab-germany">
+                <h3 style="margin-bottom: 12px;">📊 Aktuelle Wahlumfrage</h3>
+                <div class="poll-chart" id="poll-chart">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Lade Umfragen...
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 12px;">📰 Deutsche News</h3>
+                <div id="german-news">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Lade News...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console Tab -->
+            <div class="tab-content" id="tab-console">
+                <div class="console" id="console-log">
+                    <div class="log-entry">
+                        <span class="log-time">[--:--:--]</span>
+                        <span class="log-info">System wird gestartet...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="tab-settings">
+                <div class="stat-card" style="margin-bottom: 12px;">
+                    <h4 style="margin-bottom: 12px;">Scanner Einstellungen</h4>
+                    <p style="color: var(--text-dim); font-size: 12px;">
+                        Intervall: 5 Minuten<br>
+                        Min. Volume: $100.000<br>
+                        Kategorien: Politik, Wirtschaft
+                    </p>
+                </div>
+
+                <div class="stat-card" style="margin-bottom: 12px;">
+                    <h4 style="margin-bottom: 12px;">Trading</h4>
+                    <p style="color: var(--text-dim); font-size: 12px;">
+                        Max. Einsatz: $10<br>
+                        Risiko/Trade: 10%<br>
+                        Bestätigung: Erforderlich
+                    </p>
+                </div>
+
+                <div class="stat-card">
+                    <h4 style="margin-bottom: 12px;">Deutschland-Modus</h4>
+                    <p style="color: var(--text-dim); font-size: 12px;">
+                        Status: Aktiv<br>
+                        Min. Edge: 10%<br>
+                        Auto-Trade: Deaktiviert
+                    </p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer with Scan Button -->
+        <footer class="footer">
+            <button class="scan-btn" id="scan-btn" onclick="manualScan()">
+                ▶ SCAN STARTEN
+            </button>
+        </footer>
+    </div>
+
+    <!-- Trade Confirmation Modal -->
+    <div class="modal" id="trade-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Trade bestätigen</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        // ═══════════════════════════════════════════════════════════════
+        //                        STATE
+        // ═══════════════════════════════════════════════════════════════
+        let socket = null;
+        let isScanning = false;
+        let signals = [];
+        let logs = [];
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        INIT
+        // ═══════════════════════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', () => {
+            initSocket();
+            initTabs();
+            loadInitialData();
+            startUptimeCounter();
+        });
+
+        function initSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                addLog('info', 'WebSocket verbunden');
+                updateStatus('Verbunden', false);
+            });
+
+            socket.on('disconnect', () => {
+                addLog('warn', 'WebSocket getrennt');
+                updateStatus('Getrennt', false);
+            });
+
+            socket.on('scan_started', () => {
+                isScanning = true;
+                updateStatus('Scannt...', true);
+                addLog('info', 'Scan gestartet');
+            });
+
+            socket.on('scan_completed', (result) => {
+                isScanning = false;
+                updateStatus('Bereit', false);
+                handleScanResult(result);
+            });
+
+            socket.on('signal_found', (signal) => {
+                addLog('info', `Signal: ${signal.market.question.substring(0, 40)}...`);
+                showNotification(signal);
+            });
+
+            socket.on('error', (err) => {
+                addLog('error', err.message);
+            });
+        }
+
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.dataset.tab;
+                    switchTab(tabId);
+                });
+            });
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`.tab[data-tab="${tabId}"]`)?.classList.add('active');
+            document.getElementById(`tab-${tabId}`)?.classList.add('active');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        DATA LOADING
+        // ═══════════════════════════════════════════════════════════════
+        async function loadInitialData() {
+            try {
+                const [status, signalsData, polls, news] = await Promise.all([
+                    fetch('/api/status').then(r => r.json()),
+                    fetch('/api/signals').then(r => r.json()),
+                    fetch('/api/germany/polls').then(r => r.json()),
+                    fetch('/api/germany/news').then(r => r.json())
+                ]);
+
+                updateStats(status);
+                renderSignals(signalsData);
+                renderPolls(polls);
+                renderNews(news);
+                addLog('info', 'Dashboard geladen');
+            } catch (err) {
+                addLog('error', 'Laden fehlgeschlagen: ' + err.message);
+            }
+        }
+
+        async function manualScan() {
+            if (isScanning) return;
+
+            const btn = document.getElementById('scan-btn');
+            btn.disabled = true;
+            btn.textContent = '⟳ SCANNT...';
+            btn.classList.add('scanning');
+
+            try {
+                const result = await fetch('/api/scan', { method: 'POST' }).then(r => r.json());
+                handleScanResult(result);
+            } catch (err) {
+                addLog('error', 'Scan fehlgeschlagen: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶ SCAN STARTEN';
+                btn.classList.remove('scanning');
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        RENDERING
+        // ═══════════════════════════════════════════════════════════════
+        function handleScanResult(result) {
+            signals = result.signalsFound || [];
+
+            document.getElementById('stat-signals').textContent = signals.length;
+            document.getElementById('stat-markets').textContent = result.marketsScanned || 0;
+            document.getElementById('stat-scans').textContent =
+                (parseInt(document.getElementById('stat-scans').textContent) || 0) + 1;
+            document.getElementById('stat-last-scan').textContent =
+                new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+            renderSignals(signals);
+            addLog('info', `Scan: ${result.marketsScanned} Märkte, ${signals.length} Signale`);
+        }
+
+        function renderSignals(signalsList) {
+            const topContainer = document.getElementById('top-signals');
+            const allContainer = document.getElementById('all-signals');
+
+            if (!signalsList || signalsList.length === 0) {
+                topContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <p>Keine Signale gefunden</p>
+                    </div>
+                `;
+                allContainer.innerHTML = topContainer.innerHTML;
+                return;
+            }
+
+            const html = signalsList.map(signal => createSignalCard(signal)).join('');
+            topContainer.innerHTML = signalsList.slice(0, 3).map(s => createSignalCard(s)).join('');
+            allContainer.innerHTML = html;
+        }
+
+        function createSignalCard(signal) {
+            const isGerman = signal.germanSource !== undefined;
+            const isHigh = signal.score > 0.7;
+
+            return `
+                <div class="signal-card ${isHigh ? 'high-alpha' : ''} ${isGerman ? 'german' : ''}">
+                    <div class="signal-header">
+                        <div class="signal-badges">
+                            ${isGerman ? '<span class="badge german">🇩🇪 DE</span>' : ''}
+                            ${isHigh ? '<span class="badge high">HIGH ALPHA</span>' : ''}
+                            <span class="badge">${signal.market.category}</span>
+                        </div>
+                        <div class="signal-score">${(signal.score * 100).toFixed(0)}%</div>
+                    </div>
+
+                    <div class="signal-question">${signal.market.question}</div>
+
+                    <div class="signal-metrics">
+                        <div class="metric">
+                            <div class="metric-label">EDGE</div>
+                            <div class="metric-value positive">+${(signal.edge * 100).toFixed(1)}%</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">DIRECTION</div>
+                            <div class="metric-value">${signal.direction}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">VOLUME</div>
+                            <div class="metric-value">$${(signal.market.volume24h / 1000).toFixed(0)}K</div>
+                        </div>
+                    </div>
+
+                    <div class="signal-reasoning">${signal.reasoning}</div>
+
+                    <div class="signal-actions">
+                        <button class="btn btn-yes" onclick="confirmTrade('${signal.id}', 'YES')">✓ YES</button>
+                        <button class="btn btn-no" onclick="confirmTrade('${signal.id}', 'NO')">✗ NO</button>
+                        <button class="btn btn-details" onclick="showDetails('${signal.id}')">Details</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPolls(polls) {
+            const container = document.getElementById('poll-chart');
+
+            if (!polls || polls.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-dim);">Keine Umfragen verfügbar</p>';
+                return;
+            }
+
+            const poll = polls[0];
+            const sortedResults = Object.entries(poll.results)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 7);
+
+            let html = `<div style="font-size: 12px; color: var(--text-dim); margin-bottom: 12px;">
+                ${poll.institute} | ${poll.date}
+            </div>`;
+
+            for (const [party, value] of sortedResults) {
+                const partyClass = party.toLowerCase().replace(/[^a-z]/g, '');
+                html += `
+                    <div class="poll-bar party-${partyClass}">
+                        <span class="poll-party">${party}</span>
+                        <div class="poll-bar-bg">
+                            <div class="poll-bar-fill" style="width: ${value * 2}%"></div>
+                        </div>
+                        <span class="poll-value">${value}%</span>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function renderNews(news) {
+            const container = document.getElementById('german-news');
+
+            if (!news || news.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-dim);">Keine News verfügbar</p>';
+                return;
+            }
+
+            const html = news.slice(0, 5).map(item => `
+                <div class="stat-card" style="margin-bottom: 8px;">
+                    <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">
+                        ${item.data?.source || 'News'}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-white);">
+                        ${item.title}
+                    </div>
+                    ${item.url ? `<a href="${item.url}" target="_blank" style="font-size: 11px; color: var(--accent);">→ Artikel lesen</a>` : ''}
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        UI HELPERS
+        // ═══════════════════════════════════════════════════════════════
+        function updateStatus(text, scanning) {
+            document.getElementById('status-text').textContent = text;
+            const dot = document.getElementById('status-dot');
+            if (scanning) {
+                dot.classList.add('scanning');
+            } else {
+                dot.classList.remove('scanning');
+            }
+        }
+
+        function updateStats(status) {
+            document.getElementById('stat-signals').textContent = status.signalsToday || 0;
+            document.getElementById('stat-scans').textContent = status.totalScans || 0;
+            if (status.lastScan) {
+                document.getElementById('stat-last-scan').textContent =
+                    new Date(status.lastScan).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            }
+        }
+
+        function addLog(level, message) {
+            const time = new Date().toLocaleTimeString('de-DE');
+            const entry = { time, level, message };
+            logs.unshift(entry);
+            logs = logs.slice(0, 100);
+
+            const container = document.getElementById('console-log');
+            const html = logs.map(log => `
+                <div class="log-entry">
+                    <span class="log-time">[${log.time}]</span>
+                    <span class="log-${log.level}">${log.message}</span>
+                </div>
+            `).join('');
+            container.innerHTML = html;
+        }
+
+        function startUptimeCounter() {
+            const start = Date.now();
+            setInterval(() => {
+                const elapsed = Math.floor((Date.now() - start) / 1000);
+                const h = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+                const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+                const s = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('sidebar-uptime').textContent = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        SIDEBAR
+        // ═══════════════════════════════════════════════════════════════
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('open');
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        TRADING
+        // ═══════════════════════════════════════════════════════════════
+        function confirmTrade(signalId, direction) {
+            const signal = signals.find(s => s.id === signalId);
+            if (!signal) return;
+
+            document.getElementById('modal-body').innerHTML = `
+                <p style="margin-bottom: 16px;">${signal.market.question}</p>
+                <p style="margin-bottom: 16px;">
+                    <strong>Richtung:</strong> ${direction}<br>
+                    <strong>Edge:</strong> +${(signal.edge * 100).toFixed(1)}%
+                </p>
+                <button class="btn btn-yes" style="width: 100%;" onclick="executeTrade('${signalId}', '${direction}')">
+                    ✓ Trade ausführen
+                </button>
+            `;
+            document.getElementById('trade-modal').classList.add('open');
+        }
+
+        async function executeTrade(signalId, direction) {
+            try {
+                await fetch(`/api/trade/${signalId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ direction })
+                });
+                addLog('info', `Trade ${direction} ausgeführt`);
+                closeModal();
+            } catch (err) {
+                addLog('error', 'Trade fehlgeschlagen: ' + err.message);
+            }
+        }
+
+        function showDetails(signalId) {
+            const signal = signals.find(s => s.id === signalId);
+            if (!signal) return;
+
+            document.getElementById('modal-body').innerHTML = `
+                <h4 style="margin-bottom: 12px;">${signal.market.question}</h4>
+
+                <div style="margin-bottom: 16px;">
+                    <strong>Analyse:</strong><br>
+                    <p style="color: var(--text-dim);">${signal.reasoning}</p>
+                </div>
+
+                <div class="stats-grid" style="margin-bottom: 16px;">
+                    <div class="stat-card">
+                        <div class="stat-label">SCORE</div>
+                        <div class="stat-value">${(signal.score * 100).toFixed(0)}%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">EDGE</div>
+                        <div class="stat-value positive">+${(signal.edge * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+
+                <div style="font-size: 12px; color: var(--text-dim);">
+                    <strong>Markt-Daten:</strong><br>
+                    Volume 24h: $${signal.market.volume24h.toLocaleString()}<br>
+                    Kategorie: ${signal.market.category}<br>
+                    Endet: ${signal.market.endDate || 'Unbekannt'}
+                </div>
+            `;
+            document.getElementById('trade-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('trade-modal').classList.remove('open');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //                        NOTIFICATIONS
+        // ═══════════════════════════════════════════════════════════════
+        function showNotification(signal) {
+            if (!('Notification' in window)) return;
+
+            if (Notification.permission === 'granted') {
+                new Notification('🎯 Alpha Signal', {
+                    body: signal.market.question.substring(0, 100),
+                    icon: '/icon-192.png',
+                    tag: signal.id
+                });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+        }
+
+        // Request notification permission on load
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>

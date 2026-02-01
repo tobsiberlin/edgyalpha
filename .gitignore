@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Session files (sensitive!)
+.claude-session.json
+.perplexity-session.json
+*.session.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Reports (generated)
+reports/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Playwright
+playwright-report/
+test-results/
+
+# PM2
+.pm2/
+
+# Misc
+*.tgz
+*.tar.gz

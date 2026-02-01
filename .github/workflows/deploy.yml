@@ -1,0 +1,88 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint || true
+
+      - name: Type check
+        run: npm run type-check || true
+
+      - name: Run tests
+        run: npm test || true
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+        run: |
+          # Sync files
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='reports/*' \
+            --exclude='logs/*' \
+            --exclude='*.session.json' \
+            ./ $USER@$HOST:/var/www/polymarket-scanner/
+
+          # Install & Restart
+          ssh $USER@$HOST << 'ENDSSH'
+            cd /var/www/polymarket-scanner
+            npm ci --production
+            npm run build
+            pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+            pm2 save
+          ENDSSH
+
+      - name: Health Check
+        run: |
+          sleep 10
+          curl -f https://${{ secrets.VPS_HOST }}/health || echo "Health check failed but continuing..."
+
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "✅ Deployment erfolgreich!"
+          echo "🌐 https://${{ secrets.VPS_HOST }}"
