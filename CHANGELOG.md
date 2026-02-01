@@ -7,6 +7,56 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [2.0.0] - 2026-02-01
+
+### Hinzugefügt
+- **EVENT-DRIVEN ALMAN SCANNER**
+  - 60-Sekunden-Polling statt 5 Minuten
+  - Delta-Detection: Nur NEUE News emittieren Events
+  - `breaking_news` Events für sofortige Alerts
+  - Automatischer Start bei System-Boot
+
+- **LIVE NEWS TICKER - DAUERFEUER MODUS** (`src/ticker/index.ts`)
+  - Echtzeit-News-Matching gegen alle Polymarket-Märkte
+  - ASCII-Balken zeigen Match-Stärke: `████████░░ 80% MATCH!`
+  - Statistiken: News verarbeitet, Matches gefunden, Latenz
+  - WebSocket-Events für Live-Updates
+
+- **ALPHA GENERATOR v2.0** (`src/scanner/alpha.ts`)
+  - ALLE 188+ RSS-Quellen werden jetzt für Alpha genutzt (DE + International)
+  - Sentiment-Analyse (Bullish/Bearish Keywords)
+  - Impact-Score (Breaking News = Extra Boost!)
+  - Levenshtein Fuzzy-Matching für Namen
+  - Named Entity Extraction
+  - Fresh News Boost (< 30 Min = Gold!)
+  - Phrase Matching für bessere Relevanz
+
+- **188+ RSS FEEDS** erweitert
+  - Deutsche Politik: Tagesschau, Spiegel, Zeit, FAZ, Welt, Focus, Stern, Bild
+  - Wirtschaft: Handelsblatt, Bloomberg, CNBC, WSJ, FT, Reuters
+  - Sport: Kicker, Sport1, Transfermarkt, ESPN, Sky Sports
+  - Geopolitik: Reuters, BBC, Guardian, Al Jazeera, Kyiv Independent
+  - Ukraine/Russland: Meduza, Moscow Times, ISW, RFERL
+  - Tech/Crypto: Heise, TechCrunch, CoinDesk, The Verge
+
+- **WEB LIVE TICKER TAB**
+  - Neuer "LIVE TICKER" Tab im Dashboard
+  - Echtzeit-Updates via WebSocket
+  - ASCII-Art Match-Balken
+  - Stats: News, Matches, Latenz
+
+- **TELEGRAM LIVE TICKER**
+  - "📡 LIVE TICKER" Button im Hauptmenü
+  - Breaking News Alerts bei relevanten News
+  - Statistiken im Telegram-Format
+
+### Geändert
+- Scanner nutzt jetzt `newsAlpha` für jeden Markt
+- Alpha-Score Berechnung komplett überarbeitet
+- Mehr News-Quellen = Mehr Alpha-Potential
+
+---
+
 ## [1.8.0] - 2026-02-01
 
 ### Behoben

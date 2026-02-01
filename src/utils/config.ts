@@ -25,7 +25,7 @@ const envSchema = z.object({
   KELLY_FRACTION: z.string().default('0.25'),
   TRADING_ENABLED: z.string().default('true'),
   REQUIRE_CONFIRMATION: z.string().default('true'),
-  MIN_ALPHA_FOR_TRADE: z.string().default('0.5'),
+  MIN_ALPHA_FOR_TRADE: z.string().default('0.15'),
 
   // Scanner
   SCAN_INTERVAL_MS: z.string().default('300000'),
@@ -35,7 +35,7 @@ const envSchema = z.object({
   // Germany
   GERMANY_MODE_ENABLED: z.string().default('true'),
   GERMANY_AUTO_TRADE: z.string().default('false'),
-  GERMANY_MIN_EDGE: z.string().default('0.10'),
+  GERMANY_MIN_EDGE: z.string().default('0.05'),
   BUNDESTAG_API_KEY: z.string().optional(),
   DAWUM_ENABLED: z.string().default('true'),
   BUNDESTAG_ENABLED: z.string().default('true'),

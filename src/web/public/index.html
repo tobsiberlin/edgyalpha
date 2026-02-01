@@ -898,9 +898,35 @@
         <!-- Main Content -->
         <main class="main">
             <div class="tabs">
+                <button class="tab" data-tab="ticker">LIVE TICKER</button>
                 <button class="tab active" data-tab="console">KONSOLE</button>
                 <button class="tab" data-tab="markets">MÄRKTE</button>
                 <button class="tab" data-tab="research">ALMANIEN</button>
+            </div>
+
+            <!-- Live Ticker Tab -->
+            <div class="tab-content" id="tab-ticker">
+                <div class="console" id="ticker-feed" style="font-size: 10px;">
+                    <div class="ascii-loader" id="ticker-loader">
+<pre style="color: var(--green); font-size: 9px;">
+╔════════════════════════════════════════════════════════════════════╗
+║     🔥 LIVE TICKER - DAUERFEUER MODUS 🔥                           ║
+║     188+ RSS Feeds | 60s Polling | Echtzeit-Matching               ║
+╚════════════════════════════════════════════════════════════════════╝
+</pre>
+                        <p>Warte auf News-Events...</p>
+                    </div>
+                </div>
+                <div style="padding: 8px 12px; background: var(--bg-card); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 10px; color: var(--gray);">
+                        <span>News: <span id="ticker-news-count" style="color: var(--green);">0</span></span>
+                        <span style="margin-left: 16px;">Matches: <span id="ticker-match-count" style="color: var(--green);">0</span></span>
+                        <span style="margin-left: 16px;">Ø Latenz: <span id="ticker-latency" style="color: var(--green);">--</span></span>
+                    </div>
+                    <div style="font-size: 10px;">
+                        <span id="ticker-status" style="color: var(--green);">● LIVE</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Console Tab -->
@@ -1099,6 +1125,99 @@
             socket.on('error', (err) => {
                 addLog('error', err.message);
             });
+
+            // ═══════════════════════════════════════════════════════════════
+            //                    LIVE TICKER EVENTS
+            // ═══════════════════════════════════════════════════════════════
+            socket.on('ticker', (event) => {
+                handleTickerEvent(event);
+            });
+        }
+
+        // Ticker State
+        let tickerStats = { newsProcessed: 0, matchesFound: 0, avgMatchTime: 0 };
+
+        function handleTickerEvent(event) {
+            const feed = document.getElementById('ticker-feed');
+            const loader = document.getElementById('ticker-loader');
+            if (loader) loader.style.display = 'none';
+
+            // Update Stats
+            if (event.type === 'match_found' || event.type === 'no_match') {
+                tickerStats.newsProcessed++;
+                if (event.type === 'match_found') tickerStats.matchesFound++;
+                if (event.matchAttempt?.timeMs) {
+                    tickerStats.avgMatchTime = (tickerStats.avgMatchTime * (tickerStats.newsProcessed - 1) + event.matchAttempt.timeMs) / tickerStats.newsProcessed;
+                }
+                document.getElementById('ticker-news-count').textContent = tickerStats.newsProcessed;
+                document.getElementById('ticker-match-count').textContent = tickerStats.matchesFound;
+                document.getElementById('ticker-latency').textContent = Math.round(tickerStats.avgMatchTime) + 'ms';
+            }
+
+            // Format Ticker Entry
+            const time = new Date(event.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.borderLeft = event.type === 'match_found' ? '3px solid var(--green)' :
+                                    event.type === 'no_match' ? '3px solid var(--gray-dark)' : '3px solid var(--cyan)';
+
+            if (event.type === 'news_in') {
+                entry.innerHTML = `
+                    <span class="log-time">[${time}]</span>
+                    <span class="log-level info" style="width: 20px;">📰</span>
+                    <span class="log-message">
+                        <span style="color: var(--cyan);">${event.source}</span>: ${event.title.substring(0, 60)}...
+                    </span>
+                `;
+            } else if (event.type === 'matching') {
+                entry.innerHTML = `
+                    <span class="log-time">[${time}]</span>
+                    <span class="log-level warn" style="width: 20px;">🔍</span>
+                    <span class="log-message">
+                        Matching gegen ${event.matchAttempt?.marketsSearched || 0} Märkte...
+                        <span style="color: var(--gray);">[${(event.keywords || []).slice(0, 3).join(', ')}]</span>
+                    </span>
+                `;
+            } else if (event.type === 'match_found') {
+                const topMatch = event.matchResult?.markets?.[0];
+                const matchBar = createMatchBar(topMatch?.matchScore || 0);
+                entry.innerHTML = `
+                    <span class="log-time">[${time}]</span>
+                    <span class="log-level success" style="width: 20px;">✅</span>
+                    <span class="log-message">
+                        <span style="color: var(--green); font-family: monospace;">${matchBar}</span>
+                        <span style="color: var(--green); font-weight: bold;"> MATCH!</span>
+                        <span style="color: var(--white);">${(topMatch?.matchScore * 100).toFixed(0)}%</span>
+                        → ${topMatch?.question?.substring(0, 40) || ''}...
+                        <span style="color: var(--gray);">(${event.matchAttempt?.timeMs}ms)</span>
+                    </span>
+                `;
+            } else if (event.type === 'no_match') {
+                const emptyBar = '░░░░░░░░░░';
+                entry.innerHTML = `
+                    <span class="log-time">[${time}]</span>
+                    <span class="log-level" style="width: 20px; color: var(--gray);">❌</span>
+                    <span class="log-message" style="color: var(--gray);">
+                        <span style="font-family: monospace;">${emptyBar}</span>
+                        kein Match
+                        <span style="color: var(--gray-dark);">(${event.matchAttempt?.timeMs}ms)</span>
+                    </span>
+                `;
+            }
+
+            feed.appendChild(entry);
+
+            // Keep only last 100 entries
+            while (feed.children.length > 100) {
+                feed.removeChild(feed.firstChild);
+            }
+
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        function createMatchBar(score) {
+            const filled = Math.round(score * 10);
+            return '█'.repeat(filled) + '░'.repeat(10 - filled);
         }
 
         function initTabs() {

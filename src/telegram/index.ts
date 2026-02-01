@@ -1,9 +1,11 @@
 import TelegramBot, { InlineKeyboardButton, InlineKeyboardMarkup } from 'node-telegram-bot-api';
-import { config, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
+import { config, WALLET_PRIVATE_KEY } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { AlphaSignal, TradeRecommendation, ScanResult } from '../types/index.js';
 import { scanner } from '../scanner/index.js';
 import { tradingClient } from '../api/trading.js';
+import { germanySources, BreakingNewsEvent } from '../germany/index.js';
+import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { EventEmitter } from 'events';
 
 // ═══════════════════════════════════════════════════════════════
@@ -11,10 +13,20 @@ import { EventEmitter } from 'events';
 //         Mit Almanien-Vorsprung | Kein Gelaber, nur Alpha
 // ═══════════════════════════════════════════════════════════════
 
+// Runtime-Settings (änderbar via Telegram)
+const runtimeSettings = {
+  maxBet: 10,
+  risk: 10,
+  minEdge: 5,
+  minAlpha: 15,
+  minVolume: 5000,
+};
+
 export class TelegramAlertBot extends EventEmitter {
   private bot: TelegramBot | null = null;
   private chatId: string;
   private pendingTrades: Map<string, TradeRecommendation> = new Map();
+  private editingField: string | null = null; // Welches Feld wird gerade bearbeitet?
 
   constructor() {
     super();
@@ -122,10 +134,11 @@ ${this.DIVIDER}
           { text: '💰 Kriegskasse', callback_data: 'action:wallet' },
         ],
         [
-          { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
+          { text: '📡 LIVE TICKER', callback_data: 'action:ticker' },
           { text: '📰 Almanien News', callback_data: 'action:news' },
         ],
         [
+          { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
           { text: '⚙️ Einstellungen', callback_data: 'action:settings' },
         ],
       ],
@@ -222,6 +235,16 @@ ${this.DIVIDER}
     this.bot.onText(/\/signals/, async (msg) => {
       await this.handleSignals(msg.chat.id.toString());
     });
+
+    // Text-Input für Einstellungen
+    this.bot.on('message', async (msg) => {
+      // Ignoriere Commands
+      if (msg.text?.startsWith('/')) return;
+      // Nur wenn wir im Edit-Modus sind
+      if (this.editingField && msg.text) {
+        await this.handleTextInput(msg.text, msg.chat.id.toString());
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -262,6 +285,18 @@ ${this.DIVIDER}
           case 'research':
             await this.handleResearch(params[0], chatId);
             break;
+          case 'setting':
+            await this.handleSettingChange(params[0], chatId, query.message?.message_id);
+            break;
+          case 'setval':
+            await this.handleSetValue(params[0], params[1], chatId, query.message?.message_id);
+            break;
+          case 'edit':
+            await this.handleEdit(params[0], chatId, query.message?.message_id);
+            break;
+          case 'noop':
+            // Nichts tun - dekorative Buttons
+            break;
         }
       } catch (err) {
         const error = err as Error;
@@ -292,6 +327,9 @@ ${this.DIVIDER}
         break;
       case 'news':
         await this.handleNews(chatId, messageId);
+        break;
+      case 'ticker':
+        await this.handleTicker(chatId, messageId);
         break;
       case 'settings':
         await this.handleSettings(chatId, messageId);
@@ -477,60 +515,69 @@ Tippe auf ein Signal für Details:`;
   }
 
   private async handleWallet(chatId: string, messageId?: number): Promise<void> {
-    let balanceInfo: string;
-    let addressInfo: string;
+    // Live Balance holen
+    const balance = await tradingClient.getWalletBalance();
+    const walletAddr = tradingClient.getWalletAddress();
 
-    if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
-      balanceInfo = `│  ⚠️  WALLET NICHT KONFIGURIERT  │
-├─────────────────────────────────┤
-│  Setze WALLET_PRIVATE_KEY       │
-│  und WALLET_ADDRESS in .env     │`;
-      addressInfo = 'N/A';
+    let statusEmoji = '🟢';
+    let statusText = 'Verbunden';
+    let shortAddr = 'Nicht konfiguriert';
+
+    if (!walletAddr) {
+      statusEmoji = '🔴';
+      statusText = 'Offline';
     } else {
-      try {
-        const balance = await tradingClient.getWalletBalance();
-        const shortAddr = `${WALLET_ADDRESS.substring(0, 6)}...${WALLET_ADDRESS.substring(38)}`;
-        balanceInfo = `│  USDC:      $${balance.usdc.toFixed(2).padStart(8, ' ')}         │
-│  MATIC:     ${balance.matic.toFixed(4).padStart(9, ' ')}         │`;
-        addressInfo = shortAddr;
-      } catch {
-        balanceInfo = `│  ⚠️  FEHLER BEIM LADEN          │`;
-        addressInfo = 'Fehler';
+      shortAddr = `${walletAddr.slice(0, 6)}...${walletAddr.slice(-4)}`;
+      if (balance.usdc === 0 && balance.matic === 0) {
+        statusEmoji = '🟡';
+        statusText = 'Leer';
       }
     }
 
     const message = `${this.HEADER}
 
-💰 *WALLET*
+💰 *KRIEGSKASSE*
 
 ${this.DIVIDER}
 
 \`\`\`
-┌─────────────────────────────────┐
-│  BALANCE                        │
-├─────────────────────────────────┤
-${balanceInfo}
-└─────────────────────────────────┘
+┌──────────────────────────┐
+│ ${statusEmoji} ${statusText.padEnd(22)}│
+├──────────────────────────┤
+│ USDC:  $${balance.usdc.toFixed(2).padStart(10)}    │
+│ MATIC: ${balance.matic.toFixed(4).padStart(11)}    │
+├──────────────────────────┤
+│ ${shortAddr.padEnd(24)}│
+└──────────────────────────┘
+\`\`\`
 
-┌─────────────────────────────────┐
-│  ADRESSE                        │
-├─────────────────────────────────┤
-│  ${addressInfo.padEnd(20, ' ')}            │
-└─────────────────────────────────┘
+${this.DIVIDER}
 
-┌─────────────────────────────────┐
-│  TRADING CONFIG                 │
-├─────────────────────────────────┤
-│  Max Bet:   $${String(config.trading.maxBetUsdc).padStart(8, ' ')}         │
-│  Risiko:    ${String(config.trading.riskPerTradePercent).padStart(8, ' ')}%        │
-│  Kelly:     ${String(config.trading.kellyFraction * 100).padStart(8, ' ')}%        │
-└─────────────────────────────────┘
+\`\`\`
+┌──────────────────────────┐
+│ TRADING CONFIG           │
+├──────────────────────────┤
+│ Max Bet:  $${String(config.trading.maxBetUsdc).padStart(6)}       │
+│ Risiko:   ${String(config.trading.riskPerTradePercent).padStart(5)}%       │
+│ Kelly:    ${(config.trading.kellyFraction * 100).toFixed(0).padStart(5)}%       │
+└──────────────────────────┘
 \`\`\``;
 
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: '🔄 Aktualisieren', callback_data: 'action:wallet' }],
+        [
+          { text: '💵 Max Bet', callback_data: 'setting:maxbet' },
+          { text: '📊 Risiko', callback_data: 'setting:risk' },
+        ],
+        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+      ],
+    };
+
     if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getBackButton());
+      await this.editMessage(chatId, messageId, message, keyboard);
     } else {
-      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
     }
   }
 
@@ -610,44 +657,194 @@ ${this.DIVIDER}`;
     }
   }
 
-  private async handleSettings(chatId: string, messageId?: number): Promise<void> {
+  // ═══════════════════════════════════════════════════════════════
+  //                    LIVE TICKER - DAUERFEUER
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleTicker(chatId: string, messageId?: number): Promise<void> {
+    const stats = newsTicker.getStats();
+    const recentTicks = newsTicker.getRecentTicks(10);
+
+    // ASCII-Art Ticker formatieren
+    const tickerDisplay = newsTicker.formatTelegramTicker(recentTicks);
+
+    // Stats-Balken
+    const matchRate = stats.newsProcessed > 0
+      ? Math.round((stats.matchesFound / stats.newsProcessed) * 100)
+      : 0;
+    const matchBar = '█'.repeat(Math.round(matchRate / 10)) + '░'.repeat(10 - Math.round(matchRate / 10));
+
     const message = `${this.HEADER}
 
-⚙️ *EINSTELLUNGEN*
+📡 *LIVE TICKER - DAUERFEUER*
+
+${tickerDisplay}
 
 ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  SCANNER                        │
+│  STATISTIKEN                    │
 ├─────────────────────────────────┤
-│  Intervall:    5 Minuten        │
-│  Min Volume:   $100,000         │
-│  Kategorien:   Politik, Wirt.   │
+│  News verarbeitet: ${String(stats.newsProcessed).padStart(6)}     │
+│  Matches gefunden: ${String(stats.matchesFound).padStart(6)}     │
+│  Alpha Signale:    ${String(stats.alphaSignals).padStart(6)}     │
+├─────────────────────────────────┤
+│  Match-Rate: ${matchBar} ${matchRate}% │
+│  Ø Latenz:   ${String(Math.round(stats.avgMatchTime)).padStart(4)}ms             │
+│  Märkte im Cache: ${String(newsTicker.getMarketCount()).padStart(6)}     │
 └─────────────────────────────────┘
+\`\`\`
 
-┌─────────────────────────────────┐
-│  DEUTSCHLAND                    │
-├─────────────────────────────────┤
-│  Modus:        Nur Alerts       │
-│  Min Edge:     10%              │
-│  Auto-Trade:   Aus              │
-└─────────────────────────────────┘
+_Auto-Update alle 60 Sekunden_`;
 
-┌─────────────────────────────────┐
-│  TRADING                        │
-├─────────────────────────────────┤
-│  Max Bet:      $10              │
-│  Risiko:       10%              │
-│  Bestätigung:  Erforderlich     │
-└─────────────────────────────────┘
-\`\`\``;
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '🔄 Aktualisieren', callback_data: 'action:ticker' },
+        ],
+        [
+          { text: '◀️ Zurück zum Menü', callback_data: 'action:menu' },
+        ],
+      ],
+    };
 
     if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getBackButton());
+      await this.editMessage(chatId, messageId, message, keyboard);
     } else {
-      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
     }
+  }
+
+  private async handleSettings(chatId: string, messageId?: number): Promise<void> {
+    this.editingField = null; // Reset editing mode
+
+    const message = `${this.HEADER}
+
+⚙️ *EINSTELLUNGEN*
+
+Tippe ✏️ um einen Wert zu ändern:`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: `💵 Max Bet`, callback_data: 'noop' },
+          { text: `$${runtimeSettings.maxBet}`, callback_data: 'noop' },
+          { text: `✏️`, callback_data: 'edit:maxBet' },
+        ],
+        [
+          { text: `📊 Risiko`, callback_data: 'noop' },
+          { text: `${runtimeSettings.risk}%`, callback_data: 'noop' },
+          { text: `✏️`, callback_data: 'edit:risk' },
+        ],
+        [
+          { text: `📉 Min Edge`, callback_data: 'noop' },
+          { text: `${runtimeSettings.minEdge}%`, callback_data: 'noop' },
+          { text: `✏️`, callback_data: 'edit:minEdge' },
+        ],
+        [
+          { text: `🎯 Min Alpha`, callback_data: 'noop' },
+          { text: `${runtimeSettings.minAlpha}%`, callback_data: 'noop' },
+          { text: `✏️`, callback_data: 'edit:minAlpha' },
+        ],
+        [
+          { text: `💰 Min Volume`, callback_data: 'noop' },
+          { text: `$${runtimeSettings.minVolume}`, callback_data: 'noop' },
+          { text: `✏️`, callback_data: 'edit:minVolume' },
+        ],
+        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  private async handleEdit(field: string, chatId: string, messageId?: number): Promise<void> {
+    this.editingField = field;
+
+    const labels: Record<string, string> = {
+      maxBet: '💵 Max Bet ($)',
+      risk: '📊 Risiko (%)',
+      minEdge: '📉 Min Edge (%)',
+      minAlpha: '🎯 Min Alpha (%)',
+      minVolume: '💰 Min Volume ($)',
+    };
+
+    const current = runtimeSettings[field as keyof typeof runtimeSettings];
+
+    const message = `${this.HEADER}
+
+✏️ *${labels[field]}*
+
+Aktueller Wert: *${current}*
+
+_Tippe den neuen Wert ein:_`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: '❌ Abbrechen', callback_data: 'action:settings' }],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  // Fallback für alte Callback-Daten
+  private async handleSetValue(_setting: string, _value: string, chatId: string, _messageId?: number): Promise<void> {
+    await this.handleSettings(chatId);
+  }
+
+  private async handleSettingChange(_setting: string, chatId: string, _messageId?: number): Promise<void> {
+    await this.handleSettings(chatId);
+  }
+
+  private async handleTextInput(text: string, chatId: string): Promise<void> {
+    if (!this.editingField) return;
+
+    const numValue = parseFloat(text.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(numValue) || numValue <= 0) {
+      await this.sendMessage('❌ Ungültiger Wert. Bitte eine Zahl eingeben.', chatId);
+      return;
+    }
+
+    // Wert setzen
+    (runtimeSettings as Record<string, number>)[this.editingField] = numValue;
+
+    // Config auch updaten
+    switch (this.editingField) {
+      case 'maxBet':
+        config.trading.maxBetUsdc = numValue;
+        break;
+      case 'risk':
+        config.trading.riskPerTradePercent = numValue;
+        break;
+      case 'minEdge':
+        config.germany.minEdge = numValue / 100;
+        break;
+      case 'minAlpha':
+        config.trading.minAlphaForTrade = numValue / 100;
+        break;
+      case 'minVolume':
+        config.scanner.minVolumeUsd = numValue;
+        break;
+    }
+
+    this.editingField = null;
+
+    const message = `✅ Gespeichert!`;
+    await this.sendMessage(message, chatId);
+
+    // Zurück zu Settings
+    await this.handleSettings(chatId);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -939,11 +1136,74 @@ ${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}
   // ═══════════════════════════════════════════════════════════════
 
   private setupScannerEvents(): void {
+    // Alpha Scanner Events
     scanner.on('signal_found', async (signal: AlphaSignal) => {
       if (signal.score > 0.6) {
         await this.sendBreakingSignal(signal);
       }
     });
+
+    // ═══════════════════════════════════════════════════════════════
+    // ALMAN SCANNER EVENT-LISTENER
+    // Reagiert auf Breaking News mit Zeitvorsprung
+    // ═══════════════════════════════════════════════════════════════
+    germanySources.on('breaking_news', async (news: BreakingNewsEvent) => {
+      await this.sendBreakingNewsAlert(news);
+    });
+
+    logger.info('Scanner Events registriert (Alpha + Alman)');
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                   BREAKING NEWS ALERT
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendBreakingNewsAlert(news: BreakingNewsEvent): Promise<void> {
+    const categoryEmoji: Record<string, string> = {
+      politics: '🏛️',
+      economics: '📈',
+      sports: '⚽',
+      geopolitics: '🌍',
+      tech: '💻',
+      crypto: '₿',
+    };
+
+    const emoji = categoryEmoji[news.category] || '📰';
+    const timeDiff = Math.round((news.detectedAt.getTime() - news.publishedAt.getTime()) / 1000 / 60);
+
+    const message = `
+🚨 *BREAKING NEWS DETECTED* 🚨
+
+${this.DIVIDER}
+
+${emoji} *${news.source}*
+\`\`\`
+${news.title.substring(0, 100)}${news.title.length > 100 ? '...' : ''}
+\`\`\`
+
+${this.DIVIDER}
+
+📍 *Keywords:* ${news.keywords.slice(0, 5).join(', ')}
+⏱️ *Zeitvorsprung:* ~${timeDiff > 0 ? timeDiff : '<1'} Min
+🏷️ *Kategorie:* ${news.category}
+
+${news.url ? `🔗 [Quelle öffnen](${news.url})` : ''}
+
+_Suche jetzt nach passenden Polymarket-Wetten..._`;
+
+    await this.sendMessageWithKeyboard(message, {
+      inline_keyboard: [
+        [
+          { text: '🔥 PASSENDE WETTEN FINDEN', callback_data: `news:find:${news.id}` },
+        ],
+        [
+          { text: '❌ Ignorieren', callback_data: 'action:menu' },
+        ],
+      ],
+    });
+
+    // Automatisch nach passenden Märkten suchen
+    this.emit('news_alert', news);
   }
 
   // ═══════════════════════════════════════════════════════════════

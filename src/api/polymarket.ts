@@ -208,7 +208,29 @@ export class PolymarketClient {
   private parseCategory(question: string): MarketCategory {
     const q = question.toLowerCase();
 
-    // Politics - erweiterte Keywords für US/DE/EU/Geopolitik
+    // GEOPOLITICS ZUERST - wichtig für DE/EU Information Edge
+    // Diese Märkte haben höchste Priorität für Alpha
+    if (
+      q.includes('ukraine') ||
+      q.includes('russia') ||
+      q.includes('putin') ||
+      q.includes('zelensky') ||
+      q.includes('ceasefire') ||
+      q.includes('waffenstillstand') ||
+      q.includes('crimea') ||
+      q.includes('donbas') ||
+      q.includes('invasion') ||
+      q.includes('war ') ||
+      q.includes(' war') ||
+      q.includes('troops') ||
+      q.includes('military') ||
+      q.includes('sanctions') ||
+      q.includes('nato')
+    ) {
+      return 'geopolitics';
+    }
+
+    // Politics - US/DE/EU
     if (
       // US Politik
       q.includes('trump') ||
@@ -231,20 +253,19 @@ export class PolymarketClient {
       q.includes('spd') ||
       q.includes('grüne') ||
       q.includes('fdp') ||
-      // EU/Geopolitik (wichtig für Deutschland)
-      q.includes('ukraine') ||
-      q.includes('russia') ||
-      q.includes('putin') ||
-      q.includes('zelensky') ||
-      q.includes('ceasefire') ||
-      q.includes('nato') ||
+      q.includes('koalition') ||
+      q.includes('chancellor') ||
+      q.includes('kanzler') ||
+      // EU
       q.includes('european') ||
       q.includes('germany') ||
-      q.includes('german')
+      q.includes('german') ||
+      q.includes('eu ') ||
+      q.includes(' eu')
     ) {
       return 'politics';
     }
-    // Economics
+    // Economics - inkl. EZB/Zentralbanken (wichtig für DE Edge)
     if (
       q.includes('econom') ||
       q.includes('fed') ||
@@ -253,10 +274,18 @@ export class PolymarketClient {
       q.includes('gdp') ||
       q.includes('recession') ||
       q.includes('interest rate') ||
+      q.includes('rate hike') ||
+      q.includes('rate cut') ||
       q.includes('unemployment') ||
       q.includes('s&p') ||
       q.includes('nasdaq') ||
-      q.includes('dow')
+      q.includes('dow') ||
+      // EZB/Euro (DE Information Edge)
+      q.includes('ecb') ||
+      q.includes('ezb') ||
+      q.includes('european central bank') ||
+      q.includes('lagarde') ||
+      q.includes('eurozone')
     ) {
       return 'economics';
     }
@@ -324,16 +353,15 @@ export class PolymarketClient {
     if (q.includes('society') || q.includes('culture') || q.includes('population')) {
       return 'society';
     }
-    // Geopolitics
+    // Geopolitics (Fallback für restliche internationale Themen)
     if (
       q.includes('geopolit') ||
-      q.includes('war') ||
       q.includes('international') ||
-      q.includes('ukraine') ||
-      q.includes('russia') ||
       q.includes('china') ||
-      q.includes('nato') ||
-      q.includes('sanction')
+      q.includes('taiwan') ||
+      q.includes('iran') ||
+      q.includes('israel') ||
+      q.includes('middle east')
     ) {
       return 'geopolitics';
     }

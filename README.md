@@ -47,6 +47,30 @@
 | Kelly-Kriterium | `[████]` | Mathematisch optimale Positionsgrößen |
 | Kategorie-Filter | `[████]` | Politik, Wirtschaft, Crypto, Sport |
 
+### Live News Ticker - DAUERFEUER MODUS
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║     🔥 LIVE TICKER - DAUERFEUER MODUS 🔥                           ║
+╠════════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  📰 14:32:05 Tagesschau      │ Scholz trifft Macron...            ║
+║  🔍 Matching gegen 238 Märkte...                                   ║
+║  ✅ ████████░░ 80% MATCH! → "Will Scholz resign before..."        ║
+║                                                                    ║
+║  📰 14:32:47 Reuters         │ Ukraine ceasefire talks...          ║
+║  🔍 Matching gegen 238 Märkte...                                   ║
+║  ❌ ░░░░░░░░░░ kein Match (45ms)                                   ║
+║                                                                    ║
+║  📰 14:33:12 Kicker          │ Kompany vor dem Aus?               ║
+║  🔍 Matching gegen 238 Märkte...                                   ║
+║  ✅ ██████████ 95% MATCH! → "Vincent Kompany next Bayern coach"   ║
+║                                                                    ║
+╠════════════════════════════════════════════════════════════════════╣
+║  News: 1,247 │ Matches: 89 │ Alpha: 12 │ Ø Latenz: 34ms           ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
 ### Almanien-Modul (Der Deutschland-Edge)
 
 ```
@@ -56,11 +80,12 @@
 ║                                                                   ║
 ║  Dawum API        [████████████] Wahlumfragen aller Institute     ║
 ║  Bundestag DIP    [████████████] Gesetzgebungsverfahren           ║
-║  RSS Feeds        [████████████] Tagesschau, Handelsblatt, etc.   ║
-║  Destatis         [████████░░░░] Wirtschaftsdaten (WIP)           ║
+║  RSS Feeds        [████████████] 188+ Quellen (DE + INT)          ║
+║  Event-Listener   [████████████] 60s Polling, Breaking News       ║
 ║                                                                   ║
 ║  > Informationsvorsprung durch deutsche Quellen                   ║
 ║  > Zeitdifferenz zwischen DE-News und Quotenänderung nutzen       ║
+║  > Echtzeit-Matching: News → Polymarket Märkte                    ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
@@ -179,30 +204,41 @@ RSS_FEEDS_ENABLED=true
 
 ---
 
-## Alpha-Score
+## Alpha-Score v2.0
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                    ALPHA SCORE BERECHNUNG                      │
+│                ALPHA GENERATOR v2.0 - ALLE QUELLEN            │
 ├───────────────────────────────────────────────────────────────┤
 │                                                                │
 │   ┌─────────────────┐                                          │
-│   │  MARKT-METRIKEN │ ════════════════════════════ 40%        │
+│   │  MARKT-METRIKEN │ ════════════════════ 25%                │
 │   │  Volume, Liquid │                                          │
+│   │  Mispricing     │                                          │
 │   └─────────────────┘                                          │
 │                                                                │
 │   ┌─────────────────┐                                          │
-│   │  PREISBEWEGUNG  │ ════════════════════════ 30%            │
-│   │  Momentum, Vol  │                                          │
+│   │  NEWS-ALPHA     │ ════════════════════════════ 35%        │
+│   │  188+ RSS Feeds │ ← Sentiment-Analyse                      │
+│   │  Breaking Boost │ ← Impact-Score                           │
+│   │  Fresh News!    │ ← < 30 Min = Extra Alpha                 │
 │   └─────────────────┘                                          │
 │                                                                │
 │   ┌─────────────────┐                                          │
 │   │  ALMANIEN-EDGE  │ ════════════════════════ 30%            │
-│   │  Dawum, News    │                                          │
+│   │  DE/EU Sources  │ ← Zeitvorsprung                          │
+│   │  Dawum, Bundest │                                          │
+│   └─────────────────┘                                          │
+│                                                                │
+│   ┌─────────────────┐                                          │
+│   │  FUZZY MATCH    │ ════════════ 10%                        │
+│   │  Levenshtein    │ ← "Kompany" → "Vincent Kompany"         │
+│   │  Named Entities │                                          │
 │   └─────────────────┘                                          │
 │                                                                │
 │   ══════════════════════════════════════════════════════════   │
 │   TOTAL SCORE: 0.0 ─────────────────────────────────────► 1.0  │
+│   MAX EDGE: 30%                                                │
 │                                                                │
 └───────────────────────────────────────────────────────────────┘
 ```
@@ -254,6 +290,17 @@ RSS_FEEDS_ENABLED=true
 | `scan_completed` | Client | Scan fertig |
 | `signal_found` | Client | Neues Alpha-Signal |
 | `trade_executed` | Client | Trade ausgeführt |
+| `ticker` | Client | Live News Ticker Event |
+
+### Ticker Event Typen
+
+| Type | Beschreibung |
+|------|--------------|
+| `news_in` | Neue News erkannt |
+| `matching` | Matching läuft |
+| `match_found` | ✅ Polymarket-Match gefunden |
+| `no_match` | ❌ Kein Match |
+| `alpha_signal` | 🔥 Alpha-Signal generiert |
 
 ---
 
@@ -263,16 +310,20 @@ RSS_FEEDS_ENABLED=true
 edgyalpha/
 ├── src/
 │   ├── api/              # API-Clients
-│   │   └── polymarket.ts # Gamma + CLOB API
+│   │   ├── polymarket.ts # Gamma + CLOB API
+│   │   └── trading.ts    # Trading Engine (Polygon/USDC)
 │   ├── germany/          # Almanien-Modul
-│   │   └── index.ts      # Dawum, Bundestag, RSS
+│   │   └── index.ts      # Dawum, Bundestag, 188+ RSS, Event-Listener
 │   ├── scanner/          # Alpha-Scanner
 │   │   ├── index.ts      # Scanner-Logik
-│   │   └── alpha.ts      # Scoring + Kelly
+│   │   └── alpha.ts      # Alpha Generator v2.0 + Kelly
+│   ├── ticker/           # Live News Ticker (NEU!)
+│   │   └── index.ts      # Dauerfeuer-Modus, Matching
 │   ├── telegram/         # Telegram Bot
-│   ├── trading/          # Trading-Engine
+│   │   └── index.ts      # Bot + Live Ticker
 │   ├── web/              # Express + Frontend
-│   │   └── public/       # Terminal-UI
+│   │   ├── server.ts     # REST API + WebSocket
+│   │   └── public/       # Terminal-UI + Live Ticker Tab
 │   ├── types/            # TypeScript Types
 │   ├── utils/            # Config, Logger
 │   └── index.ts          # Entry Point

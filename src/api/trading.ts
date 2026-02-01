@@ -26,18 +26,24 @@ export class TradingClient extends EventEmitter {
   constructor() {
     super();
 
-    if (WALLET_PRIVATE_KEY && WALLET_ADDRESS) {
+    if (WALLET_PRIVATE_KEY) {
       try {
         this.provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL);
         this.wallet = new ethers.Wallet(WALLET_PRIVATE_KEY, this.provider);
         this.usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, this.wallet);
-        logger.info('Trading Client initialisiert');
+        // Adresse automatisch aus Private Key ableiten
+        const derivedAddress = this.wallet.address;
+        logger.info(`Trading Client initialisiert: ${derivedAddress.slice(0, 10)}...`);
       } catch (err) {
         logger.error(`Trading Client Fehler: ${(err as Error).message}`);
       }
     } else {
-      logger.warn('Trading Client: Wallet nicht konfiguriert');
+      logger.warn('Trading Client: Wallet nicht konfiguriert (kein Private Key)');
     }
+  }
+
+  getWalletAddress(): string | null {
+    return this.wallet?.address || null;
   }
 
   async getWalletBalance(): Promise<{ usdc: number; matic: number }> {
@@ -62,7 +68,8 @@ export class TradingClient extends EventEmitter {
   }
 
   async getPositions(): Promise<Position[]> {
-    if (!WALLET_ADDRESS) {
+    const walletAddress = this.wallet?.address || WALLET_ADDRESS;
+    if (!walletAddress) {
       return [];
     }
 
@@ -72,7 +79,7 @@ export class TradingClient extends EventEmitter {
         `https://gamma-api.polymarket.com/positions`,
         {
           params: {
-            user: WALLET_ADDRESS,
+            user: walletAddress,
           },
         }
       );

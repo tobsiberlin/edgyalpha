@@ -8,6 +8,7 @@ import logger from '../utils/logger.js';
 import { scanner } from '../scanner/index.js';
 import { germanySources } from '../germany/index.js';
 import { tradingClient } from '../api/trading.js';
+import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { AlphaSignal, ScanResult, SystemStatus } from '../types/index.js';
 
 // Use process.cwd() for paths (works with both ESM and CJS)
@@ -190,6 +191,23 @@ app.get('/api/germany/bundestag', requireAuth, (_req: Request, res: Response) =>
   res.json(germanySources.getBundestagItems());
 });
 
+// ═══════════════════════════════════════════════════════════════
+//                    LIVE TICKER API
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/ticker/stats', requireAuth, (_req: Request, res: Response) => {
+  res.json(newsTicker.getStats());
+});
+
+app.get('/api/ticker/recent', requireAuth, (req: Request, res: Response) => {
+  const limit = parseInt(String(req.query?.limit || '20'), 10);
+  res.json(newsTicker.getRecentTicks(limit));
+});
+
+app.get('/api/ticker/markets', requireAuth, (_req: Request, res: Response) => {
+  res.json({ count: newsTicker.getMarketCount() });
+});
+
 // API: Konfiguration
 app.get('/api/config', requireAuth, (_req: Request, res: Response) => {
   res.json({
@@ -340,6 +358,19 @@ scanner.on('scan_completed', (result: ScanResult) => {
 
 scanner.on('signal_found', (signal: AlphaSignal) => {
   io.emit('signal_found', signal);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    LIVE TICKER EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+newsTicker.on('tick', (event: TickerEvent) => {
+  io.emit('ticker', event);
+});
+
+// Ticker starten wenn Server startet
+newsTicker.start().catch(err => {
+  logger.error(`Ticker Start Fehler: ${err.message}`);
 });
 
 // ═══════════════════════════════════════════════════════════════

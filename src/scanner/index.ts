@@ -1,6 +1,6 @@
 import { polymarketClient } from '../api/polymarket.js';
 import { germanySources } from '../germany/index.js';
-import { createAlphaSignal, createTradeRecommendation } from './alpha.js';
+import { createAlphaSignal, createTradeRecommendation, analyzeNewsForMarket } from './alpha.js';
 import { config } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import {
@@ -75,7 +75,11 @@ export class AlphaScanner extends EventEmitter {
       marketsScanned = markets.length;
       logger.info(`${marketsScanned} Märkte nach Kategorie-Filter`);
 
-      // 3. Deutschland-Daten holen (falls aktiviert)
+      // 3. ALLE News laden (DE + International) für Alpha-Analyse
+      const allNews = germanySources.getLatestNews();
+      logger.info(`📰 ${allNews.length} News für Alpha-Analyse verfügbar`);
+
+      // 4. Deutschland-Daten holen (falls aktiviert)
       let germanData: Map<string, { relevance: number; direction: 'YES' | 'NO' }[]> | null = null;
 
       if (config.germany.enabled) {
@@ -90,13 +94,21 @@ export class AlphaScanner extends EventEmitter {
         }
       }
 
-      // 4. Alpha Scoring für jeden Markt
+      // 5. Alpha Scoring für jeden Markt (mit ALLEN Quellen!)
+      let newsMatches = 0;
       for (const market of markets) {
         try {
-          const germanSources = germanData?.get(market.id);
+          const germanSourcesData = germanData?.get(market.id);
+
+          // NEWS-ALPHA: Alle News gegen diesen Markt matchen
+          const newsAlpha = analyzeNewsForMarket(market, allNews);
+          if (newsAlpha.matchCount > 0) {
+            newsMatches++;
+          }
 
           const signal = createAlphaSignal(market, {
-            germanSources,
+            germanSources: germanSourcesData,
+            newsAlpha, // NEU: News-basierte Alpha-Daten
           });
 
           if (signal) {
@@ -118,6 +130,8 @@ export class AlphaScanner extends EventEmitter {
           logger.debug(`Markt-Analyse Fehler: ${error.message}`);
         }
       }
+
+      logger.info(`📊 ${newsMatches} Märkte mit News-Matches`)
 
       // Signale nach Score sortieren
       signals.sort((a, b) => b.score - a.score);
