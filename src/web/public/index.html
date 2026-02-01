@@ -751,19 +751,19 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <span class="logo">POLYMARKET ALPHA SCANNER</span>
+                <span class="logo">EDGY ALPHA SCANNER</span>
                 <div class="status-indicators">
                     <div class="status-item">
                         <span class="status-dot" id="api-status"></span>
                         <span>POLYMARKET API</span>
                     </div>
                     <div class="status-item">
-                        <span class="status-dot" id="perplexity-status"></span>
-                        <span>PERPLEXITY MCP</span>
+                        <span class="status-dot" id="germany-status"></span>
+                        <span>ALMANIEN MODUL</span>
                     </div>
                     <div class="status-item">
-                        <span class="status-dot" id="claude-status"></span>
-                        <span>CLAUDE CODE</span>
+                        <span class="status-dot" id="socket-status"></span>
+                        <span>WEBSOCKET</span>
                     </div>
                 </div>
             </div>
@@ -782,49 +782,49 @@
                     <span class="panel-value" id="system-status">ONLINE</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Uptime</span>
+                    <span class="panel-label">Laufzeit</span>
                     <span class="panel-value" id="uptime">00:00:00</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Memory</span>
+                    <span class="panel-label">Speicher</span>
                     <span class="panel-value" id="memory">--</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Last Scan</span>
+                    <span class="panel-label">Letzter Scan</span>
                     <span class="panel-value" id="last-scan">--:--</span>
                 </div>
             </div>
 
             <!-- Scan Config -->
             <div class="panel">
-                <div class="panel-header">SCAN CONFIG</div>
+                <div class="panel-header">SCAN KONFIG</div>
                 <div class="panel-row">
-                    <span class="panel-label">Interval</span>
-                    <span class="panel-value">5 MIN</span>
+                    <span class="panel-label">Intervall</span>
+                    <span class="panel-value" id="config-interval">5 MIN</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Categories</span>
-                    <span class="panel-value">POL/ECO</span>
+                    <span class="panel-label">Kategorien</span>
+                    <span class="panel-value" id="config-categories">POL/ECO</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Min Volume</span>
-                    <span class="panel-value">$100K</span>
+                    <span class="panel-label">Min. Volumen</span>
+                    <span class="panel-value" id="config-volume">$10K</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">DE Mode</span>
-                    <span class="panel-value positive">ACTIVE</span>
+                    <span class="panel-label">Almanien</span>
+                    <span class="panel-value positive" id="config-de">AKTIV</span>
                 </div>
             </div>
 
             <!-- Current Scan -->
             <div class="panel">
-                <div class="panel-header">CURRENT SCAN</div>
+                <div class="panel-header">AKTUELLER SCAN</div>
                 <div class="panel-row">
-                    <span class="panel-label">Markets</span>
+                    <span class="panel-label">Märkte</span>
                     <span class="panel-value" id="markets-scanned">0</span>
                 </div>
                 <div class="panel-row">
-                    <span class="panel-label">Signals</span>
+                    <span class="panel-label">Signale</span>
                     <span class="panel-value positive" id="signals-found">0</span>
                 </div>
                 <div class="panel-row">
@@ -833,7 +833,7 @@
                 </div>
                 <div class="scan-progress" id="scan-progress">
                     <div class="progress-label">
-                        <span>Scanning...</span>
+                        <span>Scanne...</span>
                         <span id="scan-percent">0%</span>
                     </div>
                     <div class="scan-bar"></div>
@@ -844,7 +844,7 @@
             <div class="panel">
                 <div class="panel-header">PERFORMANCE</div>
                 <div class="panel-row">
-                    <span class="panel-label">Win Rate</span>
+                    <span class="panel-label">Gewinnrate</span>
                     <span class="panel-value positive" id="win-rate">--</span>
                 </div>
                 <div class="panel-row">
@@ -858,10 +858,10 @@
                 <div class="progress-container">
                     <div class="progress-label">
                         <span>Bankroll</span>
-                        <span id="bankroll">$1,000</span>
+                        <span id="bankroll">--</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" id="bankroll-bar" style="width: 100%"></div>
+                        <div class="progress-fill" id="bankroll-bar" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
@@ -870,9 +870,9 @@
         <!-- Main Content -->
         <main class="main">
             <div class="tabs">
-                <button class="tab active" data-tab="console">CONSOLE</button>
-                <button class="tab" data-tab="markets">MARKETS</button>
-                <button class="tab" data-tab="research">RESEARCH</button>
+                <button class="tab active" data-tab="console">KONSOLE</button>
+                <button class="tab" data-tab="markets">MÄRKTE</button>
+                <button class="tab" data-tab="research">ALMANIEN</button>
             </div>
 
             <!-- Console Tab -->
@@ -880,15 +880,15 @@
                 <div class="console" id="console">
                     <div class="ascii-loader" id="initial-loader">
 <pre>
- ██████╗  ██████╗ ██╗  ██╗   ██╗███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗████████╗
- ██╔══██╗██╔═══██╗██║  ╚██╗ ██╔╝████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝╚══██╔══╝
- ██████╔╝██║   ██║██║   ╚████╔╝ ██╔████╔██║███████║██████╔╝█████╔╝ █████╗     ██║
- ██╔═══╝ ██║   ██║██║    ╚██╔╝  ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝     ██║
- ██║     ╚██████╔╝███████╗██║   ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗   ██║
- ╚═╝      ╚═════╝ ╚══════╝╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝
-                      A L P H A   S C A N N E R   v 1 . 0
+███████╗██████╗  ██████╗ ██╗   ██╗     █████╗ ██╗     ██████╗ ██╗  ██╗ █████╗
+██╔════╝██╔══██╗██╔════╝ ╚██╗ ██╔╝    ██╔══██╗██║     ██╔══██╗██║  ██║██╔══██╗
+█████╗  ██║  ██║██║  ███╗ ╚████╔╝     ███████║██║     ██████╔╝███████║███████║
+██╔══╝  ██║  ██║██║   ██║  ╚██╔╝      ██╔══██║██║     ██╔═══╝ ██╔══██║██╔══██║
+███████╗██████╔╝╚██████╔╝   ██║       ██║  ██║███████╗██║     ██║  ██║██║  ██║
+╚══════╝╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝
+               M I T   A L M A N I E N - V O R S P R U N G   v 1 . 0
 </pre>
-                        <p>Initializing system...</p>
+                        <p>System wird initialisiert...</p>
                     </div>
                 </div>
             </div>
@@ -897,57 +897,33 @@
             <div class="tab-content" id="tab-markets">
                 <div class="markets-container" id="markets-list">
                     <div class="ascii-loader">
-                        <p>> Waiting for scan results...</p>
-                        <p>> Launch scan to find alpha opportunities</p>
+                        <p>> Warte auf Scan-Ergebnisse...</p>
+                        <p>> Starte Scan um Alpha-Gelegenheiten zu finden</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Research Tab -->
+            <!-- Research Tab (Almanien) -->
             <div class="tab-content" id="tab-research">
                 <div class="research-container">
                     <div class="research-section">
-                        <div class="research-header">GERMAN POLLS (DAWUM)</div>
+                        <div class="research-header">SONNTAGSFRAGE (DAWUM)</div>
                         <div id="polls-container">
-                            <div class="poll-bar-row poll-cdu">
-                                <span class="poll-party">CDU/CSU</span>
-                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 30%"></div></div>
-                                <span class="poll-value">--</span>
-                            </div>
-                            <div class="poll-bar-row poll-spd">
-                                <span class="poll-party">SPD</span>
-                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 15%"></div></div>
-                                <span class="poll-value">--</span>
-                            </div>
-                            <div class="poll-bar-row poll-gruene">
-                                <span class="poll-party">GRÜNE</span>
-                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 12%"></div></div>
-                                <span class="poll-value">--</span>
-                            </div>
-                            <div class="poll-bar-row poll-afd">
-                                <span class="poll-party">AfD</span>
-                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 20%"></div></div>
-                                <span class="poll-value">--</span>
-                            </div>
-                            <div class="poll-bar-row poll-fdp">
-                                <span class="poll-party">FDP</span>
-                                <div class="poll-bar-bg"><div class="poll-bar-fill" style="width: 5%"></div></div>
-                                <span class="poll-value">--</span>
-                            </div>
+                            <p style="color: var(--gray); font-size: 10px;">Lade Umfragedaten...</p>
                         </div>
                     </div>
 
                     <div class="research-section">
                         <div class="research-header">BUNDESTAG FEED</div>
                         <div id="bundestag-feed">
-                            <p style="color: var(--gray); font-size: 10px;">Loading legislative data...</p>
+                            <p style="color: var(--gray); font-size: 10px;">Lade Gesetzgebungsdaten...</p>
                         </div>
                     </div>
 
                     <div class="research-section" style="grid-column: 1 / -1;">
-                        <div class="research-header">GERMAN NEWS (RSS)</div>
+                        <div class="research-header">DEUTSCHE NEWS (RSS)</div>
                         <div id="news-feed">
-                            <p style="color: var(--gray); font-size: 10px;">Loading news feeds...</p>
+                            <p style="color: var(--gray); font-size: 10px;">Lade Newsfeeds...</p>
                         </div>
                     </div>
                 </div>
@@ -957,11 +933,11 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-left">
-                CLAUDE CODE + PERPLEXITY MCP | Real-time Prediction Market Analysis
+                EDGY ALPHA | Echtzeit-Analyse mit Almanien-Vorsprung
             </div>
             <div class="footer-right">
-                <span id="scan-status">READY</span>
-                <button class="scan-btn" id="scan-btn">LAUNCH SCAN</button>
+                <span id="scan-status">BEREIT</span>
+                <button class="scan-btn" id="scan-btn">SCAN STARTEN</button>
             </div>
         </footer>
     </div>
@@ -970,7 +946,7 @@
     <div class="modal" id="trade-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span class="modal-title">CONFIRM TRADE</span>
+                <span class="modal-title">TRADE BESTÄTIGEN</span>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div id="modal-body"></div>
@@ -1003,29 +979,28 @@
 
         function bootSequence() {
             const loader = document.getElementById('initial-loader');
-            const console = document.getElementById('console');
 
             setTimeout(() => {
                 loader.style.display = 'none';
-                addLog('system', 'System initialized');
-                addLog('info', 'Connecting to Polymarket API...');
+                addLog('system', 'System initialisiert');
+                addLog('info', 'Verbinde mit Polymarket API...');
             }, 1000);
 
             setTimeout(() => {
                 document.getElementById('api-status').classList.remove('inactive');
-                addLog('success', 'Polymarket API connected');
-                addLog('info', 'Loading German data sources...');
+                addLog('success', 'Polymarket API verbunden');
+                addLog('info', 'Lade Almanien-Datenquellen...');
             }, 1500);
 
             setTimeout(() => {
-                document.getElementById('perplexity-status').classList.remove('inactive');
-                addLog('success', 'Perplexity MCP ready');
+                document.getElementById('germany-status').classList.remove('inactive');
+                addLog('success', 'Dawum + Bundestag + RSS geladen');
             }, 2000);
 
             setTimeout(() => {
-                document.getElementById('claude-status').classList.remove('inactive');
-                addLog('success', 'Claude Code integration active');
-                addLog('info', 'Scanner ready. Awaiting commands...');
+                document.getElementById('socket-status').classList.remove('inactive');
+                addLog('success', 'WebSocket Verbindung aktiv');
+                addLog('info', 'Scanner bereit. Warte auf Befehle...');
             }, 2500);
         }
 
@@ -1033,17 +1008,19 @@
             socket = io();
 
             socket.on('connect', () => {
-                addLog('success', 'WebSocket connected');
+                addLog('success', 'WebSocket verbunden');
+                document.getElementById('socket-status')?.classList.remove('inactive', 'error');
             });
 
             socket.on('disconnect', () => {
-                addLog('warn', 'WebSocket disconnected');
+                addLog('warn', 'WebSocket getrennt');
+                document.getElementById('socket-status')?.classList.add('error');
             });
 
             socket.on('scan_started', () => {
                 isScanning = true;
                 updateScanUI(true);
-                addLog('info', 'Scan initiated...');
+                addLog('info', 'Scan gestartet...');
             });
 
             socket.on('scan_progress', (data) => {
@@ -1058,7 +1035,7 @@
             });
 
             socket.on('signal_found', (signal) => {
-                addLog('success', `ALPHA FOUND: ${signal.market.question.substring(0, 50)}...`);
+                addLog('success', `ALPHA GEFUNDEN: ${signal.market.question.substring(0, 50)}...`);
                 signals.unshift(signal);
                 renderMarkets();
             });
@@ -1105,11 +1082,12 @@
         // ═══════════════════════════════════════════════════════════════
         async function loadInitialData() {
             try {
-                const [status, signalsData, polls, news] = await Promise.all([
+                const [status, signalsData, polls, news, config] = await Promise.all([
                     fetch('/api/status').then(r => r.json()).catch(() => ({})),
                     fetch('/api/signals').then(r => r.json()).catch(() => []),
                     fetch('/api/germany/polls').then(r => r.json()).catch(() => []),
-                    fetch('/api/germany/news').then(r => r.json()).catch(() => [])
+                    fetch('/api/germany/news').then(r => r.json()).catch(() => []),
+                    fetch('/api/config').then(r => r.json()).catch(() => ({}))
                 ]);
 
                 if (signalsData.length) {
@@ -1120,12 +1098,32 @@
                 renderPolls(polls);
                 renderNews(news);
 
+                // Konfiguration anzeigen
+                if (config.scanner) {
+                    const interval = Math.round((config.scanner.intervalMs || 300000) / 60000);
+                    document.getElementById('config-interval').textContent = `${interval} MIN`;
+                    document.getElementById('config-volume').textContent = `$${((config.scanner.minVolumeUsd || 10000) / 1000).toFixed(0)}K`;
+                    const cats = config.scanner.categories?.map(c => c.substring(0, 3).toUpperCase()).join('/') || 'POL/ECO';
+                    document.getElementById('config-categories').textContent = cats;
+                }
+
+                if (config.germany) {
+                    document.getElementById('config-de').textContent = config.germany.enabled ? 'AKTIV' : 'INAKTIV';
+                    document.getElementById('config-de').className = config.germany.enabled ? 'panel-value positive' : 'panel-value';
+                }
+
                 if (status.lastScan) {
                     document.getElementById('last-scan').textContent =
                         new Date(status.lastScan).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
                 }
+
+                // Bankroll vom Trading-Config
+                if (config.trading?.maxBankrollUsdc) {
+                    document.getElementById('bankroll').textContent = `$${config.trading.maxBankrollUsdc.toLocaleString()}`;
+                    document.getElementById('bankroll-bar').style.width = '100%';
+                }
             } catch (err) {
-                addLog('error', 'Failed to load initial data');
+                addLog('error', 'Fehler beim Laden der Daten');
             }
         }
 
@@ -1139,14 +1137,14 @@
             updateScanUI(true);
 
             addLog('info', '═══════════════════════════════════════');
-            addLog('info', 'INITIATING MARKET SCAN');
+            addLog('info', 'STARTE MARKT-SCAN');
             addLog('info', '═══════════════════════════════════════');
 
             try {
                 const result = await fetch('/api/scan', { method: 'POST' }).then(r => r.json());
                 handleScanResult(result);
             } catch (err) {
-                addLog('error', 'Scan failed: ' + err.message);
+                addLog('error', 'Scan fehlgeschlagen: ' + err.message);
             } finally {
                 isScanning = false;
                 updateScanUI(false);
@@ -1160,15 +1158,15 @@
 
             if (scanning) {
                 btn.disabled = true;
-                btn.textContent = 'SCANNING...';
+                btn.textContent = 'SCANNE...';
                 btn.classList.add('scanning');
-                status.textContent = 'SCANNING';
+                status.textContent = 'SCANNT';
                 progress.classList.add('active');
             } else {
                 btn.disabled = false;
-                btn.textContent = 'LAUNCH SCAN';
+                btn.textContent = 'SCAN STARTEN';
                 btn.classList.remove('scanning');
-                status.textContent = 'READY';
+                status.textContent = 'BEREIT';
                 progress.classList.remove('active');
             }
         }
@@ -1184,15 +1182,15 @@
             document.getElementById('last-scan').textContent =
                 new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-            addLog('info', `Scanned ${marketsScanned} markets`);
-            addLog('success', `Found ${signalsFound.length} signals (${highAlpha} high alpha)`);
+            addLog('info', `${marketsScanned} Märkte gescannt`);
+            addLog('success', `${signalsFound.length} Signale gefunden (${highAlpha} High Alpha)`);
             addLog('info', '═══════════════════════════════════════');
 
             if (signalsFound.length) {
                 signals = signalsFound;
                 renderMarkets();
 
-                // Switch to markets tab
+                // Wechsle zum Märkte-Tab
                 document.querySelector('.tab[data-tab="markets"]').click();
             }
         }
@@ -1226,8 +1224,8 @@
             if (!signals.length) {
                 container.innerHTML = `
                     <div class="ascii-loader">
-                        <p>> No signals found</p>
-                        <p>> Launch scan to find alpha opportunities</p>
+                        <p>> Keine Signale gefunden</p>
+                        <p>> Starte Scan um Alpha-Gelegenheiten zu finden</p>
                     </div>
                 `;
                 return;
@@ -1241,9 +1239,9 @@
                     <div class="market-card ${isHigh ? 'high-alpha' : ''} ${isGerman ? 'german' : ''}">
                         <div class="market-header">
                             <div class="market-badges">
-                                ${isGerman ? '<span class="badge german">DE</span>' : ''}
+                                ${isGerman ? '<span class="badge german">ALMANIEN</span>' : ''}
                                 ${isHigh ? '<span class="badge high">HIGH ALPHA</span>' : ''}
-                                <span class="badge">${signal.market.category || 'MARKET'}</span>
+                                <span class="badge">${signal.market.category?.toUpperCase() || 'MARKT'}</span>
                             </div>
                             <div class="market-score">${(signal.score * 100).toFixed(0)}%</div>
                         </div>
@@ -1256,11 +1254,11 @@
                                 <div class="market-stat-value" style="color: var(--green)">+${(signal.edge * 100).toFixed(1)}%</div>
                             </div>
                             <div class="market-stat">
-                                <div class="market-stat-label">DIRECTION</div>
-                                <div class="market-stat-value">${signal.direction}</div>
+                                <div class="market-stat-label">RICHTUNG</div>
+                                <div class="market-stat-value">${signal.direction === 'YES' ? 'JA' : 'NEIN'}</div>
                             </div>
                             <div class="market-stat">
-                                <div class="market-stat-label">VOLUME</div>
+                                <div class="market-stat-label">VOLUMEN</div>
                                 <div class="market-stat-value">$${(signal.market.volume24h / 1000).toFixed(0)}K</div>
                             </div>
                             <div class="market-stat">
@@ -1272,8 +1270,8 @@
                         <div class="market-reasoning">${signal.reasoning}</div>
 
                         <div class="market-actions">
-                            <button class="btn primary" onclick="confirmTrade('${signal.id}', 'YES')">BUY YES</button>
-                            <button class="btn danger" onclick="confirmTrade('${signal.id}', 'NO')">BUY NO</button>
+                            <button class="btn primary" onclick="confirmTrade('${signal.id}', 'YES')">KAUFE JA</button>
+                            <button class="btn danger" onclick="confirmTrade('${signal.id}', 'NO')">KAUFE NEIN</button>
                             <button class="btn" onclick="showDetails('${signal.id}')">DETAILS</button>
                         </div>
                     </div>
@@ -1307,7 +1305,7 @@
             const container = document.getElementById('news-feed');
 
             if (!news || !news.length) {
-                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">No news available</p>';
+                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">Keine News verfügbar</p>';
                 return;
             }
 
@@ -1315,7 +1313,7 @@
                 <div class="news-item">
                     <div class="news-source">${item.data?.source || 'NEWS'}</div>
                     <div class="news-title">${item.title}</div>
-                    ${item.url ? `<a href="${item.url}" target="_blank" class="news-link">→ Read more</a>` : ''}
+                    ${item.url ? `<a href="${item.url}" target="_blank" class="news-link">→ Weiterlesen</a>` : ''}
                 </div>
             `).join('');
         }
@@ -1327,41 +1325,43 @@
             const signal = signals.find(s => s.id === signalId);
             if (!signal) return;
 
+            const dirText = direction === 'YES' ? 'JA' : 'NEIN';
             document.getElementById('modal-body').innerHTML = `
                 <p style="color: var(--white); margin-bottom: 16px;">${signal.market.question}</p>
                 <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-dark);">
                     <div class="panel-row">
-                        <span class="panel-label">Direction</span>
-                        <span class="panel-value">${direction}</span>
+                        <span class="panel-label">Richtung</span>
+                        <span class="panel-value">${dirText}</span>
                     </div>
                     <div class="panel-row">
                         <span class="panel-label">Edge</span>
                         <span class="panel-value positive">+${(signal.edge * 100).toFixed(1)}%</span>
                     </div>
                     <div class="panel-row">
-                        <span class="panel-label">Kelly Size</span>
+                        <span class="panel-label">Kelly-Größe</span>
                         <span class="panel-value">$${signal.kellyBet?.toFixed(2) || '--'}</span>
                     </div>
                 </div>
                 <button class="btn primary" style="width: 100%;" onclick="executeTrade('${signalId}', '${direction}')">
-                    EXECUTE TRADE
+                    TRADE AUSFÜHREN
                 </button>
             `;
             document.getElementById('trade-modal').classList.add('open');
         }
 
         async function executeTrade(signalId, direction) {
+            const dirText = direction === 'YES' ? 'JA' : 'NEIN';
             try {
-                addLog('info', `Executing ${direction} trade...`);
+                addLog('info', `Führe ${dirText}-Trade aus...`);
                 await fetch(`/api/trade/${signalId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ direction })
                 });
-                addLog('success', `Trade executed: ${direction}`);
+                addLog('success', `Trade ausgeführt: ${dirText}`);
                 closeModal();
             } catch (err) {
-                addLog('error', 'Trade failed: ' + err.message);
+                addLog('error', 'Trade fehlgeschlagen: ' + err.message);
             }
         }
 
@@ -1372,7 +1372,7 @@
             document.getElementById('modal-body').innerHTML = `
                 <p style="color: var(--white); margin-bottom: 16px;">${signal.market.question}</p>
                 <div style="margin-bottom: 16px;">
-                    <div class="research-header">ANALYSIS</div>
+                    <div class="research-header">ANALYSE</div>
                     <p style="color: var(--gray); font-size: 11px;">${signal.reasoning}</p>
                 </div>
                 <div style="padding: 12px; background: var(--bg-dark);">
@@ -1385,11 +1385,11 @@
                         <span class="panel-value positive">+${(signal.edge * 100).toFixed(1)}%</span>
                     </div>
                     <div class="panel-row">
-                        <span class="panel-label">Volume 24h</span>
+                        <span class="panel-label">Volumen 24h</span>
                         <span class="panel-value">$${signal.market.volume24h?.toLocaleString() || '--'}</span>
                     </div>
                     <div class="panel-row">
-                        <span class="panel-label">Category</span>
+                        <span class="panel-label">Kategorie</span>
                         <span class="panel-value">${signal.market.category || '--'}</span>
                     </div>
                 </div>

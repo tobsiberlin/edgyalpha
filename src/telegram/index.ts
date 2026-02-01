@@ -6,8 +6,8 @@ import { scanner } from '../scanner/index.js';
 import { EventEmitter } from 'events';
 
 // ═══════════════════════════════════════════════════════════════
-//              POLYMARKET ALPHA SCANNER - TELEGRAM BOT
-//                    Modern UI with Inline Buttons
+//           EDGY ALPHA SCANNER - TELEGRAM BOT
+//         Mit Almanien-Vorsprung | Kein Gelaber, nur Alpha
 // ═══════════════════════════════════════════════════════════════
 
 export class TelegramAlertBot extends EventEmitter {
@@ -43,8 +43,8 @@ export class TelegramAlertBot extends EventEmitter {
     return `
 \`\`\`
 ╔══════════════════════════════════╗
-║     ⚡ ALPHA SCANNER ⚡           ║
-║     Polymarket Intelligence      ║
+║      🔥 EDGY ALPHA 🔥            ║
+║   Almanien-Vorsprung aktiviert   ║
 ╚══════════════════════════════════╝
 \`\`\``;
   }
@@ -84,22 +84,22 @@ export class TelegramAlertBot extends EventEmitter {
   private async sendWelcome(): Promise<void> {
     const message = `${this.HEADER}
 
-🟢 *System Online*
+🟢 *Maschine läuft. Almanien-Vorsprung aktiviert.*
 
 ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  KONFIGURATION                  │
+│  KAMPFKONFIGURATION             │
 ├─────────────────────────────────┤
 │  Scan:     alle 5 Min           │
-│  Filter:   Politik, Wirtschaft  │
-│  DE-Modus: Aktiv                │
-│  Trading:  Bestätigung nötig    │
+│  Ziele:    Politik, Wirtschaft  │
+│  Almanien: Scharf geschaltet    │
+│  Trading:  Ein Klick zum Geld   │
 └─────────────────────────────────┘
 \`\`\`
 
-Wähle eine Aktion:`;
+*Was soll's sein, Chef?*`;
 
     const keyboard = this.getMainMenu();
     await this.sendMessageWithKeyboard(message, keyboard);
@@ -113,16 +113,16 @@ Wähle eine Aktion:`;
     return {
       inline_keyboard: [
         [
-          { text: '🔍 Scan starten', callback_data: 'action:scan' },
+          { text: '🔥 ALPHA JAGEN', callback_data: 'action:scan' },
           { text: '📊 Status', callback_data: 'action:status' },
         ],
         [
           { text: '🎯 Signale', callback_data: 'action:signals' },
-          { text: '💰 Wallet', callback_data: 'action:wallet' },
+          { text: '💰 Kriegskasse', callback_data: 'action:wallet' },
         ],
         [
-          { text: '🇩🇪 Umfragen', callback_data: 'action:polls' },
-          { text: '📰 News', callback_data: 'action:news' },
+          { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
+          { text: '📰 Almanien News', callback_data: 'action:news' },
         ],
         [
           { text: '⚙️ Einstellungen', callback_data: 'action:settings' },
@@ -143,15 +143,15 @@ Wähle eine Aktion:`;
     return {
       inline_keyboard: [
         [
-          { text: '✅ YES kaufen', callback_data: `trade:yes:${signalId}` },
-          { text: '❌ NO kaufen', callback_data: `trade:no:${signalId}` },
+          { text: '🚀 JA BALLERN', callback_data: `trade:yes:${signalId}` },
+          { text: '💀 NEIN BALLERN', callback_data: `trade:no:${signalId}` },
         ],
         [
           { text: '📊 Details', callback_data: `details:${signalId}` },
-          { text: '🔬 Research', callback_data: `research:${signalId}` },
+          { text: '🔬 Deep Dive', callback_data: `research:${signalId}` },
         ],
         [
-          { text: '⏭️ Überspringen', callback_data: `skip:${signalId}` },
+          { text: '⏭️ Skip', callback_data: `skip:${signalId}` },
         ],
       ],
     };
@@ -280,31 +280,32 @@ Wähle eine Aktion:`;
     // Scanning animation
     const scanningMsg = `${this.HEADER}
 
-🔍 *Scanne Märkte...*
+🔥 *Jage Alpha...*
 
 \`\`\`
 ${this.progressBar(0)} 0%
 \`\`\`
 
-_Bitte warten..._`;
+_Die Maschine rattert..._`;
 
     if (messageId) {
       await this.editMessage(chatId, messageId, scanningMsg);
     }
 
     // Progress updates
+    const phases = ['Polymarket wird durchsucht...', 'Almanien-Daten laden...', 'Dawum-Umfragen checken...', 'Edge berechnen...', 'Alpha identifizieren...'];
     for (let i = 1; i <= 5; i++) {
       await this.sleep(400);
       const pct = i * 20;
       const progressMsg = `${this.HEADER}
 
-🔍 *Scanne Märkte...*
+🔥 *Jage Alpha...*
 
 \`\`\`
 ${this.progressBar(pct)} ${pct}%
 \`\`\`
 
-_Analysiere Daten..._`;
+_${phases[i - 1]}_`;
 
       if (messageId) {
         await this.editMessage(chatId, messageId, progressMsg);
@@ -775,44 +776,52 @@ ${this.DIVIDER}
   private async sendScanResult(result: ScanResult, chatId: string, messageId?: number): Promise<void> {
     const signalCount = result.signalsFound.length;
     const hasSignals = signalCount > 0;
+    const highAlpha = result.signalsFound.filter(s => s.score > 0.7).length;
 
     let signalPreview = '';
     if (hasSignals) {
       const top3 = result.signalsFound.slice(0, 3);
       for (const s of top3) {
-        const emoji = s.germanSource ? '🇩🇪' : '📊';
+        const emoji = s.germanSource ? '🇩🇪' : '🎯';
         signalPreview += `│  ${emoji} ${s.direction} ${this.progressBar(s.score * 100, 100, 5)} ${(s.score * 100).toFixed(0)}% │\n`;
       }
     }
 
+    const headline = hasSignals
+      ? (highAlpha > 0 ? `🔥 *ALPHA DETECTED!*` : `✅ *SCAN FERTIG*`)
+      : `📭 *NICHTS GEFUNDEN*`;
+
     const message = `${this.HEADER}
 
-✅ *SCAN ABGESCHLOSSEN*
+${headline}
 
 ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  ERGEBNIS                       │
+│  JAGDERGEBNIS                   │
 ├─────────────────────────────────┤
-│  Märkte:     ${String(result.marketsScanned).padStart(6, ' ')}             │
-│  Signale:    ${String(signalCount).padStart(6, ' ')}             │
+│  Gescannt:   ${String(result.marketsScanned).padStart(6, ' ')} Märkte     │
+│  Treffer:    ${String(signalCount).padStart(6, ' ')} Signale    │
+│  High Alpha: ${String(highAlpha).padStart(6, ' ')}             │
 │  Dauer:      ${String(result.duration).padStart(5, ' ')}ms            │
 └─────────────────────────────────┘
 ${hasSignals ? `
 ┌─────────────────────────────────┐
-│  TOP SIGNALE                    │
+│  🎯 TOP TREFFER                 │
 ├─────────────────────────────────┤
 ${signalPreview}└─────────────────────────────────┘` : ''}
 \`\`\`
 
-${hasSignals ? `🎯 ${signalCount} Trading-Opportunities gefunden!` : '📭 Keine Signale in diesem Scan'}`;
+${hasSignals
+    ? (highAlpha > 0 ? `*${highAlpha} fette Gelegenheiten warten! Zuschlagen?*` : `${signalCount} Signale. Schau sie dir an.`)
+    : `_Markt ist ruhig. Warten wir ab._`}`;
 
     const keyboard: InlineKeyboardMarkup = hasSignals
       ? {
           inline_keyboard: [
-            [{ text: '🎯 Signale anzeigen', callback_data: 'action:signals' }],
-            [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+            [{ text: '🎯 SIGNALE CHECKEN', callback_data: 'action:signals' }],
+            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
           ],
         }
       : this.getBackButton();
@@ -834,11 +843,13 @@ ${hasSignals ? `🎯 ${signalCount} Trading-Opportunities gefunden!` : '📭 Kei
     this.pendingTrades.set(signal.id, recommendation);
 
     const isGerman = signal.germanSource !== undefined;
-    const prefix = isGerman ? '🇩🇪 DEUTSCHLAND ALPHA' : '🚨 BREAKING SIGNAL';
+    const prefix = isGerman ? '🇩🇪 ALMANIEN-VORSPRUNG!' : '🚨 ALPHA ALARM!';
+    const subtext = isGerman ? '_Deutsche Daten zeigen Edge_' : '_Die Maschine hat was gefunden_';
 
     const message = `${this.HEADER}
 
 *${prefix}*
+${subtext}
 
 ${this.DIVIDER}
 
@@ -848,18 +859,18 @@ ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  SIGNAL                         │
+│  🎯 SIGNAL                      │
 ├─────────────────────────────────┤
 │  Score: ${this.progressBar(signal.score * 100, 100, 8)} ${(signal.score * 100).toFixed(0).padStart(3, ' ')}% │
 │  Edge:  +${(signal.edge * 100).toFixed(1).padStart(5, ' ')}%                │
-│  Typ:   ${signal.direction.padEnd(10, ' ')}           │
+│  Bet:   ${signal.direction.padEnd(10, ' ')}           │
 │  Size:  $${recommendation.positionSize.toFixed(2).padStart(8, ' ')}            │
 └─────────────────────────────────┘
 \`\`\`
 
 ${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}
 
-⚡ *Jetzt handeln?*`;
+*Bock? Ein Klick und das Ding läuft.*`;
 
     await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signal.id));
   }
