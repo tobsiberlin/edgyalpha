@@ -134,3 +134,13 @@ CREATE TABLE IF NOT EXISTS historical_markets (
   outcome TEXT,
   imported_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- meta_combiner_state (ML-Weights und Koeffizienten)
+CREATE TABLE IF NOT EXISTS meta_combiner_state (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  weights TEXT NOT NULL,           -- JSON: {timeDelay: number, mispricing: number}
+  coefficients TEXT NOT NULL,       -- JSON: {feature_name: coefficient}
+  training_count INTEGER NOT NULL,  -- Anzahl Trainingsbeispiele
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_combiner_updated ON meta_combiner_state(updated_at);

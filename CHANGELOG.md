@@ -29,6 +29,12 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Dawum korrekt: Objekt-Iteration, Bundestag-Filter, CDU/CSU zusammengeführt, CLI `npm run dawum`
 - poly_data Loader: Streaming CSV-Import, Batch-Inserts, Progress-Bar, CLI `npm run import:polydata`
 
+**Phase 3 - Alpha Engines (ERLEDIGT):**
+- TIME_DELAY Engine: News→Market Matching (Fuzzy + Levenshtein), Multi-Source Confirmation, Sentiment-Analyse
+- MISPRICING Engine: Transparente P_true Schätzung (Polls, Mean-Reversion, Historical Bias), Market-Quality Gates
+- Meta-Combiner: Online Logistic Regression, Walk-Forward Learning, Feature-Koeffizienten, Erklärbare Top-Features
+- Neue DB-Tabelle: meta_combiner_state für persistente Weights
+
 ### Geplant (noch nicht implementiert)
 - SQLite Storage-Layer mit `better-sqlite3`
 - Feature-Flags: `ALPHA_ENGINE` (timeDelay|mispricing|meta), `EXECUTION_MODE` (paper|shadow|live)
