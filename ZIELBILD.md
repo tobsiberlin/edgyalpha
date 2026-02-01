@@ -9,7 +9,7 @@
 | 3 | Almanien-Modul | ✅ DONE | Dawum, RSS, Bundestag live anzeigen |
 | 4 | Wallet verbinden | ✅ DONE | Echte USDC-Balance anzeigen |
 | 5 | Status-Dots ehrlich | ✅ DONE | Keine Fake-Dots mehr |
-| 6 | Telegram fixen | 🔄 WIP | /scan zeigt echte Märkte |
+| 6 | Telegram fixen | ✅ DONE | /scan zeigt echte Märkte |
 | 7 | Trading aktivieren | ❌ TODO | Buy-Buttons funktionieren |
 | 8 | Session-Login | ✅ DONE | Kein nerviges Basic Auth |
 
@@ -29,10 +29,14 @@
 - [x] Balance im UI anzeigen
 - [ ] Balance im Telegram anzeigen (→ Task 6)
 
-### Task 6: Telegram komplett fixen
-- [ ] /scan zeigt echte Märkte mit Odds
-- [ ] /status zeigt echte System-Infos
-- [ ] Almanien-Alerts wenn neue Umfrage
+### Task 6: Telegram komplett fixen ✅
+- [x] /scan zeigt echte Märkte mit Odds
+- [x] /status zeigt echte System-Infos
+- [x] /wallet zeigt echte Balance
+- [x] /polls zeigt Wahlumfragen
+- [x] /news zeigt deutsche News
+- [x] /signals zeigt aktuelle Signale
+- [ ] Almanien-Alerts wenn neue Umfrage (→ später mit Matching)
 
 ### Task 7: Trading aktivieren
 - [ ] Buy-Buttons zeigen Feedback

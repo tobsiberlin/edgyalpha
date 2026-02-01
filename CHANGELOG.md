@@ -7,6 +7,24 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.5.0] - 2026-02-01
+
+### Hinzugefügt
+- **Telegram Commands**
+  - `/scan` - Starte Markt-Scan direkt per Command
+  - `/status` - System-Status anzeigen
+  - `/wallet` - Echte Wallet-Balance
+  - `/polls` - Aktuelle Wahlumfragen
+  - `/news` - Deutsche News
+  - `/signals` - Aktuelle Alpha-Signale
+- Telegram Wallet zeigt echte Polygon-Balance
+
+### Geändert
+- Telegram Bot nutzt jetzt tradingClient für echte Balance
+- Version auf 1.5.0 aktualisiert
+
+---
+
 ## [1.4.0] - 2026-02-01
 
 ### Hinzugefügt

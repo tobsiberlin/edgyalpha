@@ -1,8 +1,9 @@
 import TelegramBot, { InlineKeyboardButton, InlineKeyboardMarkup } from 'node-telegram-bot-api';
-import { config } from '../utils/config.js';
+import { config, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { AlphaSignal, TradeRecommendation, ScanResult } from '../types/index.js';
 import { scanner } from '../scanner/index.js';
+import { tradingClient } from '../api/trading.js';
 import { EventEmitter } from 'events';
 
 // ═══════════════════════════════════════════════════════════════
@@ -182,6 +183,44 @@ ${this.DIVIDER}
 
     this.bot.onText(/\/menu/, async (msg) => {
       await this.sendMainMenu(msg.chat.id.toString());
+    });
+
+    // /scan - Starte einen Scan
+    this.bot.onText(/\/scan/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+      await this.sendMessage('🔥 *Starte Scan...*\n\n_Die Maschine rattert..._', chatId);
+
+      try {
+        const result = await scanner.scan();
+        await this.sendScanResult(result, chatId);
+      } catch (err) {
+        await this.sendMessage('❌ Scan fehlgeschlagen. Deutsche Infrastruktur halt.', chatId);
+      }
+    });
+
+    // /status - System Status
+    this.bot.onText(/\/status/, async (msg) => {
+      await this.handleStatus(msg.chat.id.toString());
+    });
+
+    // /wallet - Wallet Balance
+    this.bot.onText(/\/wallet/, async (msg) => {
+      await this.handleWallet(msg.chat.id.toString());
+    });
+
+    // /polls - Aktuelle Umfragen
+    this.bot.onText(/\/polls/, async (msg) => {
+      await this.handlePolls(msg.chat.id.toString());
+    });
+
+    // /news - Deutsche News
+    this.bot.onText(/\/news/, async (msg) => {
+      await this.handleNews(msg.chat.id.toString());
+    });
+
+    // /signals - Aktuelle Signale
+    this.bot.onText(/\/signals/, async (msg) => {
+      await this.handleSignals(msg.chat.id.toString());
     });
   }
 
@@ -438,6 +477,28 @@ Tippe auf ein Signal für Details:`;
   }
 
   private async handleWallet(chatId: string, messageId?: number): Promise<void> {
+    let balanceInfo: string;
+    let addressInfo: string;
+
+    if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
+      balanceInfo = `│  ⚠️  WALLET NICHT KONFIGURIERT  │
+├─────────────────────────────────┤
+│  Setze WALLET_PRIVATE_KEY       │
+│  und WALLET_ADDRESS in .env     │`;
+      addressInfo = 'N/A';
+    } else {
+      try {
+        const balance = await tradingClient.getWalletBalance();
+        const shortAddr = `${WALLET_ADDRESS.substring(0, 6)}...${WALLET_ADDRESS.substring(38)}`;
+        balanceInfo = `│  USDC:      $${balance.usdc.toFixed(2).padStart(8, ' ')}         │
+│  MATIC:     ${balance.matic.toFixed(4).padStart(9, ' ')}         │`;
+        addressInfo = shortAddr;
+      } catch {
+        balanceInfo = `│  ⚠️  FEHLER BEIM LADEN          │`;
+        addressInfo = 'Fehler';
+      }
+    }
+
     const message = `${this.HEADER}
 
 💰 *WALLET*
@@ -448,23 +509,21 @@ ${this.DIVIDER}
 ┌─────────────────────────────────┐
 │  BALANCE                        │
 ├─────────────────────────────────┤
-│  USDC:      $${String(config.trading.maxBankrollUsdc).padStart(8, ' ')}         │
-│  Verfügbar: $${String(config.trading.maxBankrollUsdc).padStart(8, ' ')}         │
+${balanceInfo}
 └─────────────────────────────────┘
 
 ┌─────────────────────────────────┐
-│  EINSTELLUNGEN                  │
+│  ADRESSE                        │
+├─────────────────────────────────┤
+│  ${addressInfo.padEnd(20, ' ')}            │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  TRADING CONFIG                 │
 ├─────────────────────────────────┤
 │  Max Bet:   $${String(config.trading.maxBetUsdc).padStart(8, ' ')}         │
 │  Risiko:    ${String(config.trading.riskPerTradePercent).padStart(8, ' ')}%        │
 │  Kelly:     ${String(config.trading.kellyFraction * 100).padStart(8, ' ')}%        │
-└─────────────────────────────────┘
-
-┌─────────────────────────────────┐
-│  P&L HEUTE                      │
-├─────────────────────────────────┤
-│  Trades:    ${String(0).padStart(8, ' ')}          │
-│  Gewinn:    ${String('$0.00').padStart(8, ' ')}          │
 └─────────────────────────────────┘
 \`\`\``;
 
