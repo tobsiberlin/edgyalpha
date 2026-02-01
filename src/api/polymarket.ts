@@ -136,75 +136,193 @@ export class PolymarketClient {
   private parseMarket(raw: Record<string, unknown>): Market {
     const outcomes: Outcome[] = [];
 
-    // Parse outcomes from tokens
-    const tokens = (raw.tokens as Array<Record<string, unknown>>) || [];
-    for (const token of tokens) {
+    // Parse JSON-strings from Gamma API
+    let outcomeNames: string[] = [];
+    let outcomePrices: string[] = [];
+    let tokenIds: string[] = [];
+
+    try {
+      if (typeof raw.outcomes === 'string') {
+        outcomeNames = JSON.parse(raw.outcomes);
+      } else if (Array.isArray(raw.outcomes)) {
+        outcomeNames = raw.outcomes;
+      }
+    } catch {
+      outcomeNames = ['Yes', 'No'];
+    }
+
+    try {
+      if (typeof raw.outcomePrices === 'string') {
+        outcomePrices = JSON.parse(raw.outcomePrices);
+      } else if (Array.isArray(raw.outcomePrices)) {
+        outcomePrices = raw.outcomePrices;
+      }
+    } catch {
+      outcomePrices = ['0.5', '0.5'];
+    }
+
+    try {
+      if (typeof raw.clobTokenIds === 'string') {
+        tokenIds = JSON.parse(raw.clobTokenIds);
+      } else if (Array.isArray(raw.clobTokenIds)) {
+        tokenIds = raw.clobTokenIds;
+      }
+    } catch {
+      tokenIds = [];
+    }
+
+    // Build outcomes from parsed data
+    for (let i = 0; i < outcomeNames.length; i++) {
       outcomes.push({
-        id: String(token.token_id || token.id || ''),
-        name: String(token.outcome || 'Unknown'),
-        price: parseFloat(String(token.price || 0)),
-        volume24h: parseFloat(String(token.volume_24h || 0)),
+        id: tokenIds[i] || `outcome-${i}`,
+        name: outcomeNames[i] || (i === 0 ? 'Yes' : 'No'),
+        price: parseFloat(outcomePrices[i] || '0.5'),
+        volume24h: 0, // Gamma API gibt kein per-outcome volume
       });
     }
 
-    // Falls keine outcomes aus tokens, versuche clobTokenIds
+    // Fallback falls keine outcomes
     if (outcomes.length === 0) {
-      const clobTokenIds = raw.clobTokenIds as string[] | undefined;
-      if (clobTokenIds && clobTokenIds.length >= 2) {
-        outcomes.push(
-          { id: clobTokenIds[0], name: 'Yes', price: 0.5, volume24h: 0 },
-          { id: clobTokenIds[1], name: 'No', price: 0.5, volume24h: 0 }
-        );
-      }
+      outcomes.push(
+        { id: 'yes', name: 'Yes', price: 0.5, volume24h: 0 },
+        { id: 'no', name: 'No', price: 0.5, volume24h: 0 }
+      );
     }
 
     return {
-      id: String(raw.id || raw.condition_id || ''),
+      id: String(raw.id || raw.conditionId || ''),
       question: String(raw.question || raw.title || ''),
       slug: String(raw.slug || ''),
-      category: this.parseCategory(String(raw.category || raw.tags || '')),
-      volume24h: parseFloat(String(raw.volume_24h || raw.volume24hr || 0)),
-      totalVolume: parseFloat(String(raw.volume || raw.totalVolume || 0)),
-      liquidity: parseFloat(String(raw.liquidity || 0)),
+      category: this.parseCategory(String(raw.question || raw.title || '')),
+      volume24h: parseFloat(String(raw.volume24hr || raw.volume_24h || 0)),
+      totalVolume: parseFloat(String(raw.volume || raw.volumeNum || 0)),
+      liquidity: parseFloat(String(raw.liquidity || raw.liquidityNum || 0)),
       outcomes,
-      endDate: String(raw.end_date_iso || raw.endDate || ''),
+      endDate: String(raw.endDateIso || raw.end_date_iso || raw.endDate || ''),
       resolved: Boolean(raw.resolved || raw.closed),
-      createdAt: String(raw.created_at || raw.createdAt || ''),
-      updatedAt: String(raw.updated_at || raw.updatedAt || ''),
+      createdAt: String(raw.createdAt || raw.created_at || ''),
+      updatedAt: String(raw.updatedAt || raw.updated_at || ''),
     };
   }
 
-  private parseCategory(category: string): MarketCategory {
-    const cat = category.toLowerCase();
+  private parseCategory(question: string): MarketCategory {
+    const q = question.toLowerCase();
 
-    if (cat.includes('politic') || cat.includes('election') || cat.includes('government')) {
+    // Politics - erweiterte Keywords für US/DE Politik
+    if (
+      q.includes('trump') ||
+      q.includes('biden') ||
+      q.includes('president') ||
+      q.includes('congress') ||
+      q.includes('senate') ||
+      q.includes('politic') ||
+      q.includes('election') ||
+      q.includes('government') ||
+      q.includes('deport') ||
+      q.includes('tariff') ||
+      q.includes('impeach') ||
+      q.includes('merz') ||
+      q.includes('scholz') ||
+      q.includes('bundestag') ||
+      q.includes('afd') ||
+      q.includes('cdu') ||
+      q.includes('spd') ||
+      q.includes('grüne') ||
+      q.includes('fdp')
+    ) {
       return 'politics';
     }
-    if (cat.includes('econom') || cat.includes('fed') || cat.includes('inflation') || cat.includes('stock')) {
+    // Economics
+    if (
+      q.includes('econom') ||
+      q.includes('fed') ||
+      q.includes('inflation') ||
+      q.includes('stock') ||
+      q.includes('gdp') ||
+      q.includes('recession') ||
+      q.includes('interest rate') ||
+      q.includes('unemployment') ||
+      q.includes('s&p') ||
+      q.includes('nasdaq') ||
+      q.includes('dow')
+    ) {
       return 'economics';
     }
-    if (cat.includes('crypto') || cat.includes('bitcoin') || cat.includes('ethereum')) {
+    // Crypto
+    if (
+      q.includes('crypto') ||
+      q.includes('bitcoin') ||
+      q.includes('ethereum') ||
+      q.includes('btc') ||
+      q.includes('eth') ||
+      q.includes('solana') ||
+      q.includes('blockchain')
+    ) {
       return 'crypto';
     }
-    if (cat.includes('sport') || cat.includes('nba') || cat.includes('nfl') || cat.includes('soccer')) {
+    // Sports
+    if (
+      q.includes('sport') ||
+      q.includes('nba') ||
+      q.includes('nfl') ||
+      q.includes('soccer') ||
+      q.includes('football') ||
+      q.includes('basketball') ||
+      q.includes('bundesliga') ||
+      q.includes('champions league') ||
+      q.includes('world cup') ||
+      q.includes('super bowl')
+    ) {
       return 'sports';
     }
-    if (cat.includes('tech') || cat.includes('ai') || cat.includes('apple') || cat.includes('tesla')) {
+    // Tech
+    if (
+      q.includes('tech') ||
+      q.includes(' ai ') ||
+      q.includes('artificial intelligence') ||
+      q.includes('apple') ||
+      q.includes('tesla') ||
+      q.includes('google') ||
+      q.includes('microsoft') ||
+      q.includes('openai') ||
+      q.includes('spacex')
+    ) {
       return 'tech';
     }
-    if (cat.includes('entertainment') || cat.includes('movie') || cat.includes('music')) {
+    // Entertainment
+    if (
+      q.includes('entertainment') ||
+      q.includes('movie') ||
+      q.includes('music') ||
+      q.includes('oscar') ||
+      q.includes('grammy') ||
+      q.includes('netflix')
+    ) {
       return 'entertainment';
     }
-    if (cat.includes('weather') || cat.includes('climate')) {
+    // Weather
+    if (q.includes('weather') || q.includes('climate') || q.includes('hurricane') || q.includes('temperature')) {
       return 'weather';
     }
-    if (cat.includes('science')) {
+    // Science
+    if (q.includes('science') || q.includes('nasa') || q.includes('research') || q.includes('study')) {
       return 'science';
     }
-    if (cat.includes('society') || cat.includes('culture')) {
+    // Society
+    if (q.includes('society') || q.includes('culture') || q.includes('population')) {
       return 'society';
     }
-    if (cat.includes('geopolit') || cat.includes('war') || cat.includes('international')) {
+    // Geopolitics
+    if (
+      q.includes('geopolit') ||
+      q.includes('war') ||
+      q.includes('international') ||
+      q.includes('ukraine') ||
+      q.includes('russia') ||
+      q.includes('china') ||
+      q.includes('nato') ||
+      q.includes('sanction')
+    ) {
       return 'geopolitics';
     }
 

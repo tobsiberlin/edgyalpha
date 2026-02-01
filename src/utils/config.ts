@@ -29,7 +29,7 @@ const envSchema = z.object({
 
   // Scanner
   SCAN_INTERVAL_MS: z.string().default('300000'),
-  MIN_VOLUME_USD: z.string().default('100000'),
+  MIN_VOLUME_USD: z.string().default('10000'),
   CATEGORIES: z.string().default('politics,economics'),
 
   // Germany
