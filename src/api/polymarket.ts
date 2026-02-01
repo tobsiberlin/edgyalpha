@@ -208,8 +208,9 @@ export class PolymarketClient {
   private parseCategory(question: string): MarketCategory {
     const q = question.toLowerCase();
 
-    // Politics - erweiterte Keywords für US/DE Politik
+    // Politics - erweiterte Keywords für US/DE/EU/Geopolitik
     if (
+      // US Politik
       q.includes('trump') ||
       q.includes('biden') ||
       q.includes('president') ||
@@ -221,6 +222,7 @@ export class PolymarketClient {
       q.includes('deport') ||
       q.includes('tariff') ||
       q.includes('impeach') ||
+      // DE Politik
       q.includes('merz') ||
       q.includes('scholz') ||
       q.includes('bundestag') ||
@@ -228,7 +230,17 @@ export class PolymarketClient {
       q.includes('cdu') ||
       q.includes('spd') ||
       q.includes('grüne') ||
-      q.includes('fdp')
+      q.includes('fdp') ||
+      // EU/Geopolitik (wichtig für Deutschland)
+      q.includes('ukraine') ||
+      q.includes('russia') ||
+      q.includes('putin') ||
+      q.includes('zelensky') ||
+      q.includes('ceasefire') ||
+      q.includes('nato') ||
+      q.includes('european') ||
+      q.includes('germany') ||
+      q.includes('german')
     ) {
       return 'politics';
     }

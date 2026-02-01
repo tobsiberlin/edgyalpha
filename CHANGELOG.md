@@ -7,6 +7,19 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.8.0] - 2026-02-01
+
+### Behoben
+- **Kategorie-Filter für Geopolitik**
+  - Ukraine, Russland, Putin, Zelensky, Ceasefire → "politics"
+  - NATO, European, Germany → "politics"
+  - Märkte werden jetzt korrekt als Politik kategorisiert
+
+### Geändert
+- parseCategory() erkennt jetzt alle EU/NATO-Märkte
+
+---
+
 ## [1.7.0] - 2026-02-01
 
 ### Hinzugefügt
