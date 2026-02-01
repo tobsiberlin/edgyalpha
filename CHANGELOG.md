@@ -7,6 +7,23 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.2.0] - 2026-02-01
+
+### Hinzugefügt
+- **Session-basierte Authentifizierung** statt nerviger Basic Auth
+- Neue Login-Seite (`/login`) mit Matrix-Style Design
+- Logout-Funktion (`/logout`)
+- 24h Session-Cookies (einmal einloggen reicht)
+
+### Geändert
+- Nginx Basic Auth entfernt (war nervig bei Navigation)
+- Alle API-Calls nutzen jetzt Session-Cookies
+
+### Behoben
+- Kein ständiges Auth-Popup mehr beim Navigieren
+
+---
+
 ## [1.1.1] - 2026-02-01
 
 ### Geändert

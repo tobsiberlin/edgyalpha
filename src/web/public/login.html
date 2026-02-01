@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>EDGY ALPHA - LOGIN</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+        :root {
+            --bg-dark: #0a0a0a;
+            --bg-panel: #0f0f0f;
+            --bg-card: #141414;
+            --border: #1a1a1a;
+            --border-light: #2a2a2a;
+            --green: #00ff00;
+            --green-dim: #00aa00;
+            --green-dark: #006600;
+            --red: #ff3333;
+            --gray: #666666;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--green);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+        }
+
+        .ascii-logo {
+            text-align: center;
+            margin-bottom: 30px;
+            color: var(--green-dim);
+            font-size: 10px;
+            line-height: 1.2;
+            animation: glow 3s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 5px var(--green-dark); }
+            50% { text-shadow: 0 0 20px var(--green), 0 0 30px var(--green-dim); }
+        }
+
+        .login-box {
+            background: var(--bg-card);
+            border: 1px solid var(--green);
+            padding: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .login-header::before,
+        .login-header::after {
+            content: '═══';
+            color: var(--green-dim);
+            margin: 0 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: var(--gray);
+        }
+
+        .form-label::before {
+            content: '> ';
+            color: var(--green-dim);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-light);
+            color: var(--green);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: var(--green);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--gray);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--green);
+            border: none;
+            color: var(--bg-dark);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            box-shadow: 0 0 20px var(--green);
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        .error-msg {
+            background: rgba(255, 51, 51, 0.1);
+            border: 1px solid var(--red);
+            color: var(--red);
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            font-size: 11px;
+            display: none;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 10px;
+            color: var(--gray);
+        }
+
+        .scan-line {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--green), transparent);
+            animation: scan-line 4s linear infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes scan-line {
+            0% { top: 0; }
+            100% { top: 100vh; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scan-line"></div>
+
+    <div class="login-container">
+        <pre class="ascii-logo">
+███████╗██████╗  ██████╗ ██╗   ██╗
+██╔════╝██╔══██╗██╔════╝ ╚██╗ ██╔╝
+█████╗  ██║  ██║██║  ███╗ ╚████╔╝
+██╔══╝  ██║  ██║██║   ██║  ╚██╔╝
+███████╗██████╔╝╚██████╔╝   ██║
+╚══════╝╚═════╝  ╚═════╝    ╚═╝
+      A L P H A   S C A N N E R
+        </pre>
+
+        <div class="login-box">
+            <div class="login-header">ZUGANG</div>
+
+            <div class="error-msg" id="error-msg">
+                ⚠ Ungültige Zugangsdaten
+            </div>
+
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label class="form-label">BENUTZER</label>
+                    <input type="text" name="username" class="form-input" placeholder="username" autocomplete="username" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">PASSWORT</label>
+                    <input type="password" name="password" class="form-input" placeholder="••••••••" autocomplete="current-password" required>
+                </div>
+
+                <button type="submit" class="login-btn">EINLOGGEN</button>
+            </form>
+        </div>
+
+        <div class="footer-text">
+            EDGY ALPHA v1.1.1 | Almanien-Vorsprung
+        </div>
+    </div>
+
+    <script>
+        // Zeige Fehler wenn URL-Parameter vorhanden
+        if (window.location.search.includes('error=1')) {
+            document.getElementById('error-msg').classList.add('visible');
+        }
+    </script>
+</body>
+</html>

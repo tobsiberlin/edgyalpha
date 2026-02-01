@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { join } from 'path';
+import cookieSession from 'cookie-session';
 import { config, PORT, WEB_USERNAME, WEB_PASSWORD_HASH } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { scanner } from '../scanner/index.js';
@@ -22,30 +23,37 @@ const io = new SocketServer(httpServer, {
 
 // Middleware
 app.use(express.json());
-app.use(express.static(publicPath));
+app.use(express.urlencoded({ extended: true }));
 
-// Basic Auth Middleware (für geschützte Routen)
-const basicAuth = (req: Request, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+// Session Middleware
+app.use(cookieSession({
+  name: 'edgyalpha_session',
+  keys: [WEB_PASSWORD_HASH || 'edgy-alpha-secret-key-2026'],
+  maxAge: 24 * 60 * 60 * 1000, // 24 Stunden
+  httpOnly: true,
+  sameSite: 'lax',
+}));
 
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Alpha Scanner"');
-    res.status(401).json({ error: 'Authentifizierung erforderlich' });
-    return;
-  }
-
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
-  const [username, password] = credentials.split(':');
-
-  // Einfache Passwort-Prüfung (in Produktion bcrypt verwenden)
-  if (username === WEB_USERNAME && password === (WEB_PASSWORD_HASH || 'admin')) {
+// Session Auth Middleware
+const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+  if (req.session?.authenticated) {
     next();
     return;
   }
 
-  res.status(401).json({ error: 'Ungültige Zugangsdaten' });
+  // API-Requests: JSON-Fehler
+  if (req.path.startsWith('/api/')) {
+    res.status(401).json({ error: 'Nicht eingeloggt' });
+    return;
+  }
+
+  // Browser-Requests: Redirect zum Login
+  res.redirect('/login');
 };
+
+// Static files NACH session middleware, aber VOR auth für login.html
+app.use('/login', express.static(join(publicPath, 'login.html')));
+app.use(express.static(publicPath));
 
 // ═══════════════════════════════════════════════════════════════
 //                        PUBLIC ENDPOINTS
@@ -56,17 +64,55 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     uptime: process.uptime(),
-    version: '1.0.0',
+    version: '1.1.1',
     timestamp: new Date().toISOString(),
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                        LOGIN ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+// Login-Seite
+app.get('/login', (req: Request, res: Response) => {
+  // Bereits eingeloggt? -> Dashboard
+  if (req.session?.authenticated) {
+    res.redirect('/');
+    return;
+  }
+  res.sendFile(join(publicPath, 'login.html'));
+});
+
+// Login verarbeiten
+app.post('/login', (req: Request, res: Response) => {
+  const { username, password } = req.body;
+
+  if (username === WEB_USERNAME && password === (WEB_PASSWORD_HASH || 'admin')) {
+    if (req.session) {
+      req.session.authenticated = true;
+      req.session.username = username;
+    }
+    logger.info(`Login erfolgreich: ${username}`);
+    res.redirect('/');
+    return;
+  }
+
+  logger.warn(`Login fehlgeschlagen: ${username}`);
+  res.redirect('/login?error=1');
+});
+
+// Logout
+app.get('/logout', (req: Request, res: Response) => {
+  req.session = null;
+  res.redirect('/login');
 });
 
 // ═══════════════════════════════════════════════════════════════
 //                        PROTECTED ENDPOINTS
 // ═══════════════════════════════════════════════════════════════
 
-// Dashboard HTML
-app.get('/', (_req: Request, res: Response) => {
+// Dashboard HTML (geschützt)
+app.get('/', requireAuth, (_req: Request, res: Response) => {
   res.sendFile(join(publicPath, 'index.html'));
 });
 
@@ -88,7 +134,7 @@ app.get('/manifest.json', (_req: Request, res: Response) => {
 });
 
 // API: System Status
-app.get('/api/status', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/status', requireAuth, (_req: Request, res: Response) => {
   const scannerStatus = scanner.getStatus();
   const lastResult = scanner.getLastResult();
 
@@ -107,20 +153,20 @@ app.get('/api/status', basicAuth, (_req: Request, res: Response) => {
 });
 
 // API: Alle Signale
-app.get('/api/signals', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/signals', requireAuth, (_req: Request, res: Response) => {
   const result = scanner.getLastResult();
   res.json(result?.signalsFound || []);
 });
 
 // API: Märkte
-app.get('/api/markets', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/markets', requireAuth, (_req: Request, res: Response) => {
   const result = scanner.getLastResult();
   const markets = result?.signalsFound.map((s) => s.market) || [];
   res.json(markets);
 });
 
 // API: Manuellen Scan starten
-app.post('/api/scan', basicAuth, async (_req: Request, res: Response) => {
+app.post('/api/scan', requireAuth, async (_req: Request, res: Response) => {
   try {
     const result = await scanner.scan();
     res.json(result);
@@ -131,20 +177,20 @@ app.post('/api/scan', basicAuth, async (_req: Request, res: Response) => {
 });
 
 // API: Deutschland-Daten
-app.get('/api/germany/polls', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/germany/polls', requireAuth, (_req: Request, res: Response) => {
   res.json(germanySources.getLatestPolls());
 });
 
-app.get('/api/germany/news', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/germany/news', requireAuth, (_req: Request, res: Response) => {
   res.json(germanySources.getLatestNews());
 });
 
-app.get('/api/germany/bundestag', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/germany/bundestag', requireAuth, (_req: Request, res: Response) => {
   res.json(germanySources.getBundestagItems());
 });
 
 // API: Konfiguration
-app.get('/api/config', basicAuth, (_req: Request, res: Response) => {
+app.get('/api/config', requireAuth, (_req: Request, res: Response) => {
   res.json({
     scanner: config.scanner,
     trading: {
@@ -158,7 +204,7 @@ app.get('/api/config', basicAuth, (_req: Request, res: Response) => {
 });
 
 // API: Trade bestätigen
-app.post('/api/trade/:signalId', basicAuth, async (req: Request, res: Response) => {
+app.post('/api/trade/:signalId', requireAuth, async (req: Request, res: Response) => {
   const { signalId } = req.params;
   const { direction } = req.body;
 

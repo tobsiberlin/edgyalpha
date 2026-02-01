@@ -1130,12 +1130,13 @@
         // ═══════════════════════════════════════════════════════════════
         async function loadInitialData() {
             try {
+                const opts = { credentials: 'include' };
                 const [status, signalsData, polls, news, config] = await Promise.all([
-                    fetch('/api/status').then(r => r.json()).catch(() => ({})),
-                    fetch('/api/signals').then(r => r.json()).catch(() => []),
-                    fetch('/api/germany/polls').then(r => r.json()).catch(() => []),
-                    fetch('/api/germany/news').then(r => r.json()).catch(() => []),
-                    fetch('/api/config').then(r => r.json()).catch(() => ({}))
+                    fetch('/api/status', opts).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+                    fetch('/api/signals', opts).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/germany/polls', opts).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/germany/news', opts).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/config', opts).then(r => r.ok ? r.json() : {}).catch(() => ({}))
                 ]);
 
                 if (signalsData.length) {
@@ -1189,7 +1190,7 @@
             addLog('info', '═══════════════════════════════════════');
 
             try {
-                const result = await fetch('/api/scan', { method: 'POST' }).then(r => r.json());
+                const result = await fetch('/api/scan', { method: 'POST', credentials: 'include' }).then(r => r.json());
                 handleScanResult(result);
             } catch (err) {
                 addLog('error', 'Scan fehlgeschlagen: ' + err.message);
@@ -1404,6 +1405,7 @@
                 await fetch(`/api/trade/${signalId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ direction })
                 });
                 addLog('success', `Trade ausgeführt: ${dirText}`);
