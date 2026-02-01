@@ -98,6 +98,9 @@ export interface Position {
   createdAt: Date;
 }
 
+export type AlphaEngine = 'timeDelay' | 'mispricing' | 'meta';
+export type ExecutionMode = 'paper' | 'shadow' | 'live';
+
 export interface Config {
   scanner: {
     intervalMs: number;
@@ -129,6 +132,11 @@ export interface Config {
     botToken: string;
     chatId: string;
   };
+  // Feature Flags
+  alphaEngine: AlphaEngine;
+  executionMode: ExecutionMode;
+  sqlitePath: string;
+  backtestMode: boolean;
 }
 
 export interface LogEntry {

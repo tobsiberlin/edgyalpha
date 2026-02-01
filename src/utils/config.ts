@@ -1,5 +1,5 @@
 import { config as dotenvConfig } from 'dotenv';
-import { Config, MarketCategory } from '../types/index.js';
+import { Config, MarketCategory, AlphaEngine, ExecutionMode } from '../types/index.js';
 import { z } from 'zod';
 
 // .env laden
@@ -46,6 +46,12 @@ const envSchema = z.object({
   WEB_AUTH_ENABLED: z.string().default('true'),
   WEB_USERNAME: z.string().default('admin'),
   WEB_PASSWORD_HASH: z.string().optional(),
+
+  // Feature Flags
+  ALPHA_ENGINE: z.enum(['timeDelay', 'mispricing', 'meta']).default('meta'),
+  EXECUTION_MODE: z.enum(['paper', 'shadow', 'live']).default('paper'),
+  SQLITE_PATH: z.string().default('./data/edgyalpha.db'),
+  BACKTEST_MODE: z.string().default('false'),
 });
 
 const env = envSchema.parse(process.env);
@@ -101,6 +107,11 @@ export const config: Config = {
     botToken: env.TELEGRAM_BOT_TOKEN || '',
     chatId: env.TELEGRAM_CHAT_ID || '',
   },
+  // Feature Flags
+  alphaEngine: env.ALPHA_ENGINE as AlphaEngine,
+  executionMode: env.EXECUTION_MODE as ExecutionMode,
+  sqlitePath: env.SQLITE_PATH,
+  backtestMode: env.BACKTEST_MODE === 'true',
 };
 
 export const PORT = parseInt(env.PORT, 10);

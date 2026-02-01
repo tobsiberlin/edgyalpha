@@ -7,6 +7,35 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [Unreleased] - Alpha Engines V2
+
+### Hinzugefügt
+- `PLAN.md`: Detaillierter 12-Schritte-Implementierungsplan für Alpha Engines V2
+- `tasks/todo.md`: Task-Tracker mit Checkboxen pro Schritt
+- `tasks/lessons.md`: Lessons Learned und Workflow-Regeln
+- Schritt 2.5: poly_data Integration für historische Trade-Daten
+
+**Phase 1 - Foundation (ERLEDIGT):**
+- Feature-Flags: `ALPHA_ENGINE`, `EXECUTION_MODE`, `SQLITE_PATH`, `BACKTEST_MODE`
+- SQLite Storage-Layer mit `better-sqlite3`
+- Schema mit 8 Tabellen (sources_events, markets_snapshot, signals, decisions, executions, outcomes, historical_trades, historical_markets)
+- Repositories für typsicheres CRUD (events, markets, signals, decisions, executions, outcomes, historical)
+- Alpha Types (`src/alpha/types.ts`): AlphaSignalV2, TimeDelayFeatures, MispricingFeatures, Decision, Execution, Outcome, etc.
+- ML-Regeln dokumentiert (Meta-Combiner mit Online Logistic Regression, Walk-Forward-Backtests)
+
+### Geplant (noch nicht implementiert)
+- SQLite Storage-Layer mit `better-sqlite3`
+- Feature-Flags: `ALPHA_ENGINE` (timeDelay|mispricing|meta), `EXECUTION_MODE` (paper|shadow|live)
+- TIME_DELAY Alpha-Engine (Informations-Timing)
+- MISPRICING Alpha-Engine (Value-/Struktur-Alpha)
+- Meta-Combiner (Walk-Forward Weights)
+- Backtesting-Framework mit echten Daten aus poly_data
+- Gestufte Execution (paper/shadow/live)
+- Risk-Gates und Quarter-Kelly Sizing
+- Slippage-Modell aus echten Trades kalibriert
+
+---
+
 ## [2.0.0] - 2026-02-01
 
 ### Hinzugefügt
