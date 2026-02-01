@@ -1,11 +1,17 @@
 import axios from 'axios';
-import Parser from 'rss-parser';
 import { EventEmitter } from 'events';
 import { config, BUNDESTAG_API_KEY } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { Market, GermanSource } from '../types/index.js';
-
-const rssParser = new Parser();
+import { fetchDawumPolls, type DawumPoll } from './dawum.js';
+import {
+  fetchAllRSSFeeds,
+  newsItemsToGermanSources,
+  getHealthSummary,
+  computeNewsHash,
+  type NewsItem,
+  WORKING_RSS_FEEDS,
+} from './rss.js';
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT-DRIVEN ALMAN SCANNER
@@ -24,186 +30,8 @@ export interface BreakingNewsEvent {
   detectedAt: Date;
 }
 
-// ULTRA-MASSIVE RSS-Feed Liste für maximalen Informationsvorsprung
-// 200+ Quellen für Breaking News Detection
-const RSS_FEEDS = [
-  // ═══════════════════════════════════════════════════════════════
-  // DEUTSCHE POLITIK (20+ Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { name: 'Tagesschau', url: 'https://www.tagesschau.de/xml/rss2/', category: 'politics' },
-  { name: 'Tagesschau Inland', url: 'https://www.tagesschau.de/inland/index~rss2.xml', category: 'politics' },
-  { name: 'Tagesschau Ausland', url: 'https://www.tagesschau.de/ausland/index~rss2.xml', category: 'politics' },
-  { name: 'Spiegel Politik', url: 'https://www.spiegel.de/politik/index.rss', category: 'politics' },
-  { name: 'Spiegel Deutschland', url: 'https://www.spiegel.de/politik/deutschland/index.rss', category: 'politics' },
-  { name: 'Spiegel Ausland', url: 'https://www.spiegel.de/politik/ausland/index.rss', category: 'politics' },
-  { name: 'Zeit Politik', url: 'https://newsfeed.zeit.de/politik/index', category: 'politics' },
-  { name: 'Zeit Deutschland', url: 'https://newsfeed.zeit.de/politik/deutschland/index', category: 'politics' },
-  { name: 'FAZ Politik', url: 'https://www.faz.net/rss/aktuell/politik/', category: 'politics' },
-  { name: 'FAZ Inland', url: 'https://www.faz.net/rss/aktuell/politik/inland/', category: 'politics' },
-  { name: 'Welt Politik', url: 'https://www.welt.de/feeds/section/politik.rss', category: 'politics' },
-  { name: 'Welt Deutschland', url: 'https://www.welt.de/feeds/section/politik/deutschland.rss', category: 'politics' },
-  { name: 'n-tv Politik', url: 'https://www.n-tv.de/rss/politik', category: 'politics' },
-  { name: 'Focus Politik', url: 'https://rss.focus.de/politik/', category: 'politics' },
-  { name: 'Stern Politik', url: 'https://www.stern.de/feed/standard/politik/', category: 'politics' },
-  { name: 'Bild Politik', url: 'https://www.bild.de/rss-feeds/rss-16725492,feed=politik.bild.html', category: 'politics' },
-  { name: 'Bundesregierung', url: 'https://www.bundesregierung.de/breg-de/service/rss/992816', category: 'politics' },
-  { name: 'Bundestag', url: 'https://www.bundestag.de/rss-feeds', category: 'politics' },
-  { name: 'rbb24 Berlin', url: 'https://www.rbb24.de/politik/feed.xml', category: 'politics' },
-  { name: 'BR24 Bayern', url: 'https://www.br.de/nachrichten/bayern,QcP6dfq/feed.rss', category: 'politics' },
-  { name: 'NDR Hamburg', url: 'https://www.ndr.de/nachrichten/hamburg/index-rss.xml', category: 'politics' },
-  { name: 'WDR NRW', url: 'https://www1.wdr.de/nachrichten/index~rss.feed', category: 'politics' },
-  { name: 'SWR BW', url: 'https://www.swr.de/swraktuell/baden-wuerttemberg/index~_feed-atom.xml', category: 'politics' },
-  { name: 'MDR Sachsen', url: 'https://www.mdr.de/nachrichten/sachsen/index-rss.xml', category: 'politics' },
-  { name: 'HR Hessen', url: 'https://www.hessenschau.de/index~_feed-rss-hessenschau.xml', category: 'politics' },
-
-  // ═══════════════════════════════════════════════════════════════
-  // WIRTSCHAFT & FINANZEN (25+ Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { name: 'Handelsblatt', url: 'https://www.handelsblatt.com/contentexport/feed/top-themen/', category: 'economics' },
-  { name: 'Handelsblatt Finanzen', url: 'https://www.handelsblatt.com/contentexport/feed/finanzen/', category: 'economics' },
-  { name: 'Handelsblatt Unternehmen', url: 'https://www.handelsblatt.com/contentexport/feed/unternehmen/', category: 'economics' },
-  { name: 'FAZ Wirtschaft', url: 'https://www.faz.net/rss/aktuell/wirtschaft/', category: 'economics' },
-  { name: 'FAZ Finanzen', url: 'https://www.faz.net/rss/aktuell/finanzen/', category: 'economics' },
-  { name: 'FAZ Unternehmen', url: 'https://www.faz.net/rss/aktuell/wirtschaft/unternehmen/', category: 'economics' },
-  { name: 'Manager Magazin', url: 'https://www.manager-magazin.de/rss/manager-magazin.rss', category: 'economics' },
-  { name: 'Wirtschaftswoche', url: 'https://www.wiwo.de/rss/wiwo-news.rss', category: 'economics' },
-  { name: 'Capital', url: 'https://www.capital.de/rss/index.rss', category: 'economics' },
-  { name: 'finanzen.net', url: 'https://www.finanzen.net/rss/news', category: 'economics' },
-  { name: 'Börse Online', url: 'https://www.boerse-online.de/rss/news', category: 'economics' },
-  { name: 'Der Aktionär', url: 'https://www.deraktionaer.de/rss/news.xml', category: 'economics' },
-  { name: 'Finanztreff', url: 'https://www.finanztreff.de/rss/news', category: 'economics' },
-  { name: 'Bloomberg', url: 'https://feeds.bloomberg.com/markets/news.rss', category: 'economics' },
-  { name: 'Bloomberg Europe', url: 'https://feeds.bloomberg.com/bview/news.rss', category: 'economics' },
-  { name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', category: 'economics' },
-  { name: 'CNBC Europe', url: 'https://www.cnbc.com/id/19794221/device/rss/rss.html', category: 'economics' },
-  { name: 'Financial Times', url: 'https://www.ft.com/rss/home', category: 'economics' },
-  { name: 'Wall Street Journal', url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', category: 'economics' },
-  { name: 'Reuters Business', url: 'https://feeds.reuters.com/reuters/businessNews', category: 'economics' },
-  { name: 'Yahoo Finance', url: 'https://finance.yahoo.com/rss/', category: 'economics' },
-  { name: 'MarketWatch', url: 'https://feeds.marketwatch.com/marketwatch/topstories/', category: 'economics' },
-  { name: 'Seeking Alpha', url: 'https://seekingalpha.com/market_currents.xml', category: 'economics' },
-  { name: 'ECB News', url: 'https://www.ecb.europa.eu/rss/press.html', category: 'economics' },
-  { name: 'Bundesbank', url: 'https://www.bundesbank.de/SiteGlobals/Functions/RSS/DE/rssfeed.html', category: 'economics' },
-
-  // ═══════════════════════════════════════════════════════════════
-  // SPORT - Fussball & Trainerwechsel (30+ Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { name: 'Kicker', url: 'https://www.kicker.de/rss/news', category: 'sports' },
-  { name: 'Kicker Bundesliga', url: 'https://www.kicker.de/rss/bundesliga', category: 'sports' },
-  { name: 'Kicker 2. Liga', url: 'https://www.kicker.de/rss/2-bundesliga', category: 'sports' },
-  { name: 'Kicker Champions League', url: 'https://www.kicker.de/rss/champions-league', category: 'sports' },
-  { name: 'Sport1', url: 'https://www.sport1.de/rss/fussball', category: 'sports' },
-  { name: 'Sport1 Bundesliga', url: 'https://www.sport1.de/rss/fussball/bundesliga', category: 'sports' },
-  { name: 'Sportschau', url: 'https://www.sportschau.de/index~rss.xml', category: 'sports' },
-  { name: 'Sportschau Fussball', url: 'https://www.sportschau.de/fussball/index~rss.xml', category: 'sports' },
-  { name: 'Spox Fussball', url: 'https://www.spox.com/rss/fussball-news.xml', category: 'sports' },
-  { name: 'Transfermarkt', url: 'https://www.transfermarkt.de/rss/news', category: 'sports' },
-  { name: 'Goal DE', url: 'https://www.goal.com/de/feeds/news', category: 'sports' },
-  { name: 'Goal EN', url: 'https://www.goal.com/en/feeds/news', category: 'sports' },
-  { name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news', category: 'sports' },
-  { name: 'Sky Sports Football', url: 'https://www.skysports.com/rss/12040', category: 'sports' },
-  { name: 'BBC Sport Football', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', category: 'sports' },
-  { name: 'Guardian Football', url: 'https://www.theguardian.com/football/rss', category: 'sports' },
-  { name: 'FourFourTwo', url: 'https://www.fourfourtwo.com/feeds/all', category: 'sports' },
-  { name: 'The Athletic', url: 'https://theathletic.com/rss-feed/', category: 'sports' },
-  // Club-spezifische Feeds (für Trainerwechsel!)
-  { name: 'FC Bayern News', url: 'https://www.tz.de/sport/fc-bayern/rssfeed.rss', category: 'sports' },
-  { name: 'BVB News', url: 'https://www.ruhrnachrichten.de/sport/bvb/rssfeed.rss', category: 'sports' },
-  { name: 'RB Leipzig News', url: 'https://www.lvz.de/Sport/Fussball/RB-Leipzig/rssfeed.rss', category: 'sports' },
-  { name: 'Bayer Leverkusen', url: 'https://www.kicker.de/bayer-04-leverkusen/news/rss', category: 'sports' },
-  { name: 'Schalke 04', url: 'https://www.kicker.de/fc-schalke-04/news/rss', category: 'sports' },
-  // International
-  { name: 'Premier League', url: 'https://www.skysports.com/rss/12691', category: 'sports' },
-  { name: 'La Liga', url: 'https://www.skysports.com/rss/12821', category: 'sports' },
-  { name: 'Serie A', url: 'https://www.skysports.com/rss/12827', category: 'sports' },
-  { name: 'Ligue 1', url: 'https://www.skysports.com/rss/12833', category: 'sports' },
-  // NFL/NBA für US Sports
-  { name: 'ESPN NFL', url: 'https://www.espn.com/espn/rss/nfl/news', category: 'sports' },
-  { name: 'ESPN NBA', url: 'https://www.espn.com/espn/rss/nba/news', category: 'sports' },
-  { name: 'Bleacher Report', url: 'https://bleacherreport.com/articles/feed', category: 'sports' },
-
-  // ═══════════════════════════════════════════════════════════════
-  // GEOPOLITIK & INTERNATIONAL (40+ Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { name: 'Reuters World', url: 'https://feeds.reuters.com/reuters/worldNews', category: 'geopolitics' },
-  { name: 'Reuters Europe', url: 'https://feeds.reuters.com/reuters/UKWorldNews', category: 'geopolitics' },
-  { name: 'Reuters Politics', url: 'https://feeds.reuters.com/Reuters/PoliticsNews', category: 'geopolitics' },
-  { name: 'AP News', url: 'https://rsshub.app/apnews/topics/world-news', category: 'geopolitics' },
-  { name: 'AFP', url: 'https://www.afp.com/en/rss-feeds', category: 'geopolitics' },
-  { name: 'BBC World', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'geopolitics' },
-  { name: 'BBC Europe', url: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml', category: 'geopolitics' },
-  { name: 'BBC US', url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', category: 'geopolitics' },
-  { name: 'BBC Asia', url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml', category: 'geopolitics' },
-  { name: 'Guardian World', url: 'https://www.theguardian.com/world/rss', category: 'geopolitics' },
-  { name: 'Guardian Europe', url: 'https://www.theguardian.com/world/europe-news/rss', category: 'geopolitics' },
-  { name: 'Guardian US', url: 'https://www.theguardian.com/us-news/rss', category: 'geopolitics' },
-  { name: 'NYT World', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', category: 'geopolitics' },
-  { name: 'NYT Europe', url: 'https://rss.nytimes.com/services/xml/rss/nyt/Europe.xml', category: 'geopolitics' },
-  { name: 'Washington Post', url: 'https://feeds.washingtonpost.com/rss/world', category: 'geopolitics' },
-  { name: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml', category: 'geopolitics' },
-  { name: 'Al Jazeera Europe', url: 'https://www.aljazeera.com/europe/rss.xml', category: 'geopolitics' },
-  { name: 'DW Deutsch', url: 'https://rss.dw.com/xml/rss-de-all', category: 'geopolitics' },
-  { name: 'DW English', url: 'https://rss.dw.com/xml/rss-en-all', category: 'geopolitics' },
-  { name: 'DW Europe', url: 'https://rss.dw.com/xml/rss-en-eu', category: 'geopolitics' },
-  { name: 'Euronews', url: 'https://www.euronews.com/rss', category: 'geopolitics' },
-  { name: 'Politico EU', url: 'https://www.politico.eu/feed/', category: 'geopolitics' },
-  { name: 'EU Observer', url: 'https://euobserver.com/rss.xml', category: 'geopolitics' },
-  { name: 'France24', url: 'https://www.france24.com/en/rss', category: 'geopolitics' },
-  { name: 'The Local DE', url: 'https://www.thelocal.de/feed/', category: 'geopolitics' },
-  { name: 'The Local EU', url: 'https://www.thelocal.com/feed/', category: 'geopolitics' },
-
-  // === UKRAINE/RUSSLAND SPEZIAL (15+ Quellen) ===
-  { name: 'Kyiv Independent', url: 'https://kyivindependent.com/feed/', category: 'geopolitics' },
-  { name: 'Ukraine Pravda EN', url: 'https://www.pravda.com.ua/eng/rss/', category: 'geopolitics' },
-  { name: 'Ukraine Pravda UA', url: 'https://www.pravda.com.ua/rss/', category: 'geopolitics' },
-  { name: 'RFERL Ukraine', url: 'https://www.rferl.org/api/zrqiteuuir', category: 'geopolitics' },
-  { name: 'RFERL Russia', url: 'https://www.rferl.org/api/zbitrmquvo', category: 'geopolitics' },
-  { name: 'Meduza EN', url: 'https://meduza.io/rss/en/all', category: 'geopolitics' },
-  { name: 'Moscow Times', url: 'https://www.themoscowtimes.com/rss/news', category: 'geopolitics' },
-  { name: 'Ukrinform', url: 'https://www.ukrinform.net/rss/block-lastnews', category: 'geopolitics' },
-  { name: 'UNIAN', url: 'https://www.unian.net/rss/', category: 'geopolitics' },
-  { name: 'ISW', url: 'https://www.understandingwar.org/feed', category: 'geopolitics' },
-  { name: 'War on the Rocks', url: 'https://warontherocks.com/feed/', category: 'geopolitics' },
-  { name: 'Defense One', url: 'https://www.defenseone.com/rss/', category: 'geopolitics' },
-  { name: 'Defense News', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/', category: 'geopolitics' },
-  { name: 'Janes', url: 'https://www.janes.com/feeds/news', category: 'geopolitics' },
-
-  // === US POLITIK (für Trump/Elections) ===
-  { name: 'Politico', url: 'https://www.politico.com/rss/politicopicks.xml', category: 'politics' },
-  { name: 'The Hill', url: 'https://thehill.com/feed/', category: 'politics' },
-  { name: 'Axios', url: 'https://api.axios.com/feed/', category: 'politics' },
-  { name: 'CNN Politics', url: 'http://rss.cnn.com/rss/cnn_allpolitics.rss', category: 'politics' },
-  { name: 'Fox News Politics', url: 'https://moxie.foxnews.com/google-publisher/politics.xml', category: 'politics' },
-  { name: 'NPR Politics', url: 'https://feeds.npr.org/1014/rss.xml', category: 'politics' },
-  { name: 'FiveThirtyEight', url: 'https://fivethirtyeight.com/features/feed/', category: 'politics' },
-  { name: 'RealClearPolitics', url: 'https://www.realclearpolitics.com/index.xml', category: 'politics' },
-
-  // ═══════════════════════════════════════════════════════════════
-  // TECH & CRYPTO (20+ Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { name: 'Heise', url: 'https://www.heise.de/rss/heise-atom.xml', category: 'tech' },
-  { name: 'Golem', url: 'https://rss.golem.de/rss.php?feed=RSS2.0', category: 'tech' },
-  { name: 't3n', url: 'https://t3n.de/rss.xml', category: 'tech' },
-  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: 'tech' },
-  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'tech' },
-  { name: 'Wired', url: 'https://www.wired.com/feed/rss', category: 'tech' },
-  { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index', category: 'tech' },
-  { name: 'Engadget', url: 'https://www.engadget.com/rss.xml', category: 'tech' },
-  { name: 'MIT Tech Review', url: 'https://www.technologyreview.com/feed/', category: 'tech' },
-  { name: 'Hacker News', url: 'https://news.ycombinator.com/rss', category: 'tech' },
-  { name: 'Reuters Tech', url: 'https://feeds.reuters.com/reuters/technologyNews', category: 'tech' },
-  // Crypto
-  { name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'crypto' },
-  { name: 'CoinTelegraph', url: 'https://cointelegraph.com/rss', category: 'crypto' },
-  { name: 'The Block', url: 'https://www.theblockcrypto.com/rss.xml', category: 'crypto' },
-  { name: 'Decrypt', url: 'https://decrypt.co/feed', category: 'crypto' },
-  { name: 'Bitcoin Magazine', url: 'https://bitcoinmagazine.com/feed', category: 'crypto' },
-  { name: 'CryptoSlate', url: 'https://cryptoslate.com/feed/', category: 'crypto' },
-  // AI/OpenAI
-  { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss/', category: 'tech' },
-  { name: 'AI News', url: 'https://artificialintelligence-news.com/feed/', category: 'tech' },
-  { name: 'VentureBeat AI', url: 'https://venturebeat.com/category/ai/feed/', category: 'tech' },
-];
+// RSS Feeds sind jetzt in ./rss.ts definiert (WORKING_RSS_FEEDS + EXPERIMENTAL_RSS_FEEDS)
+// Import: WORKING_RSS_FEEDS aus ./rss.js
 
 // Keywords für Markt-Matching (erweitert um EU/NATO/Geopolitik)
 // Basierend auf Spezifikation: 15-60 Min Informationsvorsprung nutzen
@@ -264,11 +92,8 @@ const GERMANY_KEYWORDS = {
   ],
 };
 
-interface DawumPoll {
-  date: string;
-  institute: string;
-  results: Record<string, number>;
-}
+// DawumPoll Interface jetzt aus ./dawum.ts importiert
+// Hier nutzen wir das importierte DawumPoll Interface
 
 interface BundestagItem {
   id: string;
@@ -307,19 +132,21 @@ class GermanySources extends EventEmitter {
 
   startEventListener(): void {
     if (this.isPolling) {
-      logger.warn('RSS Event-Listener läuft bereits');
+      logger.warn('RSS Event-Listener laeuft bereits');
       return;
     }
 
+    const healthSummary = getHealthSummary();
     logger.info('═══════════════════════════════════════════════════════');
-    logger.info('🔴 ALMAN SCANNER EVENT-LISTENER GESTARTET');
+    logger.info('ALMAN SCANNER EVENT-LISTENER GESTARTET');
     logger.info(`   Polling-Intervall: ${this.RSS_POLL_INTERVAL / 1000}s`);
-    logger.info(`   Feeds: ${RSS_FEEDS.length}`);
+    logger.info(`   Feeds: ${WORKING_RSS_FEEDS.length} (kuratiert)`);
+    logger.info(`   Health: ${healthSummary.ok} OK, ${healthSummary.error} Fehler`);
     logger.info('═══════════════════════════════════════════════════════');
 
     this.isPolling = true;
 
-    // Initialer Fetch (ohne Events - nur Cache füllen)
+    // Initialer Fetch (ohne Events - nur Cache fuellen)
     this.fetchRSSFeedsWithDelta(false).catch(err =>
       logger.error(`Initial RSS-Fetch Fehler: ${err.message}`)
     );
@@ -344,48 +171,49 @@ class GermanySources extends EventEmitter {
   }
 
   // Delta-Detection: Nur NEUE News erkennen und Events emittieren
+  // Nutzt jetzt die robuste fetchAllRSSFeeds aus ./rss.ts
   private async fetchRSSFeedsWithDelta(emitEvents: boolean): Promise<void> {
-    const newNews: GermanSource[] = [];
     const breakingNews: BreakingNewsEvent[] = [];
 
-    // Parallel RSS-Fetching für schnellere Updates (max 10 gleichzeitig)
-    const feedChunks = this.chunkArray(RSS_FEEDS, 10);
+    // Nutze die neue robuste RSS-Fetch-Logik mit Health-Tracking
+    const result = await fetchAllRSSFeeds({
+      includeExperimental: false, // Nur stabile Feeds fuer Event-Listener
+      maxConcurrent: 10,
+      timeout: 8000,
+    });
 
-    for (const chunk of feedChunks) {
-      const results = await Promise.allSettled(
-        chunk.map(feed => this.fetchSingleFeed(feed))
-      );
+    // Konvertiere NewsItems zu GermanSource
+    const allNews = newsItemsToGermanSources(result.items);
+    const newNews: GermanSource[] = [];
 
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        if (result.status === 'fulfilled' && result.value) {
-          for (const item of result.value) {
-            // Eindeutige ID für Delta-Detection
-            const newsId = this.generateNewsId(item);
+    for (const item of allNews) {
+      // Nutze SHA256-Hash fuer eindeutige ID
+      const newsId = (item.data.hash as string) || computeNewsHash({
+        source: item.data.source as string,
+        url: item.url,
+        title: item.title,
+      });
 
-            if (!this.seenNewsIds.has(newsId)) {
-              this.seenNewsIds.add(newsId);
-              newNews.push(item);
+      if (!this.seenNewsIds.has(newsId)) {
+        this.seenNewsIds.add(newsId);
+        newNews.push(item);
 
-              // Prüfe ob Breaking News (relevant für Markets)
-              if (emitEvents) {
-                const keywords = this.extractKeywords(item);
-                if (keywords.length > 0) {
-                  const breakingEvent: BreakingNewsEvent = {
-                    id: newsId,
-                    source: item.data.source as string,
-                    title: item.title,
-                    url: item.url,
-                    content: (item.data.content as string) || '',
-                    category: chunk[i].category,
-                    keywords,
-                    publishedAt: item.publishedAt,
-                    detectedAt: new Date(),
-                  };
-                  breakingNews.push(breakingEvent);
-                }
-              }
-            }
+        // Pruefe ob Breaking News (relevant fuer Markets)
+        if (emitEvents) {
+          const keywords = this.extractKeywords(item);
+          if (keywords.length > 0) {
+            const breakingEvent: BreakingNewsEvent = {
+              id: newsId,
+              source: item.data.source as string,
+              title: item.title,
+              url: item.url,
+              content: (item.data.content as string) || '',
+              category: (item.data.category as string) || 'unknown',
+              keywords,
+              publishedAt: item.publishedAt,
+              detectedAt: new Date(),
+            };
+            breakingNews.push(breakingEvent);
           }
         }
       }
@@ -395,45 +223,25 @@ class GermanySources extends EventEmitter {
     this.cachedNews = [...newNews, ...this.cachedNews].slice(0, 1000);
     this.lastUpdate = new Date();
 
-    // Events emittieren für Breaking News
+    // Events emittieren fuer Breaking News
     if (emitEvents && breakingNews.length > 0) {
-      logger.info(`🚨 ${breakingNews.length} BREAKING NEWS erkannt!`);
+      logger.info(`${breakingNews.length} BREAKING NEWS erkannt!`);
 
       for (const news of breakingNews) {
-        logger.info(`   📰 [${news.source}] ${news.title.substring(0, 60)}...`);
+        logger.info(`   [${news.source}] ${news.title.substring(0, 60)}...`);
         logger.info(`      Keywords: ${news.keywords.join(', ')}`);
         this.emit('breaking_news', news);
       }
     }
 
     if (newNews.length > 0) {
-      logger.debug(`RSS Update: ${newNews.length} neue Artikel`);
-    }
-  }
-
-  private async fetchSingleFeed(feed: { name: string; url: string; category: string }): Promise<GermanSource[]> {
-    try {
-      const parsed = await rssParser.parseURL(feed.url);
-      return (parsed.items || []).slice(0, 10).map(item => ({
-        type: 'rss' as const,
-        title: item.title || 'Kein Titel',
-        url: item.link,
-        data: {
-          source: feed.name,
-          content: item.contentSnippet || item.content || '',
-          category: feed.category,
-        },
-        relevance: 0,
-        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
-      }));
-    } catch {
-      // Silent fail für einzelne Feeds
-      return [];
+      logger.debug(`RSS Update: ${newNews.length} neue Artikel (${result.successfulFeeds}/${result.totalFeeds} Feeds OK)`);
     }
   }
 
   private generateNewsId(news: GermanSource): string {
-    // URL ist eindeutig genug, mit Fallback auf Titel + Quelle
+    // Nutze SHA256-Hash wenn vorhanden, sonst Fallback
+    if (news.data.hash) return news.data.hash as string;
     if (news.url) return news.url;
     return `${news.data.source}:${news.title}`.substring(0, 200);
   }
@@ -448,14 +256,6 @@ class GermanySources extends EventEmitter {
     ];
 
     return allKeywords.filter(kw => text.includes(kw.toLowerCase()));
-  }
-
-  private chunkArray<T>(arr: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < arr.length; i += size) {
-      chunks.push(arr.slice(i, i + size));
-    }
-    return chunks;
   }
 
   // Original fetchAll - jetzt auch Event-Listener starten
@@ -487,48 +287,14 @@ class GermanySources extends EventEmitter {
 
   async fetchDawum(): Promise<void> {
     try {
-      const response = await axios.get('https://api.dawum.de/');
-      const data = response.data;
-
-      if (data.Surveys) {
-        this.cachedPolls = Object.entries(data.Surveys)
-          .slice(0, 20)
-          .map(([, survey]: [string, unknown]) => {
-            const s = survey as Record<string, unknown>;
-            const results: Record<string, number> = {};
-
-            if (s.Results && typeof s.Results === 'object') {
-              for (const [partyId, value] of Object.entries(s.Results as Record<string, unknown>)) {
-                const partyName = this.getPartyName(partyId, data.Parties);
-                if (partyName && typeof value === 'number') {
-                  results[partyName] = value;
-                }
-              }
-            }
-
-            return {
-              date: String(s.Date || ''),
-              institute: this.getInstituteName(String(s.Institute_ID || ''), data.Institutes),
-              results,
-            };
-          });
-      }
-
-      logger.debug(`Dawum: ${this.cachedPolls.length} Umfragen geladen`);
+      // Nutze die neue dawum.ts Implementierung
+      const polls = await fetchDawumPolls();
+      this.cachedPolls = polls.slice(0, 20);
+      logger.debug(`Dawum: ${this.cachedPolls.length} Bundestag-Umfragen geladen`);
     } catch (err) {
       const error = err as Error;
       logger.error(`Dawum Fehler: ${error.message}`);
     }
-  }
-
-  private getPartyName(id: string, parties: Record<string, unknown>): string {
-    const party = parties?.[id] as Record<string, unknown> | undefined;
-    return party?.Shortcut as string || id;
-  }
-
-  private getInstituteName(id: string, institutes: Record<string, unknown>): string {
-    const inst = institutes?.[id] as Record<string, unknown> | undefined;
-    return inst?.Name as string || id;
   }
 
   async fetchBundestag(): Promise<void> {
@@ -578,33 +344,22 @@ class GermanySources extends EventEmitter {
   }
 
   async fetchRSSFeeds(): Promise<void> {
-    const news: GermanSource[] = [];
+    // Nutze die neue robuste RSS-Fetch-Logik
+    const result = await fetchAllRSSFeeds({
+      includeExperimental: false, // Nur stabile, kuratierte Feeds
+      maxConcurrent: 10,
+      timeout: 8000,
+    });
 
-    for (const feed of RSS_FEEDS) {
-      try {
-        const parsed = await rssParser.parseURL(feed.url);
+    // Konvertiere NewsItems zu GermanSource Format
+    this.cachedNews = newsItemsToGermanSources(result.items);
 
-        for (const item of (parsed.items || []).slice(0, 10)) {
-          news.push({
-            type: 'rss',
-            title: item.title || 'Kein Titel',
-            url: item.link,
-            data: {
-              source: feed.name,
-              content: item.contentSnippet || item.content || '',
-            },
-            relevance: 0,
-            publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
-          });
-        }
-      } catch (err) {
-        const error = err as Error;
-        logger.debug(`RSS Feed ${feed.name} Fehler: ${error.message}`);
-      }
-    }
-
-    this.cachedNews = news;
-    logger.debug(`RSS: ${news.length} Artikel geladen`);
+    const healthSummary = getHealthSummary();
+    logger.debug(
+      `RSS: ${result.uniqueItems} Artikel geladen ` +
+      `(${result.successfulFeeds}/${result.totalFeeds} Feeds OK, ` +
+      `${healthSummary.avgSuccessRate}% Erfolgsrate)`
+    );
   }
 
   async matchMarketsWithGermanData(
@@ -744,19 +499,20 @@ class GermanySources extends EventEmitter {
     const question = market.question.toLowerCase();
 
     // CDU/CSU vs SPD Analyse
-    if (question.includes('cdu') || question.includes('merz')) {
-      const cduValue = (poll.results['CDU'] || 0) + (poll.results['CSU'] || 0);
-      const spdValue = poll.results['SPD'] || 0;
+    // Neue Struktur: CDU/CSU ist jetzt zusammengefasst, oder CDU/CSU einzeln
+    const cduValue =
+      (poll.results['CDU/CSU'] || 0) +
+      (poll.results['CDU'] || 0) +
+      (poll.results['CSU'] || 0);
+    const spdValue = poll.results['SPD'] || 0;
 
+    if (question.includes('cdu') || question.includes('merz')) {
       if (question.includes('win') || question.includes('gewinnt')) {
         return cduValue > spdValue ? 'YES' : 'NO';
       }
     }
 
     if (question.includes('spd') || question.includes('scholz')) {
-      const spdValue = poll.results['SPD'] || 0;
-      const cduValue = (poll.results['CDU'] || 0) + (poll.results['CSU'] || 0);
-
       if (question.includes('win') || question.includes('gewinnt')) {
         return spdValue > cduValue ? 'YES' : 'NO';
       }

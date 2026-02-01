@@ -10,6 +10,29 @@ const GAMMA_API_URL = 'https://gamma-api.polymarket.com';
 // Rate limiting: max 10 requests parallel
 const limit = pLimit(10);
 
+// Konfiguration
+const MAX_MARKETS_CAP = 2000;
+const MAX_SPREAD_QUALITY = 0.05; // Guter Spread < 5%
+
+export interface CLIMarket {
+  id: string;
+  question: string;
+  category: string;
+  volume: number;
+  volume24h: number;
+  yesPrice: number;
+  noPrice: number;
+  spread: number;
+}
+
+export interface FilterTelemetry {
+  stage1_active: number;
+  stage2_volume: number;
+  stage3_quality: number;
+  totalPages: number;
+  totalFetched: number;
+}
+
 export class PolymarketClient {
   private clobClient: AxiosInstance;
   private gammaClient: AxiosInstance;
@@ -79,34 +102,82 @@ export class PolymarketClient {
     });
   }
 
-  async getActiveMarketsWithVolume(minVolume: number): Promise<Market[]> {
+  /**
+   * Berechnet den Spread-Proxy für einen Markt
+   * Spread = |yes_price + no_price - 1|
+   * Ein guter Spread ist < 0.05 (5%)
+   */
+  calculateSpreadProxy(market: Market): number {
+    if (market.outcomes.length < 2) return 1; // Kein gültiger Spread
+
+    const yesPrice = market.outcomes.find(o => o.name.toLowerCase() === 'yes')?.price ?? market.outcomes[0].price;
+    const noPrice = market.outcomes.find(o => o.name.toLowerCase() === 'no')?.price ?? market.outcomes[1]?.price ?? (1 - yesPrice);
+
+    return Math.abs(yesPrice + noPrice - 1);
+  }
+
+  /**
+   * Holt alle aktiven Märkte mit Volume-Filter und Telemetrie
+   * Filter-Kaskade: active → volume → quality (spread)
+   */
+  async getActiveMarketsWithVolume(minVolume: number, maxSpread?: number): Promise<Market[]> {
+    const telemetry: FilterTelemetry = {
+      stage1_active: 0,
+      stage2_volume: 0,
+      stage3_quality: 0,
+      totalPages: 0,
+      totalFetched: 0,
+    };
+
     const allMarkets: Market[] = [];
     let offset = 0;
     const batchSize = 100;
     let hasMore = true;
+    const spreadThreshold = maxSpread ?? MAX_SPREAD_QUALITY;
 
     while (hasMore) {
       const markets = await limit(() =>
         this.getMarkets({ limit: batchSize, offset, active: true })
       );
 
+      telemetry.totalPages++;
+      telemetry.totalFetched += markets.length;
+
       if (markets.length === 0) {
         hasMore = false;
       } else {
-        const filtered = markets.filter((m) => m.volume24h >= minVolume);
-        allMarkets.push(...filtered);
+        // Stage 1: active/open Filter (bereits durch API-Parameter)
+        telemetry.stage1_active += markets.length;
+
+        // Stage 2: Volume Filter
+        const volumeFiltered = markets.filter((m) => m.totalVolume >= minVolume);
+        telemetry.stage2_volume += volumeFiltered.length;
+
+        // Stage 3: Quality Filter (Spread)
+        const qualityFiltered = volumeFiltered.filter((m) => {
+          const spread = this.calculateSpreadProxy(m);
+          return spread <= spreadThreshold;
+        });
+        telemetry.stage3_quality += qualityFiltered.length;
+
+        allMarkets.push(...qualityFiltered);
         offset += batchSize;
 
-        // Max 1000 Märkte scannen
-        if (offset >= 1000) {
+        // Max 2000 Märkte scannen (Cap)
+        if (offset >= MAX_MARKETS_CAP) {
           hasMore = false;
+          logger.debug(`Market cap von ${MAX_MARKETS_CAP} erreicht`);
         }
       }
     }
 
     logger.info(
-      `${allMarkets.length} Märkte mit Volume >= $${minVolume.toLocaleString()} gefunden`
+      `[MARKETS] Stage 1: ${telemetry.stage1_active} active → Stage 2: ${telemetry.stage2_volume} with volume → Stage 3: ${telemetry.stage3_quality} quality`
     );
+    logger.info(
+      `[MARKETS] ${telemetry.totalPages} Pages, ${telemetry.totalFetched} total fetched, ${allMarkets.length} finale Märkte`
+    );
+
     return allMarkets;
   }
 
@@ -116,6 +187,96 @@ export class PolymarketClient {
   ): Promise<Market[]> {
     const markets = await this.getActiveMarketsWithVolume(minVolume);
     return markets.filter((m) => m.category === category);
+  }
+
+  /**
+   * CLI-optimierte Funktion zum Abrufen von Märkten
+   * Gibt ein vereinfachtes Format für CLI-Tools zurück
+   */
+  async getMarketsForCLI(options: {
+    minVolume?: number;
+    limit?: number;
+    category?: string;
+  } = {}): Promise<CLIMarket[]> {
+    const { minVolume = 0, limit: maxResults = 100, category } = options;
+
+    logger.info(`[CLI] Lade Märkte: minVolume=$${minVolume}, limit=${maxResults}, category=${category || 'all'}`);
+
+    // Hole alle Märkte mit Volume-Filter (ohne Spread-Filter für CLI)
+    const telemetry: FilterTelemetry = {
+      stage1_active: 0,
+      stage2_volume: 0,
+      stage3_quality: 0,
+      totalPages: 0,
+      totalFetched: 0,
+    };
+
+    const allMarkets: Market[] = [];
+    let offset = 0;
+    const batchSize = 100;
+    let hasMore = true;
+
+    while (hasMore && allMarkets.length < maxResults) {
+      const markets = await limit(() =>
+        this.getMarkets({ limit: batchSize, offset, active: true })
+      );
+
+      telemetry.totalPages++;
+      telemetry.totalFetched += markets.length;
+
+      if (markets.length === 0) {
+        hasMore = false;
+      } else {
+        telemetry.stage1_active += markets.length;
+
+        // Volume Filter
+        let filtered = markets.filter((m) => m.totalVolume >= minVolume);
+        telemetry.stage2_volume += filtered.length;
+
+        // Kategorie Filter (optional)
+        if (category) {
+          filtered = filtered.filter((m) => m.category === category);
+        }
+        telemetry.stage3_quality += filtered.length;
+
+        allMarkets.push(...filtered);
+        offset += batchSize;
+
+        if (offset >= MAX_MARKETS_CAP) {
+          hasMore = false;
+        }
+      }
+    }
+
+    logger.info(
+      `[CLI] Stage 1: ${telemetry.stage1_active} active → Stage 2: ${telemetry.stage2_volume} with volume → Stage 3: ${telemetry.stage3_quality} filtered`
+    );
+    logger.info(
+      `[CLI] ${telemetry.totalPages} Pages, ${telemetry.totalFetched} total fetched`
+    );
+
+    // In CLI-Format konvertieren und auf Limit beschränken
+    const cliMarkets: CLIMarket[] = allMarkets.slice(0, maxResults).map((m) => {
+      const yesPrice = m.outcomes.find(o => o.name.toLowerCase() === 'yes')?.price ?? m.outcomes[0]?.price ?? 0.5;
+      const noPrice = m.outcomes.find(o => o.name.toLowerCase() === 'no')?.price ?? m.outcomes[1]?.price ?? (1 - yesPrice);
+      const spread = Math.abs(yesPrice + noPrice - 1);
+
+      return {
+        id: m.id,
+        question: m.question,
+        category: m.category,
+        volume: m.totalVolume,
+        volume24h: m.volume24h,
+        yesPrice,
+        noPrice,
+        spread,
+      };
+    });
+
+    // Nach Volume sortieren (höchstes zuerst)
+    cliMarkets.sort((a, b) => b.volume - a.volume);
+
+    return cliMarkets;
   }
 
   async getOrderBook(tokenId: string): Promise<{

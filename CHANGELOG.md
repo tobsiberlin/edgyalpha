@@ -23,6 +23,12 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Alpha Types (`src/alpha/types.ts`): AlphaSignalV2, TimeDelayFeatures, MispricingFeatures, Decision, Execution, Outcome, etc.
 - ML-Regeln dokumentiert (Meta-Combiner mit Online Logistic Regression, Walk-Forward-Backtests)
 
+**Phase 2 - Source Hotfixes (ERLEDIGT):**
+- Polymarket Markets-Fix: Filter-Kaskade mit Telemetrie, Spread-Proxy, CLI `npm run markets`
+- RSS produktionsfest: 40 kuratierte WORKING_FEEDS, Timeout-Handling, SHA256-Dedupe, Health-Tracking, CLI `npm run rss`
+- Dawum korrekt: Objekt-Iteration, Bundestag-Filter, CDU/CSU zusammengeführt, CLI `npm run dawum`
+- poly_data Loader: Streaming CSV-Import, Batch-Inserts, Progress-Bar, CLI `npm run import:polydata`
+
 ### Geplant (noch nicht implementiert)
 - SQLite Storage-Layer mit `better-sqlite3`
 - Feature-Flags: `ALPHA_ENGINE` (timeDelay|mispricing|meta), `EXECUTION_MODE` (paper|shadow|live)

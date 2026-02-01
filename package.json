@@ -14,7 +14,11 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "terminal": "tsx src/terminal/index.ts"
+    "terminal": "tsx src/terminal/index.ts",
+    "markets": "tsx scripts/markets.ts",
+    "dawum": "tsx scripts/dawum.ts",
+    "import:polydata": "tsx scripts/import-polydata.ts",
+    "rss": "tsx scripts/rss.ts"
   },
   "keywords": [
     "polymarket",
