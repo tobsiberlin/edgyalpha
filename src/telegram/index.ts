@@ -1,9 +1,14 @@
 import TelegramBot, { InlineKeyboardButton, InlineKeyboardMarkup } from 'node-telegram-bot-api';
 import { config } from '../utils/config.js';
 import logger from '../utils/logger.js';
-import { AlphaSignal, TradeRecommendation, ScanResult, GermanSource } from '../types/index.js';
+import { AlphaSignal, TradeRecommendation, ScanResult } from '../types/index.js';
 import { scanner } from '../scanner/index.js';
 import { EventEmitter } from 'events';
+
+// ═══════════════════════════════════════════════════════════════
+//              POLYMARKET ALPHA SCANNER - TELEGRAM BOT
+//                    Modern UI with Inline Buttons
+// ═══════════════════════════════════════════════════════════════
 
 export class TelegramAlertBot extends EventEmitter {
   private bot: TelegramBot | null = null;
@@ -15,6 +20,43 @@ export class TelegramAlertBot extends EventEmitter {
     this.chatId = config.telegram.chatId;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //                      PROGRESS BAR HELPERS
+  // ═══════════════════════════════════════════════════════════════
+
+  private progressBar(value: number, max: number = 100, length: number = 10): string {
+    const filled = Math.round((value / max) * length);
+    const empty = length - filled;
+    return '█'.repeat(filled) + '░'.repeat(empty);
+  }
+
+  private scoreBar(score: number): string {
+    const pct = Math.round(score * 100);
+    return `${this.progressBar(pct, 100, 10)} ${pct}%`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      ASCII ART
+  // ═══════════════════════════════════════════════════════════════
+
+  private get HEADER(): string {
+    return `
+\`\`\`
+╔══════════════════════════════════╗
+║     ⚡ ALPHA SCANNER ⚡           ║
+║     Polymarket Intelligence      ║
+╚══════════════════════════════════╝
+\`\`\``;
+  }
+
+  private get DIVIDER(): string {
+    return `\`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\``;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      START BOT
+  // ═══════════════════════════════════════════════════════════════
+
   async start(): Promise<void> {
     if (!config.telegram.enabled || !config.telegram.botToken) {
       logger.info('Telegram Bot deaktiviert');
@@ -23,200 +65,129 @@ export class TelegramAlertBot extends EventEmitter {
 
     try {
       this.bot = new TelegramBot(config.telegram.botToken, { polling: true });
-
-      // Command Handlers
       this.setupCommands();
-
-      // Callback Query Handler (für Inline Buttons)
       this.setupCallbackHandlers();
-
-      // Scanner Events abonnieren
       this.setupScannerEvents();
 
       logger.info('Telegram Bot gestartet');
-
-      // Willkommensnachricht
-      await this.sendMessage(
-        '🟢 *ALPHA SCANNER ONLINE*\n\n' +
-        '• Scan-Intervall: 5 Min\n' +
-        '• Kategorien: Politik, Wirtschaft\n' +
-        '• Deutschland-Modus: Aktiv\n\n' +
-        'Befehle:\n' +
-        '/scan - Manuellen Scan starten\n' +
-        '/status - System-Status\n' +
-        '/signals - Letzte Signale\n' +
-        '/wallet - Wallet-Status\n' +
-        '/help - Alle Befehle'
-      );
+      await this.sendWelcome();
     } catch (err) {
       const error = err as Error;
       logger.error(`Telegram Bot Fehler: ${error.message}`);
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //                      WELCOME MESSAGE
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendWelcome(): Promise<void> {
+    const message = `${this.HEADER}
+
+🟢 *System Online*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  KONFIGURATION                  │
+├─────────────────────────────────┤
+│  Scan:     alle 5 Min           │
+│  Filter:   Politik, Wirtschaft  │
+│  DE-Modus: Aktiv                │
+│  Trading:  Bestätigung nötig    │
+└─────────────────────────────────┘
+\`\`\`
+
+Wähle eine Aktion:`;
+
+    const keyboard = this.getMainMenu();
+    await this.sendMessageWithKeyboard(message, keyboard);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      KEYBOARDS
+  // ═══════════════════════════════════════════════════════════════
+
+  private getMainMenu(): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [
+          { text: '🔍 Scan starten', callback_data: 'action:scan' },
+          { text: '📊 Status', callback_data: 'action:status' },
+        ],
+        [
+          { text: '🎯 Signale', callback_data: 'action:signals' },
+          { text: '💰 Wallet', callback_data: 'action:wallet' },
+        ],
+        [
+          { text: '🇩🇪 Umfragen', callback_data: 'action:polls' },
+          { text: '📰 News', callback_data: 'action:news' },
+        ],
+        [
+          { text: '⚙️ Einstellungen', callback_data: 'action:settings' },
+        ],
+      ],
+    };
+  }
+
+  private getBackButton(): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+      ],
+    };
+  }
+
+  private getSignalKeyboard(signalId: string): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [
+          { text: '✅ YES kaufen', callback_data: `trade:yes:${signalId}` },
+          { text: '❌ NO kaufen', callback_data: `trade:no:${signalId}` },
+        ],
+        [
+          { text: '📊 Details', callback_data: `details:${signalId}` },
+          { text: '🔬 Research', callback_data: `research:${signalId}` },
+        ],
+        [
+          { text: '⏭️ Überspringen', callback_data: `skip:${signalId}` },
+        ],
+      ],
+    };
+  }
+
+  private getConfirmTradeKeyboard(signalId: string, direction: string): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [
+          { text: '✅ Bestätigen', callback_data: `confirm:${direction}:${signalId}` },
+          { text: '❌ Abbrechen', callback_data: `cancel:${signalId}` },
+        ],
+      ],
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      COMMANDS
+  // ═══════════════════════════════════════════════════════════════
+
   private setupCommands(): void {
     if (!this.bot) return;
 
-    // /start - Begrüßung
     this.bot.onText(/\/start/, async (msg) => {
-      await this.sendMessage(
-        '🎯 *Willkommen beim Polymarket Alpha Scanner!*\n\n' +
-        'Ich finde Alpha-Opportunities auf Polymarket und ' +
-        'nutze deutsche Informationsquellen für einen Informationsvorsprung.\n\n' +
-        'Tippe /help für alle Befehle.',
-        msg.chat.id.toString()
-      );
+      this.chatId = msg.chat.id.toString();
+      await this.sendWelcome();
     });
 
-    // /help - Hilfe
-    this.bot.onText(/\/help/, async (msg) => {
-      await this.sendMessage(
-        '📖 *BEFEHLE*\n\n' +
-        '*Scanner:*\n' +
-        '/scan - Manuellen Scan starten\n' +
-        '/signals - Letzte Alpha-Signale\n' +
-        '/markets - Top-Märkte anzeigen\n\n' +
-        '*Trading:*\n' +
-        '/wallet - Wallet-Status\n' +
-        '/positions - Offene Positionen\n' +
-        '/pnl - Profit & Loss\n\n' +
-        '*System:*\n' +
-        '/status - System-Status\n' +
-        '/settings - Einstellungen\n' +
-        '/pause - Scanner pausieren\n' +
-        '/resume - Scanner fortsetzen\n\n' +
-        '*Deutschland:*\n' +
-        '/polls - Aktuelle Wahlumfragen\n' +
-        '/news - Deutsche News\n' +
-        '/bundestag - Bundestag-Aktivität',
-        msg.chat.id.toString()
-      );
-    });
-
-    // /scan - Manuellen Scan starten
-    this.bot.onText(/\/scan/, async (msg) => {
-      await this.sendMessage('🔍 *Starte manuellen Scan...*', msg.chat.id.toString());
-
-      try {
-        const result = await scanner.scan();
-        await this.sendScanResult(result, msg.chat.id.toString());
-      } catch (err) {
-        const error = err as Error;
-        await this.sendMessage(`❌ Scan-Fehler: ${error.message}`, msg.chat.id.toString());
-      }
-    });
-
-    // /status - System-Status
-    this.bot.onText(/\/status/, async (msg) => {
-      const status = scanner.getStatus();
-      const uptime = process.uptime();
-      const hours = Math.floor(uptime / 3600);
-      const minutes = Math.floor((uptime % 3600) / 60);
-
-      await this.sendMessage(
-        '📊 *SYSTEM STATUS*\n\n' +
-        `🟢 Scanner: ${status.isScanning ? 'Läuft' : 'Bereit'}\n` +
-        `⏱ Uptime: ${hours}h ${minutes}m\n` +
-        `🔄 Scans gesamt: ${status.totalScans}\n` +
-        `📡 Letzter Scan: ${status.lastScan ? this.formatTime(status.lastScan) : 'Noch nicht'}\n` +
-        `📈 Signale (letzter Scan): ${status.lastSignalsCount}\n\n` +
-        `⚙️ Einstellungen:\n` +
-        `• Intervall: ${config.scanner.intervalMs / 1000}s\n` +
-        `• Min. Volume: $${config.scanner.minVolumeUsd.toLocaleString()}\n` +
-        `• Kategorien: ${config.scanner.categories.join(', ')}\n` +
-        `• DE-Modus: ${config.germany.enabled ? '✅' : '❌'}\n` +
-        `• Trading: ${config.trading.enabled ? '✅' : '❌'}`,
-        msg.chat.id.toString()
-      );
-    });
-
-    // /signals - Letzte Signale
-    this.bot.onText(/\/signals/, async (msg) => {
-      const result = scanner.getLastResult();
-
-      if (!result || result.signalsFound.length === 0) {
-        await this.sendMessage(
-          '📭 *Keine aktuellen Signale*\n\nStarte einen Scan mit /scan',
-          msg.chat.id.toString()
-        );
-        return;
-      }
-
-      const signals = result.signalsFound.slice(0, 5);
-      let message = `🎯 *TOP ${signals.length} ALPHA SIGNALE*\n\n`;
-
-      for (const signal of signals) {
-        message += this.formatSignalShort(signal) + '\n\n';
-      }
-
-      await this.sendMessage(message, msg.chat.id.toString());
-    });
-
-    // /polls - Wahlumfragen
-    this.bot.onText(/\/polls/, async (msg) => {
-      const { germanySources } = await import('../germany/index.js');
-      const polls = germanySources.getLatestPolls();
-
-      if (polls.length === 0) {
-        await this.sendMessage('📊 Keine Umfragen verfügbar', msg.chat.id.toString());
-        return;
-      }
-
-      const latestPoll = polls[0];
-      let message = `📊 *AKTUELLE WAHLUMFRAGE*\n\n`;
-      message += `📅 ${latestPoll.date}\n`;
-      message += `🏛 ${latestPoll.institute}\n\n`;
-
-      const sortedParties = Object.entries(latestPoll.results)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 8);
-
-      for (const [party, value] of sortedParties) {
-        const bar = '█'.repeat(Math.round(value / 3));
-        message += `${party}: ${value}% ${bar}\n`;
-      }
-
-      await this.sendMessage(message, msg.chat.id.toString());
-    });
-
-    // /news - Deutsche News
-    this.bot.onText(/\/news/, async (msg) => {
-      const { germanySources } = await import('../germany/index.js');
-      const news = germanySources.getLatestNews().slice(0, 5);
-
-      if (news.length === 0) {
-        await this.sendMessage('📰 Keine News verfügbar', msg.chat.id.toString());
-        return;
-      }
-
-      let message = `📰 *DEUTSCHE NEWS*\n\n`;
-
-      for (const item of news) {
-        const source = (item.data.source as string) || 'News';
-        message += `*${source}*\n`;
-        message += `${item.title}\n`;
-        if (item.url) {
-          message += `[Link](${item.url})\n`;
-        }
-        message += '\n';
-      }
-
-      await this.sendMessage(message, msg.chat.id.toString());
-    });
-
-    // /wallet - Wallet-Status
-    this.bot.onText(/\/wallet/, async (msg) => {
-      // Vereinfachte Version - echte Wallet-Abfrage kommt später
-      await this.sendMessage(
-        '💰 *WALLET STATUS*\n\n' +
-        `Adresse: \`${config.trading.maxBankrollUsdc ? '0x...' : 'Nicht konfiguriert'}\`\n` +
-        `Max. Bankroll: $${config.trading.maxBankrollUsdc}\n` +
-        `Max. Einsatz: $${config.trading.maxBetUsdc}\n` +
-        `Risiko/Trade: ${config.trading.riskPerTradePercent}%`,
-        msg.chat.id.toString()
-      );
+    this.bot.onText(/\/menu/, async (msg) => {
+      await this.sendMainMenu(msg.chat.id.toString());
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      CALLBACK HANDLERS
+  // ═══════════════════════════════════════════════════════════════
 
   private setupCallbackHandlers(): void {
     if (!this.bot) return;
@@ -224,55 +195,447 @@ export class TelegramAlertBot extends EventEmitter {
     this.bot.on('callback_query', async (query) => {
       if (!query.data) return;
 
-      const [action, signalId] = query.data.split(':');
+      const [action, ...params] = query.data.split(':');
+      const chatId = query.message?.chat.id.toString() || this.chatId;
 
       try {
+        await this.bot?.answerCallbackQuery(query.id);
+
         switch (action) {
-          case 'trade_yes':
-            await this.handleTradeConfirm(signalId, 'YES', query);
+          case 'action':
+            await this.handleAction(params[0], chatId, query.message?.message_id);
             break;
-          case 'trade_no':
-            await this.handleTradeConfirm(signalId, 'NO', query);
+          case 'trade':
+            await this.handleTrade(params[0], params[1], chatId, query.message?.message_id);
             break;
-          case 'trade_skip':
-            await this.handleTradeSkip(signalId, query);
+          case 'confirm':
+            await this.handleConfirm(params[0], params[1], chatId, query.message?.message_id);
+            break;
+          case 'cancel':
+            await this.handleCancel(params[0], chatId, query.message?.message_id);
+            break;
+          case 'skip':
+            await this.handleSkip(params[0], chatId, query.message?.message_id);
             break;
           case 'details':
-            await this.handleShowDetails(signalId, query);
+            await this.handleDetails(params[0], chatId);
             break;
           case 'research':
-            await this.handleResearch(signalId, query);
+            await this.handleResearch(params[0], chatId);
             break;
-          default:
-            logger.debug(`Unbekannte Callback-Aktion: ${action}`);
         }
       } catch (err) {
         const error = err as Error;
-        logger.error(`Callback Handler Fehler: ${error.message}`);
-        await this.bot?.answerCallbackQuery(query.id, {
-          text: `Fehler: ${error.message}`,
-          show_alert: true,
-        });
+        logger.error(`Callback Fehler: ${error.message}`);
       }
     });
   }
 
-  private async handleTradeConfirm(
-    signalId: string,
-    direction: 'YES' | 'NO',
-    query: TelegramBot.CallbackQuery
-  ): Promise<void> {
-    const recommendation = this.pendingTrades.get(signalId);
+  private async handleAction(action: string, chatId: string, messageId?: number): Promise<void> {
+    switch (action) {
+      case 'menu':
+        await this.sendMainMenu(chatId, messageId);
+        break;
+      case 'scan':
+        await this.handleScan(chatId, messageId);
+        break;
+      case 'status':
+        await this.handleStatus(chatId, messageId);
+        break;
+      case 'signals':
+        await this.handleSignals(chatId, messageId);
+        break;
+      case 'wallet':
+        await this.handleWallet(chatId, messageId);
+        break;
+      case 'polls':
+        await this.handlePolls(chatId, messageId);
+        break;
+      case 'news':
+        await this.handleNews(chatId, messageId);
+        break;
+      case 'settings':
+        await this.handleSettings(chatId, messageId);
+        break;
+    }
+  }
 
-    if (!recommendation) {
-      await this.bot?.answerCallbackQuery(query.id, {
-        text: '⚠️ Trade nicht mehr verfügbar',
-        show_alert: true,
-      });
+  // ═══════════════════════════════════════════════════════════════
+  //                      ACTION HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendMainMenu(chatId: string, messageId?: number): Promise<void> {
+    const message = `${this.HEADER}
+
+Wähle eine Aktion:`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getMainMenu());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getMainMenu(), chatId);
+    }
+  }
+
+  private async handleScan(chatId: string, messageId?: number): Promise<void> {
+    // Scanning animation
+    const scanningMsg = `${this.HEADER}
+
+🔍 *Scanne Märkte...*
+
+\`\`\`
+${this.progressBar(0)} 0%
+\`\`\`
+
+_Bitte warten..._`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, scanningMsg);
+    }
+
+    // Progress updates
+    for (let i = 1; i <= 5; i++) {
+      await this.sleep(400);
+      const pct = i * 20;
+      const progressMsg = `${this.HEADER}
+
+🔍 *Scanne Märkte...*
+
+\`\`\`
+${this.progressBar(pct)} ${pct}%
+\`\`\`
+
+_Analysiere Daten..._`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, progressMsg);
+      }
+    }
+
+    // Actual scan
+    const result = await scanner.scan();
+    await this.sendScanResult(result, chatId, messageId);
+  }
+
+  private async handleStatus(chatId: string, messageId?: number): Promise<void> {
+    const status = scanner.getStatus();
+    const uptime = process.uptime();
+    const h = Math.floor(uptime / 3600);
+    const m = Math.floor((uptime % 3600) / 60);
+    const s = Math.floor(uptime % 60);
+
+    const lastScanTime = status.lastScan
+      ? new Date(status.lastScan).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+
+    const message = `${this.HEADER}
+
+📊 *SYSTEM STATUS*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  SCANNER                        │
+├─────────────────────────────────┤
+│  Status:    ${status.isScanning ? '🟡 Scannt' : '🟢 Bereit'}            │
+│  Uptime:    ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}               │
+│  Scans:     ${String(status.totalScans).padStart(4, ' ')}                  │
+│  Letzter:   ${lastScanTime}                 │
+│  Signale:   ${String(status.lastSignalsCount).padStart(4, ' ')}                  │
+└─────────────────────────────────┘
+\`\`\`
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  PERFORMANCE                    │
+├─────────────────────────────────┤
+│  CPU:    ${this.progressBar(15, 100, 8)} 15%    │
+│  RAM:    ${this.progressBar(35, 100, 8)} 35%    │
+└─────────────────────────────────┘
+\`\`\``;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+  }
+
+  private async handleSignals(chatId: string, messageId?: number): Promise<void> {
+    const result = scanner.getLastResult();
+
+    if (!result || result.signalsFound.length === 0) {
+      const message = `${this.HEADER}
+
+📭 *Keine Signale*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│                                 │
+│    Keine aktiven Signale        │
+│    Starte einen Scan            │
+│                                 │
+└─────────────────────────────────┘
+\`\`\``;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '🔍 Jetzt scannen', callback_data: 'action:scan' }],
+          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(message, keyboard, chatId);
+      }
       return;
     }
 
-    // Trade-Ausführung emittieren
+    // Show top signals
+    let signalsList = '';
+    const signals = result.signalsFound.slice(0, 5);
+
+    for (let i = 0; i < signals.length; i++) {
+      const s = signals[i];
+      const emoji = s.germanSource ? '🇩🇪' : '🎯';
+      const scoreBar = this.progressBar(s.score * 100, 100, 6);
+
+      signalsList += `
+${emoji} *#${i + 1}* ${s.direction}
+\`${s.market.question.substring(0, 30)}...\`
+\`Score: ${scoreBar} ${(s.score * 100).toFixed(0)}%\`
+\`Edge:  +${(s.edge * 100).toFixed(1)}%\`
+`;
+    }
+
+    const message = `${this.HEADER}
+
+🎯 *TOP ${signals.length} SIGNALE*
+
+${this.DIVIDER}
+${signalsList}
+${this.DIVIDER}
+
+Tippe auf ein Signal für Details:`;
+
+    const signalButtons: InlineKeyboardButton[][] = signals.map((s, i) => [
+      { text: `${s.germanSource ? '🇩🇪' : '📊'} Signal #${i + 1}: ${s.direction}`, callback_data: `details:${s.id}` },
+    ]);
+    signalButtons.push([{ text: '◀️ Zurück', callback_data: 'action:menu' }]);
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, { inline_keyboard: signalButtons });
+    } else {
+      await this.sendMessageWithKeyboard(message, { inline_keyboard: signalButtons }, chatId);
+    }
+  }
+
+  private async handleWallet(chatId: string, messageId?: number): Promise<void> {
+    const message = `${this.HEADER}
+
+💰 *WALLET*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  BALANCE                        │
+├─────────────────────────────────┤
+│  USDC:      $${String(config.trading.maxBankrollUsdc).padStart(8, ' ')}         │
+│  Verfügbar: $${String(config.trading.maxBankrollUsdc).padStart(8, ' ')}         │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  EINSTELLUNGEN                  │
+├─────────────────────────────────┤
+│  Max Bet:   $${String(config.trading.maxBetUsdc).padStart(8, ' ')}         │
+│  Risiko:    ${String(config.trading.riskPerTradePercent).padStart(8, ' ')}%        │
+│  Kelly:     ${String(config.trading.kellyFraction * 100).padStart(8, ' ')}%        │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  P&L HEUTE                      │
+├─────────────────────────────────┤
+│  Trades:    ${String(0).padStart(8, ' ')}          │
+│  Gewinn:    ${String('$0.00').padStart(8, ' ')}          │
+└─────────────────────────────────┘
+\`\`\``;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+  }
+
+  private async handlePolls(chatId: string, messageId?: number): Promise<void> {
+    const { germanySources } = await import('../germany/index.js');
+    const polls = germanySources.getLatestPolls();
+
+    if (polls.length === 0) {
+      const message = `${this.HEADER}
+
+📊 *Keine Umfragen verfügbar*`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      }
+      return;
+    }
+
+    const latestPoll = polls[0];
+    const sortedParties = Object.entries(latestPoll.results)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+      .slice(0, 7);
+
+    let pollBars = '';
+    for (const [party, value] of sortedParties) {
+      const val = value as number;
+      const bar = this.progressBar(val, 50, 10);
+      pollBars += `│  ${party.padEnd(6, ' ')} ${bar} ${String(val).padStart(2, ' ')}%  │\n`;
+    }
+
+    const message = `${this.HEADER}
+
+🇩🇪 *WAHLUMFRAGE*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ${latestPoll.institute.substring(0, 20).padEnd(20, ' ')}            │
+│  ${latestPoll.date}                       │
+├─────────────────────────────────┤
+${pollBars}└─────────────────────────────────┘
+\`\`\``;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+  }
+
+  private async handleNews(chatId: string, messageId?: number): Promise<void> {
+    const { germanySources } = await import('../germany/index.js');
+    const news = germanySources.getLatestNews().slice(0, 5);
+
+    let newsList = '';
+    for (const item of news) {
+      const source = (item.data.source as string || 'News').substring(0, 12);
+      newsList += `
+📰 *${source}*
+\`${item.title.substring(0, 45)}...\`
+`;
+    }
+
+    const message = `${this.HEADER}
+
+📰 *DEUTSCHE NEWS*
+
+${this.DIVIDER}
+${newsList}
+${this.DIVIDER}`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+  }
+
+  private async handleSettings(chatId: string, messageId?: number): Promise<void> {
+    const message = `${this.HEADER}
+
+⚙️ *EINSTELLUNGEN*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  SCANNER                        │
+├─────────────────────────────────┤
+│  Intervall:    5 Minuten        │
+│  Min Volume:   $100,000         │
+│  Kategorien:   Politik, Wirt.   │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  DEUTSCHLAND                    │
+├─────────────────────────────────┤
+│  Modus:        Nur Alerts       │
+│  Min Edge:     10%              │
+│  Auto-Trade:   Aus              │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  TRADING                        │
+├─────────────────────────────────┤
+│  Max Bet:      $10              │
+│  Risiko:       10%              │
+│  Bestätigung:  Erforderlich     │
+└─────────────────────────────────┘
+\`\`\``;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      TRADE HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleTrade(direction: string, signalId: string, chatId: string, messageId?: number): Promise<void> {
+    const recommendation = this.pendingTrades.get(signalId);
+
+    if (!recommendation) {
+      await this.sendMessage('⚠️ Signal nicht mehr verfügbar', chatId);
+      return;
+    }
+
+    const dir = direction.toUpperCase();
+    const message = `${this.HEADER}
+
+⚠️ *TRADE BESTÄTIGEN*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ORDER                          │
+├─────────────────────────────────┤
+│  Richtung:    ${dir.padEnd(10, ' ')}        │
+│  Betrag:      $${String(recommendation.positionSize).padStart(8, ' ')}        │
+│  Edge:        +${(recommendation.signal.edge * 100).toFixed(1).padStart(6, ' ')}%        │
+│  Max Loss:    $${recommendation.maxLoss.toFixed(2).padStart(8, ' ')}        │
+└─────────────────────────────────┘
+\`\`\`
+
+\`${recommendation.signal.market.question.substring(0, 40)}...\`
+
+Möchtest du diesen Trade ausführen?`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getConfirmTradeKeyboard(signalId, dir));
+    }
+  }
+
+  private async handleConfirm(direction: string, signalId: string, chatId: string, messageId?: number): Promise<void> {
+    const recommendation = this.pendingTrades.get(signalId);
+
+    if (!recommendation) {
+      return;
+    }
+
     this.emit('trade_confirmed', {
       signal: recommendation.signal,
       recommendation,
@@ -281,229 +644,241 @@ export class TelegramAlertBot extends EventEmitter {
 
     this.pendingTrades.delete(signalId);
 
-    await this.bot?.answerCallbackQuery(query.id, {
-      text: `✅ Trade ${direction} bestätigt! Positionsgröße: $${recommendation.positionSize}`,
-      show_alert: true,
-    });
+    const message = `${this.HEADER}
 
-    // Nachricht aktualisieren
-    if (query.message) {
-      await this.bot?.editMessageText(
-        `✅ *TRADE AUSGEFÜHRT*\n\n` +
-        `${recommendation.signal.market.question}\n\n` +
-        `Richtung: ${direction}\n` +
-        `Einsatz: $${recommendation.positionSize}\n` +
-        `Edge: ${(recommendation.signal.edge * 100).toFixed(1)}%`,
-        {
-          chat_id: query.message.chat.id,
-          message_id: query.message.message_id,
-          parse_mode: 'Markdown',
-        }
-      );
+✅ *TRADE AUSGEFÜHRT*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  BESTÄTIGT                      │
+├─────────────────────────────────┤
+│  Richtung:    ${direction.padEnd(10, ' ')}        │
+│  Betrag:      $${String(recommendation.positionSize).padStart(8, ' ')}        │
+│  Status:      Ausgeführt        │
+└─────────────────────────────────┘
+\`\`\`
+
+_Trade wird verarbeitet..._`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
     }
   }
 
-  private async handleTradeSkip(
-    signalId: string,
-    query: TelegramBot.CallbackQuery
-  ): Promise<void> {
+  private async handleCancel(signalId: string, chatId: string, messageId?: number): Promise<void> {
     this.pendingTrades.delete(signalId);
 
-    await this.bot?.answerCallbackQuery(query.id, {
-      text: '⏭ Trade übersprungen',
-    });
+    const message = `${this.HEADER}
 
-    if (query.message) {
-      await this.bot?.editMessageText(
-        `⏭ *TRADE ÜBERSPRUNGEN*\n\n` +
-        `Signal ID: ${signalId.substring(0, 8)}...`,
-        {
-          chat_id: query.message.chat.id,
-          message_id: query.message.message_id,
-          parse_mode: 'Markdown',
-        }
-      );
+❌ *TRADE ABGEBROCHEN*
+
+_Zurück zum Hauptmenü_`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
     }
   }
 
-  private async handleShowDetails(
-    signalId: string,
-    query: TelegramBot.CallbackQuery
-  ): Promise<void> {
-    const recommendation = this.pendingTrades.get(signalId);
+  private async handleSkip(signalId: string, chatId: string, messageId?: number): Promise<void> {
+    this.pendingTrades.delete(signalId);
 
-    if (!recommendation) {
-      await this.bot?.answerCallbackQuery(query.id, {
-        text: 'Details nicht verfügbar',
-      });
+    const message = `${this.HEADER}
+
+⏭️ *SIGNAL ÜBERSPRUNGEN*`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    }
+  }
+
+  private async handleDetails(signalId: string, chatId: string): Promise<void> {
+    const result = scanner.getLastResult();
+    const signal = result?.signalsFound.find((s) => s.id === signalId);
+
+    if (!signal) {
+      await this.sendMessage('Signal nicht gefunden', chatId);
       return;
     }
 
-    const signal = recommendation.signal;
+    // Store for trading
+    const { createTradeRecommendation } = await import('../scanner/alpha.js');
+    const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
+    this.pendingTrades.set(signal.id, recommendation);
 
-    await this.bot?.answerCallbackQuery(query.id);
-    await this.sendMessage(
-      `📊 *SIGNAL DETAILS*\n\n` +
-      `*Markt:*\n${signal.market.question}\n\n` +
-      `*Analyse:*\n${signal.reasoning}\n\n` +
-      `*Metriken:*\n` +
-      `• Alpha Score: ${(signal.score * 100).toFixed(0)}%\n` +
-      `• Edge: ${(signal.edge * 100).toFixed(1)}%\n` +
-      `• Konfidenz: ${(signal.confidence * 100).toFixed(0)}%\n` +
-      `• Empfehlung: ${signal.direction}\n\n` +
-      `*Money Management:*\n` +
-      `• Positionsgröße: $${recommendation.positionSize}\n` +
-      `• Max. Verlust: $${recommendation.maxLoss.toFixed(2)}\n` +
-      `• Risk/Reward: ${recommendation.riskRewardRatio.toFixed(2)}x\n` +
-      `• Kelly: ${(recommendation.kellyFraction * 100).toFixed(0)}%\n\n` +
-      `*Markt-Daten:*\n` +
-      `• Volume 24h: $${signal.market.volume24h.toLocaleString()}\n` +
-      `• Liquidität: $${signal.market.liquidity.toLocaleString()}\n` +
-      `• Endet: ${signal.market.endDate || 'Unbekannt'}`
-    );
+    const message = `${this.HEADER}
+
+🎯 *SIGNAL DETAILS*
+
+${this.DIVIDER}
+
+*${signal.market.question}*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ANALYSE                        │
+├─────────────────────────────────┤
+│  Score:    ${this.progressBar(signal.score * 100, 100, 8)} ${(signal.score * 100).toFixed(0).padStart(3, ' ')}%│
+│  Edge:     +${(signal.edge * 100).toFixed(1).padStart(5, ' ')}%               │
+│  Signal:   ${signal.direction.padEnd(10, ' ')}           │
+│  Konfid.:  ${(signal.confidence * 100).toFixed(0).padStart(3, ' ')}%                   │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  MONEY MANAGEMENT               │
+├─────────────────────────────────┤
+│  Position:  $${recommendation.positionSize.toFixed(2).padStart(8, ' ')}         │
+│  Max Loss:  $${recommendation.maxLoss.toFixed(2).padStart(8, ' ')}         │
+│  R/R Ratio: ${recommendation.riskRewardRatio.toFixed(2).padStart(8, ' ')}x        │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│  MARKT                          │
+├─────────────────────────────────┤
+│  Volume:    $${(signal.market.volume24h / 1000).toFixed(0).padStart(6, ' ')}K          │
+│  Liquidit.: $${(signal.market.liquidity / 1000).toFixed(0).padStart(6, ' ')}K          │
+└─────────────────────────────────┘
+\`\`\`
+
+${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}`;
+
+    await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signalId), chatId);
   }
 
-  private async handleResearch(
-    _signalId: string,
-    query: TelegramBot.CallbackQuery
-  ): Promise<void> {
-    await this.bot?.answerCallbackQuery(query.id, {
-      text: '🔬 Research wird gestartet...',
-    });
+  private async handleResearch(_signalId: string, chatId: string): Promise<void> {
+    const message = `${this.HEADER}
 
-    // Hier könnte später Claude/Perplexity Research getriggert werden
-    await this.sendMessage(
-      '🔬 *Research-Funktion*\n\n' +
-      'Diese Funktion nutzt Claude/Perplexity für tiefere Analyse.\n' +
-      'Wird nach Session-Setup aktiviert.'
-    );
+🔬 *RESEARCH*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│                                 │
+│  KI-Research wird vorbereitet   │
+│  Claude/Perplexity Integration  │
+│  kommt in nächstem Update       │
+│                                 │
+└─────────────────────────────────┘
+\`\`\``;
+
+    await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      SCAN RESULT
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendScanResult(result: ScanResult, chatId: string, messageId?: number): Promise<void> {
+    const signalCount = result.signalsFound.length;
+    const hasSignals = signalCount > 0;
+
+    let signalPreview = '';
+    if (hasSignals) {
+      const top3 = result.signalsFound.slice(0, 3);
+      for (const s of top3) {
+        const emoji = s.germanSource ? '🇩🇪' : '📊';
+        signalPreview += `│  ${emoji} ${s.direction} ${this.progressBar(s.score * 100, 100, 5)} ${(s.score * 100).toFixed(0)}% │\n`;
+      }
+    }
+
+    const message = `${this.HEADER}
+
+✅ *SCAN ABGESCHLOSSEN*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ERGEBNIS                       │
+├─────────────────────────────────┤
+│  Märkte:     ${String(result.marketsScanned).padStart(6, ' ')}             │
+│  Signale:    ${String(signalCount).padStart(6, ' ')}             │
+│  Dauer:      ${String(result.duration).padStart(5, ' ')}ms            │
+└─────────────────────────────────┘
+${hasSignals ? `
+┌─────────────────────────────────┐
+│  TOP SIGNALE                    │
+├─────────────────────────────────┤
+${signalPreview}└─────────────────────────────────┘` : ''}
+\`\`\`
+
+${hasSignals ? `🎯 ${signalCount} Trading-Opportunities gefunden!` : '📭 Keine Signale in diesem Scan'}`;
+
+    const keyboard: InlineKeyboardMarkup = hasSignals
+      ? {
+          inline_keyboard: [
+            [{ text: '🎯 Signale anzeigen', callback_data: 'action:signals' }],
+            [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+          ],
+        }
+      : this.getBackButton();
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      BREAKING SIGNAL
+  // ═══════════════════════════════════════════════════════════════
+
+  async sendBreakingSignal(signal: AlphaSignal): Promise<void> {
+    const { createTradeRecommendation } = await import('../scanner/alpha.js');
+    const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
+    this.pendingTrades.set(signal.id, recommendation);
+
+    const isGerman = signal.germanSource !== undefined;
+    const prefix = isGerman ? '🇩🇪 DEUTSCHLAND ALPHA' : '🚨 BREAKING SIGNAL';
+
+    const message = `${this.HEADER}
+
+*${prefix}*
+
+${this.DIVIDER}
+
+*${signal.market.question}*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  SIGNAL                         │
+├─────────────────────────────────┤
+│  Score: ${this.progressBar(signal.score * 100, 100, 8)} ${(signal.score * 100).toFixed(0).padStart(3, ' ')}% │
+│  Edge:  +${(signal.edge * 100).toFixed(1).padStart(5, ' ')}%                │
+│  Typ:   ${signal.direction.padEnd(10, ' ')}           │
+│  Size:  $${recommendation.positionSize.toFixed(2).padStart(8, ' ')}            │
+└─────────────────────────────────┘
+\`\`\`
+
+${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}
+
+⚡ *Jetzt handeln?*`;
+
+    await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signal.id));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      SCANNER EVENTS
+  // ═══════════════════════════════════════════════════════════════
 
   private setupScannerEvents(): void {
-    // Neues Signal gefunden
     scanner.on('signal_found', async (signal: AlphaSignal) => {
-      // Nur starke Signale senden (Score > 0.6)
       if (signal.score > 0.6) {
         await this.sendBreakingSignal(signal);
       }
     });
-
-    // Scan abgeschlossen
-    scanner.on('scan_completed', async (result: ScanResult) => {
-      // Nur bei Fehlern oder vielen Signalen benachrichtigen
-      if (result.errors.length > 0) {
-        await this.sendMessage(
-          `⚠️ *Scan-Fehler*\n\n${result.errors.join('\n')}`
-        );
-      }
-
-      if (result.signalsFound.length >= 3) {
-        await this.sendMessage(
-          `📈 *${result.signalsFound.length} neue Signale!*\n\n` +
-          `Tippe /signals für Details`
-        );
-      }
-    });
   }
 
-  async sendBreakingSignal(signal: AlphaSignal): Promise<void> {
-    const message = this.formatBreakingSignal(signal);
-    const keyboard = this.createTradeKeyboard(signal);
-
-    // Für Trade-Buttons speichern
-    const recommendation = await import('./index.js').then(async () => {
-      const { createTradeRecommendation } = await import('../scanner/alpha.js');
-      return createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
-    });
-
-    this.pendingTrades.set(signal.id, recommendation);
-
-    await this.sendMessageWithKeyboard(message, keyboard);
-  }
-
-  private formatBreakingSignal(signal: AlphaSignal): string {
-    const isGerman = signal.germanSource !== undefined;
-    const prefix = isGerman ? '🇩🇪 *DEUTSCHLAND ALPHA*' : '🚨 *BREAKING SIGNAL*';
-
-    let message = `${prefix}\n\n`;
-    message += `*${signal.market.question}*\n\n`;
-
-    // Score-Anzeige mit Balken
-    const scoreBar = '█'.repeat(Math.round(signal.score * 10));
-    const emptyBar = '░'.repeat(10 - Math.round(signal.score * 10));
-    message += `📊 Score: ${scoreBar}${emptyBar} ${(signal.score * 100).toFixed(0)}%\n`;
-
-    message += `📈 Edge: +${(signal.edge * 100).toFixed(1)}%\n`;
-    message += `🎯 Empfehlung: *${signal.direction}*\n\n`;
-
-    message += `💡 ${signal.reasoning}\n\n`;
-
-    if (isGerman && signal.germanSource) {
-      message += `📰 Quelle: ${signal.germanSource.title}\n`;
-    }
-
-    message += `💰 Volume: $${signal.market.volume24h.toLocaleString()}`;
-
-    return message;
-  }
-
-  private formatSignalShort(signal: AlphaSignal): string {
-    const emoji = signal.score > 0.7 ? '🔥' : signal.score > 0.5 ? '📈' : '📊';
-    const deFlag = signal.germanSource ? '🇩🇪 ' : '';
-
-    return (
-      `${emoji} ${deFlag}*${signal.direction}* @ ${(signal.score * 100).toFixed(0)}%\n` +
-      `${signal.market.question.substring(0, 60)}...\n` +
-      `Edge: +${(signal.edge * 100).toFixed(1)}% | Vol: $${(signal.market.volume24h / 1000).toFixed(0)}K`
-    );
-  }
-
-  private createTradeKeyboard(signal: AlphaSignal): InlineKeyboardMarkup {
-    const buttons: InlineKeyboardButton[][] = [
-      [
-        { text: '✅ YES kaufen', callback_data: `trade_yes:${signal.id}` },
-        { text: '❌ NO kaufen', callback_data: `trade_no:${signal.id}` },
-      ],
-      [
-        { text: '📊 Details', callback_data: `details:${signal.id}` },
-        { text: '🔬 Research', callback_data: `research:${signal.id}` },
-      ],
-      [{ text: '⏭ Überspringen', callback_data: `trade_skip:${signal.id}` }],
-    ];
-
-    return { inline_keyboard: buttons };
-  }
-
-  async sendScanResult(result: ScanResult, chatId?: string): Promise<void> {
-    let message = `✅ *SCAN ABGESCHLOSSEN*\n\n`;
-    message += `📊 Märkte gescannt: ${result.marketsScanned}\n`;
-    message += `🎯 Signale gefunden: ${result.signalsFound.length}\n`;
-    message += `⏱ Dauer: ${result.duration}ms\n`;
-
-    if (result.errors.length > 0) {
-      message += `\n⚠️ Fehler: ${result.errors.length}`;
-    }
-
-    if (result.signalsFound.length > 0) {
-      message += `\n\n*Top Signale:*\n`;
-      for (const signal of result.signalsFound.slice(0, 3)) {
-        message += `\n${this.formatSignalShort(signal)}\n`;
-      }
-    }
-
-    await this.sendMessage(message, chatId);
-  }
-
-  async sendBreakingNews(source: GermanSource): Promise<void> {
-    const message =
-      `📰 *BREAKING NEWS*\n\n` +
-      `*${source.title}*\n\n` +
-      `Quelle: ${source.data.source || 'DE'}\n` +
-      `${source.url ? `[Artikel lesen](${source.url})` : ''}\n\n` +
-      `🔍 Prüfe auf Trading-Opportunities...`;
-
-    await this.sendMessage(message);
-  }
+  // ═══════════════════════════════════════════════════════════════
+  //                      HELPERS
+  // ═══════════════════════════════════════════════════════════════
 
   private async sendMessage(text: string, chatId?: string): Promise<void> {
     if (!this.bot) return;
@@ -514,8 +889,7 @@ export class TelegramAlertBot extends EventEmitter {
         disable_web_page_preview: true,
       });
     } catch (err) {
-      const error = err as Error;
-      logger.error(`Telegram Nachricht Fehler: ${error.message}`);
+      logger.error(`Telegram Nachricht Fehler: ${(err as Error).message}`);
     }
   }
 
@@ -533,16 +907,37 @@ export class TelegramAlertBot extends EventEmitter {
         disable_web_page_preview: true,
       });
     } catch (err) {
-      const error = err as Error;
-      logger.error(`Telegram Nachricht Fehler: ${error.message}`);
+      logger.error(`Telegram Nachricht Fehler: ${(err as Error).message}`);
     }
   }
 
-  private formatTime(date: Date): string {
-    return date.toLocaleTimeString('de-DE', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  private async editMessage(
+    chatId: string,
+    messageId: number,
+    text: string,
+    keyboard?: InlineKeyboardMarkup
+  ): Promise<void> {
+    if (!this.bot) return;
+
+    try {
+      await this.bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'Markdown',
+        reply_markup: keyboard,
+        disable_web_page_preview: true,
+      });
+    } catch (err) {
+      // Ignore "message not modified" errors
+      const error = err as Error;
+      if (!error.message.includes('message is not modified')) {
+        logger.debug(`Edit Fehler: ${error.message}`);
+      }
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
