@@ -7,6 +7,28 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.3.0] - 2026-02-01
+
+### Hinzugefügt
+- **Almanien-Modul komplett aktiviert**
+  - Dawum-Umfragen zeigen echte Werte (CDU/CSU, AfD, SPD, Grüne, BSW, Linke, FDP)
+  - RSS-News-Feed mit deutschen Quellen (Tagesschau, Spiegel, Zeit, FAZ, Handelsblatt)
+  - Bundestag-Feed mit Hinweis auf API-Key-Registrierung
+- BSW (Bündnis Sahra Wagenknecht) als neue Partei in Umfragen
+- Linke-Partei mit korrekter Farbe
+- Parteifarben im Matrix-Style mit Glow-Effekten
+
+### Geändert
+- Umfragen-Anzeige zeigt Institut und Datum
+- "GRÜNE" → "Grüne" (korrekte API-Bezeichnung)
+- Mehr Almanien-Humor in Fehlermeldungen
+
+### Behoben
+- Bundestag-Feed zeigte endlos "Lade Gesetzgebungsdaten..." - jetzt klare Meldung
+- News-Feed zeigte "Keine News verfügbar" ohne Humor - jetzt mit Almanien-Style
+
+---
+
 ## [1.2.0] - 2026-02-01
 
 ### Hinzugefügt

@@ -572,6 +572,10 @@
         .poll-fdp .poll-bar-fill::after { background: #ffdd00; box-shadow: 0 0 4px #ffdd00; }
         .poll-afd .poll-bar-fill { background: #0066aa; }
         .poll-afd .poll-bar-fill::after { background: #00aaff; box-shadow: 0 0 4px #00aaff; }
+        .poll-bsw .poll-bar-fill { background: #cc4400; }
+        .poll-bsw .poll-bar-fill::after { background: #ff6600; box-shadow: 0 0 4px #ff6600; }
+        .poll-linke .poll-bar-fill { background: #8e2856; }
+        .poll-linke .poll-bar-fill::after { background: #be3075; box-shadow: 0 0 4px #be3075; }
 
         .news-item {
             padding: 8px 0;
@@ -1131,11 +1135,12 @@
         async function loadInitialData() {
             try {
                 const opts = { credentials: 'include' };
-                const [status, signalsData, polls, news, config] = await Promise.all([
+                const [status, signalsData, polls, news, bundestag, config] = await Promise.all([
                     fetch('/api/status', opts).then(r => r.ok ? r.json() : {}).catch(() => ({})),
                     fetch('/api/signals', opts).then(r => r.ok ? r.json() : []).catch(() => []),
                     fetch('/api/germany/polls', opts).then(r => r.ok ? r.json() : []).catch(() => []),
                     fetch('/api/germany/news', opts).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch('/api/germany/bundestag', opts).then(r => r.ok ? r.json() : []).catch(() => []),
                     fetch('/api/config', opts).then(r => r.ok ? r.json() : {}).catch(() => ({}))
                 ]);
 
@@ -1146,6 +1151,7 @@
 
                 renderPolls(polls);
                 renderNews(news);
+                renderBundestag(bundestag);
 
                 // Konfiguration anzeigen
                 if (config.scanner) {
@@ -1329,15 +1335,27 @@
         }
 
         function renderPolls(polls) {
-            if (!polls || !polls.length) return;
+            const container = document.getElementById('polls-container');
+
+            if (!polls || !polls.length) {
+                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">Keine Umfragen verfügbar. Almanien schweigt.</p>';
+                return;
+            }
 
             const poll = polls[0];
-            const parties = ['CDU/CSU', 'SPD', 'GRÜNE', 'AfD', 'FDP'];
-            const partyClasses = ['cdu', 'spd', 'gruene', 'afd', 'fdp'];
+            // Parteinamen wie sie von der Dawum-API kommen (sortiert nach aktuellem Stärkeverhältnis)
+            const parties = ['CDU/CSU', 'AfD', 'SPD', 'Grüne', 'BSW', 'Linke', 'FDP'];
+            const partyClasses = ['cdu', 'afd', 'spd', 'gruene', 'bsw', 'linke', 'fdp'];
 
-            const container = document.getElementById('polls-container');
-            container.innerHTML = parties.map((party, i) => {
+            // Header mit Datum und Institut
+            let html = `<div style="color: var(--gray); font-size: 9px; margin-bottom: 8px;">
+                ${poll.institute || 'Unbekannt'} | ${poll.date || '--'}
+                <span style="color: var(--green-dim);">// Almanien wird das morgen in der Zeitung lesen</span>
+            </div>`;
+
+            html += parties.map((party, i) => {
                 const value = poll.results?.[party] || 0;
+                if (value === 0) return ''; // Überspringe Parteien ohne Wert
                 return `
                     <div class="poll-bar-row poll-${partyClasses[i]}">
                         <span class="poll-party">${party}</span>
@@ -1347,14 +1365,16 @@
                         <span class="poll-value">${value}%</span>
                     </div>
                 `;
-            }).join('');
+            }).filter(x => x).join('');
+
+            container.innerHTML = html || '<p style="color: var(--gray); font-size: 10px;">Keine Daten. Almanien produziert gerade Bürokratie.</p>';
         }
 
         function renderNews(news) {
             const container = document.getElementById('news-feed');
 
             if (!news || !news.length) {
-                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">Keine News verfügbar</p>';
+                container.innerHTML = '<p style="color: var(--gray); font-size: 10px;">Keine News. Almanien produziert gerade Bürokratie statt Nachrichten.</p>';
                 return;
             }
 
@@ -1363,6 +1383,27 @@
                     <div class="news-source">${item.data?.source || 'NEWS'}</div>
                     <div class="news-title">${item.title}</div>
                     ${item.url ? `<a href="${item.url}" target="_blank" class="news-link">→ Weiterlesen</a>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderBundestag(items) {
+            const container = document.getElementById('bundestag-feed');
+
+            if (!items || !items.length) {
+                container.innerHTML = `
+                    <p style="color: var(--gray); font-size: 10px;">
+                        Bundestag API: Kein API-Key konfiguriert.<br>
+                        Almanien macht das kostenlos, aber du musst dich registrieren:<br>
+                        <a href="https://dip.bundestag.de/" target="_blank" style="color: var(--green);">→ dip.bundestag.de</a>
+                    </p>`;
+                return;
+            }
+
+            container.innerHTML = items.slice(0, 5).map(item => `
+                <div class="bundestag-item" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+                    <div style="color: var(--gray); font-size: 9px;">${item.datum || '--'} | ${item.vorgangstyp || 'Vorgang'}</div>
+                    <div style="color: var(--green-dim); font-size: 11px; margin-top: 2px;">${item.titel || 'Ohne Titel'}</div>
                 </div>
             `).join('');
         }
