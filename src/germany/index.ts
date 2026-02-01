@@ -215,16 +215,19 @@ class GermanySources {
 
     const matches = new Map<string, { relevance: number; direction: 'YES' | 'NO' }[]>();
 
+    // Alle Keywords sammeln
+    const allKeywords = [
+      ...GERMANY_KEYWORDS.politics,
+      ...GERMANY_KEYWORDS.economics,
+    ];
+
+    logger.debug(`Prüfe ${markets.length} Märkte gegen ${allKeywords.length} Keywords`);
+
     for (const market of markets) {
       const marketText = `${market.question} ${market.slug}`.toLowerCase();
       const sources: { relevance: number; direction: 'YES' | 'NO' }[] = [];
 
-      // Prüfe auf Deutschland-Relevanz
-      const allKeywords = [
-        ...GERMANY_KEYWORDS.politics,
-        ...GERMANY_KEYWORDS.economics,
-      ];
-
+      // Prüfe auf Deutschland/EU-Relevanz
       const keywordMatches = allKeywords.filter((kw) =>
         marketText.includes(kw.toLowerCase())
       );
@@ -232,6 +235,8 @@ class GermanySources {
       if (keywordMatches.length === 0) {
         continue;
       }
+
+      logger.info(`DE/EU-Match: "${market.question.substring(0, 50)}..." → ${keywordMatches.join(', ')}`);
 
       // Relevanz berechnen
       const baseRelevance = Math.min(keywordMatches.length * 0.1, 0.5);
