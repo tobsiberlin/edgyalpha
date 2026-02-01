@@ -279,9 +279,25 @@ class GermanySources {
         });
       }
 
+      // WICHTIG: Wenn Keywords matchen aber keine spezifischen Quellen gefunden wurden,
+      // trotzdem als relevant markieren mit Basis-Relevanz
+      if (sources.length === 0 && keywordMatches.length > 0) {
+        // Geopolitik-Märkte (Ukraine, Russland, etc.) sind immer relevant für DE/EU
+        const isGeopolitical = ['ukraine', 'russia', 'ceasefire', 'nato', 'putin', 'zelensky'].some(
+          kw => keywordMatches.includes(kw)
+        );
+
+        if (isGeopolitical) {
+          sources.push({
+            relevance: baseRelevance + 0.2,
+            direction: 'YES', // Basis-Annahme: EU/NATO unterstützt Ukraine
+          });
+          logger.info(`Geopolitik-Match ohne spezifische Quellen: ${market.question.substring(0, 40)}...`);
+        }
+      }
+
       if (sources.length > 0) {
         matches.set(market.id, sources);
-        logger.debug(`DE-Match: "${market.question.substring(0, 50)}..." → ${keywordMatches.join(', ')}`);
       }
     }
 
