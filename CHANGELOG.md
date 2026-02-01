@@ -7,6 +7,21 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.4.0] - 2026-02-01
+
+### Hinzugefügt
+- **Wallet-Integration**
+  - `/api/wallet` Endpoint zeigt echte USDC/MATIC Balance von Polygon
+  - Wallet-Anzeige im Dashboard (Balance + Adresse)
+  - Klare "Nicht konfiguriert" Meldung wenn kein Private Key
+- Wallet-Status in `/api/config` Response
+
+### Geändert
+- Bankroll-Anzeige ersetzt durch echte Wallet-Balance
+- Dashboard zeigt Wallet-Adresse (gekürzt)
+
+---
+
 ## [1.3.0] - 2026-02-01
 
 ### Hinzugefügt

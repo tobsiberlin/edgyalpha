@@ -881,12 +881,16 @@
                 </div>
                 <div class="progress-container">
                     <div class="progress-label">
-                        <span>Bankroll</span>
-                        <span id="bankroll">--</span>
+                        <span>Wallet (USDC)</span>
+                        <span id="wallet-balance">--</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" id="bankroll-bar" style="width: 0%"></div>
+                        <div class="progress-fill" id="wallet-bar" style="width: 0%"></div>
                     </div>
+                </div>
+                <div class="panel-row" style="margin-top: 8px; font-size: 9px;">
+                    <span class="panel-label" id="wallet-status">Wallet</span>
+                    <span class="panel-value" id="wallet-address">--</span>
                 </div>
             </div>
         </aside>
@@ -1172,13 +1176,50 @@
                         new Date(status.lastScan).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
                 }
 
-                // Bankroll vom Trading-Config
-                if (config.trading?.maxBankrollUsdc) {
-                    document.getElementById('bankroll').textContent = `$${config.trading.maxBankrollUsdc.toLocaleString()}`;
-                    document.getElementById('bankroll-bar').style.width = '100%';
-                }
+                // Wallet-Balance laden
+                loadWalletBalance();
             } catch (err) {
                 addLog('error', 'Fehler beim Laden der Daten');
+            }
+        }
+
+        async function loadWalletBalance() {
+            try {
+                const opts = { credentials: 'include' };
+                const wallet = await fetch('/api/wallet', opts).then(r => r.json());
+
+                const balanceEl = document.getElementById('wallet-balance');
+                const barEl = document.getElementById('wallet-bar');
+                const statusEl = document.getElementById('wallet-status');
+                const addressEl = document.getElementById('wallet-address');
+
+                if (!wallet.configured) {
+                    balanceEl.textContent = 'N/A';
+                    balanceEl.style.color = 'var(--gray)';
+                    barEl.style.width = '0%';
+                    statusEl.textContent = 'Wallet';
+                    addressEl.textContent = 'Nicht konfiguriert';
+                    addressEl.style.color = 'var(--gray)';
+                    addLog('warn', 'Wallet nicht konfiguriert. Trading deaktiviert.');
+                } else if (wallet.error) {
+                    balanceEl.textContent = 'Fehler';
+                    balanceEl.style.color = 'var(--red)';
+                    barEl.style.width = '0%';
+                    addressEl.textContent = wallet.address || '--';
+                    addLog('error', 'Wallet-Fehler: ' + wallet.error);
+                } else {
+                    balanceEl.textContent = `$${wallet.usdc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    balanceEl.style.color = wallet.usdc > 0 ? 'var(--green)' : 'var(--gray)';
+                    // Progress bar basierend auf max 1000 USDC
+                    const pct = Math.min((wallet.usdc / 1000) * 100, 100);
+                    barEl.style.width = pct + '%';
+                    addressEl.textContent = wallet.address;
+                    addressEl.style.color = 'var(--green-dim)';
+                    addLog('success', `Wallet geladen: $${wallet.usdc.toFixed(2)} USDC | ${wallet.matic.toFixed(4)} MATIC`);
+                }
+            } catch (err) {
+                document.getElementById('wallet-balance').textContent = 'Fehler';
+                addLog('error', 'Wallet konnte nicht geladen werden');
             }
         }
 

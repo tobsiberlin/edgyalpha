@@ -3,10 +3,11 @@ import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { join } from 'path';
 import cookieSession from 'cookie-session';
-import { config, PORT, WEB_USERNAME, WEB_PASSWORD_HASH } from '../utils/config.js';
+import { config, PORT, WEB_USERNAME, WEB_PASSWORD_HASH, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { scanner } from '../scanner/index.js';
 import { germanySources } from '../germany/index.js';
+import { tradingClient } from '../api/trading.js';
 import { AlphaSignal, ScanResult, SystemStatus } from '../types/index.js';
 
 // Use process.cwd() for paths (works with both ESM and CJS)
@@ -197,10 +198,48 @@ app.get('/api/config', requireAuth, (_req: Request, res: Response) => {
       enabled: config.trading.enabled,
       requireConfirmation: config.trading.requireConfirmation,
       maxBetUsdc: config.trading.maxBetUsdc,
+      maxBankrollUsdc: config.trading.maxBankrollUsdc,
       riskPerTradePercent: config.trading.riskPerTradePercent,
     },
     germany: config.germany,
+    wallet: {
+      configured: !!(WALLET_PRIVATE_KEY && WALLET_ADDRESS),
+      address: WALLET_ADDRESS ? `${WALLET_ADDRESS.substring(0, 6)}...${WALLET_ADDRESS.substring(38)}` : null,
+    },
   });
+});
+
+// API: Wallet Balance
+app.get('/api/wallet', requireAuth, async (_req: Request, res: Response) => {
+  // Wallet nicht konfiguriert
+  if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
+    res.json({
+      configured: false,
+      error: 'Wallet nicht konfiguriert. Setze WALLET_PRIVATE_KEY und WALLET_ADDRESS in .env',
+      usdc: 0,
+      matic: 0,
+    });
+    return;
+  }
+
+  try {
+    const balance = await tradingClient.getWalletBalance();
+    res.json({
+      configured: true,
+      address: `${WALLET_ADDRESS.substring(0, 6)}...${WALLET_ADDRESS.substring(38)}`,
+      usdc: balance.usdc,
+      matic: balance.matic,
+    });
+  } catch (err) {
+    const error = err as Error;
+    logger.error(`Wallet Balance Fehler: ${error.message}`);
+    res.json({
+      configured: true,
+      error: 'Balance konnte nicht geladen werden',
+      usdc: 0,
+      matic: 0,
+    });
+  }
 });
 
 // API: Trade bestätigen
