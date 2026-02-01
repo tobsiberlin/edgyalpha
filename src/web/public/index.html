@@ -726,6 +726,26 @@
         .ascii-loader pre {
             margin-bottom: 16px;
             line-height: 1.2;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        .ascii-loader p {
+            animation: blink-cursor 0.8s steps(1) infinite;
+        }
+
+        .ascii-loader p::after {
+            content: '█';
+            animation: cursor-blink 0.5s steps(1) infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 5px var(--green-dark); color: var(--green-dim); }
+            50% { text-shadow: 0 0 20px var(--green), 0 0 30px var(--green-dim); color: var(--green); }
+        }
+
+        @keyframes cursor-blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -979,29 +999,57 @@
 
         function bootSequence() {
             const loader = document.getElementById('initial-loader');
+            const loaderText = loader.querySelector('p');
+
+            // Boot-Sequenz Texte
+            const bootMessages = [
+                'Initialisiere Kernel...',
+                'Lade Almanien-Module...',
+                'Verbinde mit Polymarket...',
+                'Kalibriere Alpha-Sensoren...',
+                'Aktiviere Vorsprung-Modus...',
+            ];
+
+            let msgIndex = 0;
+            const msgInterval = setInterval(() => {
+                if (msgIndex < bootMessages.length) {
+                    loaderText.textContent = bootMessages[msgIndex];
+                    msgIndex++;
+                }
+            }, 800);
 
             setTimeout(() => {
+                clearInterval(msgInterval);
                 loader.style.display = 'none';
-                addLog('system', 'System initialisiert');
+                addLog('system', '════════════════════════════════════');
+                addLog('system', '  EDGY ALPHA v1.1.0 - BOOT COMPLETE');
+                addLog('system', '════════════════════════════════════');
+            }, 5000);
+
+            setTimeout(() => {
                 addLog('info', 'Verbinde mit Polymarket API...');
-            }, 1000);
+            }, 5200);
 
             setTimeout(() => {
                 document.getElementById('api-status').classList.remove('inactive');
                 addLog('success', 'Polymarket API verbunden');
+            }, 5800);
+
+            setTimeout(() => {
                 addLog('info', 'Lade Almanien-Datenquellen...');
-            }, 1500);
+            }, 6000);
 
             setTimeout(() => {
                 document.getElementById('germany-status').classList.remove('inactive');
-                addLog('success', 'Dawum + Bundestag + RSS geladen');
-            }, 2000);
+                addLog('success', 'Dawum geladen | Bundestag online | RSS aktiv');
+            }, 6800);
 
             setTimeout(() => {
                 document.getElementById('socket-status').classList.remove('inactive');
                 addLog('success', 'WebSocket Verbindung aktiv');
+                addLog('info', '────────────────────────────────────');
                 addLog('info', 'Scanner bereit. Warte auf Befehle...');
-            }, 2500);
+            }, 7200);
         }
 
         function initSocket() {

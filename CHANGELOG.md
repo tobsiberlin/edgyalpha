@@ -7,6 +7,19 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.1.1] - 2026-02-01
+
+### Geändert
+- Boot-Animation verlängert auf ~5 Sekunden
+- ASCII-Logo mit Glow-Effekt animiert
+- Blinkender Cursor während Boot-Sequenz
+- Mehr Boot-Messages für authentisches Terminal-Feeling
+
+### Behoben
+- HTTP/2 deaktiviert (verursachte SSL-Fehler bei manchen Clients)
+
+---
+
 ## [1.1.0] - 2026-02-01
 
 ### Hinzugefügt
