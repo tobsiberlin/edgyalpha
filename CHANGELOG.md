@@ -7,6 +7,22 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [1.7.0] - 2026-02-01
+
+### Hinzugefügt
+- **Erweitertes Markt-Matching**
+  - EU/NATO/Geopolitik-Keywords (Ukraine, Russland, Ceasefire, etc.)
+  - Mehr europäische Politik-Keywords (von der Leyen, Brussels, etc.)
+  - Energie-Keywords (Gas, LNG, Oil) für wirtschaftsrelevante Märkte
+  - Deutsche Automarken (BMW, Mercedes, Porsche, SAP)
+
+### Geändert
+- Matching erkennt jetzt auch geopolitische Märkte
+- Bessere Logging bei Markt-Matching
+- Hinweis wenn keine DE/EU-Märkte gefunden werden
+
+---
+
 ## [1.6.0] - 2026-02-01
 
 ### Hinzugefügt

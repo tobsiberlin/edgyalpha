@@ -15,19 +15,30 @@ const RSS_FEEDS = [
   { name: 'Handelsblatt', url: 'https://www.handelsblatt.com/contentexport/feed/top-themen/' },
 ];
 
-// Keywords für Markt-Matching
+// Keywords für Markt-Matching (erweitert um EU/NATO/Geopolitik)
 const GERMANY_KEYWORDS = {
   politics: [
+    // Deutsche Politik
     'bundestag', 'bundesregierung', 'kanzler', 'scholz', 'merz', 'habeck',
     'lindner', 'baerbock', 'weidel', 'afd', 'cdu', 'csu', 'spd', 'grüne',
     'fdp', 'linke', 'bsw', 'wahlkampf', 'koalition', 'ampel', 'opposition',
-    'bundestagswahl', 'landtagswahl', 'europawahl', 'wahl', 'umfrage',
-    'germany', 'german', 'deutschland', 'berlin',
+    'bundestagswahl', 'landtagswahl', 'europawahl',
+    'germany', 'german', 'deutschland', 'berlin', 'chancellor',
+    // EU & Europa
+    'european union', 'eu ', ' eu', 'brussels', 'von der leyen', 'ursula',
+    'european commission', 'european parliament', 'eurozone',
+    // NATO & Geopolitik (betrifft Deutschland)
+    'nato', 'ukraine', 'russia', 'putin', 'zelensky', 'ceasefire',
+    'crimea', 'donbas', 'nordstream', 'sanctions',
   ],
   economics: [
-    'bundesbank', 'ezb', 'inflation', 'rezession', 'wirtschaft', 'export',
-    'import', 'arbeitslosigkeit', 'ifo', 'zew', 'destatis', 'bip', 'gdp',
+    'bundesbank', 'ezb', 'ecb', 'inflation', 'rezession', 'recession',
+    'wirtschaft', 'export', 'import', 'arbeitslosigkeit', 'unemployment',
+    'ifo', 'zew', 'destatis', 'bip', 'gdp',
     'dax', 'volkswagen', 'siemens', 'basf', 'deutsche bank', 'allianz',
+    'bmw', 'mercedes', 'porsche', 'sap',
+    // Energie (wichtig für DE)
+    'gas prices', 'energy crisis', 'lng', 'oil prices',
   ],
 };
 
@@ -265,7 +276,14 @@ class GermanySources {
 
       if (sources.length > 0) {
         matches.set(market.id, sources);
+        logger.debug(`DE-Match: "${market.question.substring(0, 50)}..." → ${keywordMatches.join(', ')}`);
       }
+    }
+
+    if (matches.size === 0) {
+      logger.debug('Keine Deutschland/EU-relevanten Märkte gefunden. Deutsche Wahlen sind vorbei.');
+    } else {
+      logger.info(`${matches.size} Märkte mit DE/EU-Relevanz gefunden`);
     }
 
     return matches;
@@ -273,8 +291,16 @@ class GermanySources {
 
   private isElectionMarket(text: string): boolean {
     const electionKeywords = [
-      'wahl', 'election', 'kanzler', 'chancellor', 'bundestag',
+      // Wahlen
+      'wahl', 'election', 'vote', 'voting', 'ballot',
+      // Politik-Positionen
+      'kanzler', 'chancellor', 'president', 'prime minister',
+      'bundestag', 'parliament', 'government', 'coalition',
+      // Ergebnisse
       'win', 'gewinnt', 'siegt', 'führt', 'regierung',
+      'majority', 'victory', 'defeat',
+      // Geopolitik (für Ukraine/Russland Märkte)
+      'ceasefire', 'peace', 'war', 'invasion', 'troops',
     ];
     return electionKeywords.some((kw) => text.includes(kw));
   }
