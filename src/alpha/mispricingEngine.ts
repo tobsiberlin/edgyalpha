@@ -18,6 +18,7 @@ import {
 import { Market } from '../types/index.js';
 import { NormalizedPoll } from '../germany/dawum.js';
 import { getCalibrationData } from '../storage/repositories/outcomes.js';
+import { calculateVolatility30d } from './volatility.js';
 import logger from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -133,7 +134,7 @@ export class MispricingEngine {
     marketQuality?: MarketQuality
   ): Promise<AlphaSignalV2 | null> {
     // Market-Quality berechnen falls nicht uebergeben
-    const quality = marketQuality ?? this.calculateMarketQuality(market);
+    const quality = marketQuality ?? await this.calculateMarketQualityAsync(market);
 
     // P_true schaetzen
     const estimation = this.estimateTrueProb(market, polls);
@@ -155,8 +156,11 @@ export class MispricingEngine {
       return null;
     }
 
+    // Volatility berechnen (für Features)
+    const volatilityResult = await this.getVolatility30d(market);
+
     // Features berechnen
-    const features = this.calculateFeatures(market, estimation.estimate, estimation.uncertainty, polls);
+    const features = this.calculateFeatures(market, estimation.estimate, estimation.uncertainty, polls, volatilityResult.volatility30d);
 
     // Direction bestimmen
     const direction: 'yes' | 'no' = edge > 0 ? 'yes' : 'no';
@@ -362,7 +366,8 @@ export class MispricingEngine {
     market: Market,
     estimate: number,
     uncertainty: number,
-    polls?: NormalizedPoll[]
+    polls?: NormalizedPoll[],
+    volatility30d: number = 0.15
   ): MispricingFeatures {
     const yesOutcome = market.outcomes.find(
       (o) => o.name.toLowerCase() === 'yes' || o.name.toLowerCase() === 'ja'
@@ -383,9 +388,30 @@ export class MispricingEngine {
         historicalBias,
         liquidityScore: this.calculateLiquidityScore(market),
         spreadProxy: this.calculateSpreadProxy(market),
-        volatility30d: 0, // Placeholder - TODO: Aus historischen Daten berechnen
+        volatility30d, // Echte Berechnung aus historischen Daten
         daysToExpiry: this.calculateDaysToExpiry(market),
       },
+    };
+  }
+
+  /**
+   * Hole Volatility fuer einen Markt (cached)
+   */
+  private async getVolatility30d(market: Market): Promise<{ volatility30d: number; source: string }> {
+    // YES Token ID extrahieren
+    const yesOutcome = market.outcomes.find(
+      (o) => o.name.toLowerCase() === 'yes' || o.name.toLowerCase() === 'ja'
+    );
+    const tokenId = yesOutcome?.id;
+
+    if (!tokenId) {
+      return { volatility30d: 0.15, source: 'fallback-no-token' };
+    }
+
+    const result = await calculateVolatility30d(tokenId);
+    return {
+      volatility30d: result.volatility30d,
+      source: result.source,
     };
   }
 
@@ -476,13 +502,13 @@ export class MispricingEngine {
   // ═══════════════════════════════════════════════════════════════
 
   /**
-   * Berechne Market-Quality Metriken
+   * Berechne Market-Quality Metriken (sync, ohne Volatility)
    */
   calculateMarketQuality(market: Market): MarketQuality {
     const liquidityScore = this.calculateLiquidityScore(market);
     const spreadProxy = this.calculateSpreadProxy(market);
     const volume24h = market.volume24h;
-    const volatility = 0; // Placeholder
+    const volatility = 0.15; // Default wenn sync
 
     const reasons: string[] = [];
     let tradeable = true;
@@ -500,6 +526,56 @@ export class MispricingEngine {
     if (volume24h < 100) {
       reasons.push(`Niedriges Volume: $${volume24h.toFixed(0)}`);
       tradeable = false;
+    }
+
+    if (tradeable) {
+      reasons.push('Market-Quality OK');
+    }
+
+    return {
+      marketId: market.id,
+      liquidityScore,
+      spreadProxy,
+      volume24h,
+      volatility,
+      tradeable,
+      reasons,
+    };
+  }
+
+  /**
+   * Berechne Market-Quality Metriken (async, mit echter Volatility)
+   */
+  async calculateMarketQualityAsync(market: Market): Promise<MarketQuality> {
+    const liquidityScore = this.calculateLiquidityScore(market);
+    const spreadProxy = this.calculateSpreadProxy(market);
+    const volume24h = market.volume24h;
+
+    // Echte Volatility berechnen
+    const volResult = await this.getVolatility30d(market);
+    const volatility = volResult.volatility30d;
+
+    const reasons: string[] = [];
+    let tradeable = true;
+
+    if (liquidityScore < this.config.minLiquidity) {
+      reasons.push(`Niedrige Liquiditaet: ${liquidityScore.toFixed(2)}`);
+      tradeable = false;
+    }
+
+    if (spreadProxy > this.config.maxSpread) {
+      reasons.push(`Hoher Spread: ${(spreadProxy * 100).toFixed(1)}%`);
+      tradeable = false;
+    }
+
+    if (volume24h < 100) {
+      reasons.push(`Niedriges Volume: $${volume24h.toFixed(0)}`);
+      tradeable = false;
+    }
+
+    // Hohe Volatility warnen (aber nicht blocken)
+    if (volatility > 0.5) {
+      reasons.push(`Hohe Volatilitaet: ${(volatility * 100).toFixed(1)}%`);
     }
 
     if (tradeable) {
