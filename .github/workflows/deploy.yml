@@ -71,6 +71,7 @@ jobs:
           ssh $USER@$HOST << 'ENDSSH'
             cd /var/www/polymarket-scanner
             npm ci --production
+            npm rebuild better-sqlite3 || true
             npm run build
             pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
             pm2 save
