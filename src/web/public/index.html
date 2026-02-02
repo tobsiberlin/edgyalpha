@@ -2347,6 +2347,15 @@ body {
                 </div>
             </div>
 
+            <div class="drilldown-section">
+                <div class="section-label">TRADE BETRAG</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" id="trade-amount" value="10" min="1" max="100" step="1"
+                           style="width: 80px; padding: 6px 8px; background: var(--bg-input, #1a1a2e); border: 1px solid var(--border-mid, #333); color: var(--text-primary, #fff); font-family: var(--font-mono, monospace); font-size: 12px; border-radius: 4px;">
+                    <span style="color: var(--text-secondary, #888); font-size: 11px;">USDC</span>
+                </div>
+            </div>
+
             <div class="drilldown-actions">
                 <button class="btn primary" id="btn-trade-yes" onclick="executeTrade('YES')" disabled>BUY YES</button>
                 <button class="btn danger" id="btn-trade-no" onclick="executeTrade('NO')" disabled>BUY NO</button>
@@ -2534,6 +2543,17 @@ function initSocket() {
     socket.on('risk_update', (data) => {
         riskDashboard = data;
         updateRiskUI();
+    });
+
+    socket.on('trade_executed', (data) => {
+        const modeEmoji = { paper: '[PAPER]', shadow: '[SHADOW]', live: '[LIVE]' };
+        const prefix = modeEmoji[data.mode] || '';
+        addLog('success', prefix + ' Trade: ' + data.direction + ' $' + data.amount + ' auf ' + (data.market || ''));
+        if (data.orderId) {
+            addLog('success', 'Order: ' + data.orderId.substring(0, 12) + '...');
+        }
+        // Risk Dashboard aktualisieren
+        loadRiskDashboard();
     });
 }
 
@@ -3014,23 +3034,57 @@ async function toggleKillSwitch() {
 async function executeTrade(direction) {
     if (!selectedSignal) return;
 
-    addLog('info', 'Trade ' + direction + ' für ' + selectedSignal.id?.substring(0, 8) + '...');
+    const amount = parseFloat(document.getElementById('trade-amount').value) || 10;
+
+    // Bei Live Mode: Warnung anzeigen
+    try {
+        const modeRes = await fetch('/api/execution/mode', { credentials: 'include' }).then(r => r.json());
+        if (modeRes.mode === 'live') {
+            if (!confirm('LIVE MODE!\n\nEchter Trade: ' + direction + ' für $' + amount + '\n\nFortfahren?')) {
+                addLog('info', 'Trade abgebrochen');
+                return;
+            }
+        }
+    } catch (e) {
+        // Mode-Check fehlgeschlagen, trotzdem fortfahren
+    }
+
+    addLog('info', 'Trade ' + direction + ' $' + amount + ' für ' + selectedSignal.id?.substring(0, 8) + '...');
+
+    // Buttons deaktivieren während Trade
+    document.getElementById('btn-trade-yes').disabled = true;
+    document.getElementById('btn-trade-no').disabled = true;
 
     try {
         const res = await fetch('/api/trade/' + selectedSignal.id, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ direction })
+            body: JSON.stringify({ direction, amount })
         }).then(r => r.json());
 
         if (res.success) {
-            addLog('success', 'Trade vorbereitet: ' + res.message);
+            const modeEmoji = { paper: '[PAPER]', shadow: '[SHADOW]', live: '[LIVE]' };
+            const prefix = modeEmoji[res.mode] || '';
+            addLog('success', prefix + ' Trade: ' + direction + ' $' + res.amount + (res.fillPrice ? ' @ ' + (res.fillPrice * 100).toFixed(1) + 'c' : ''));
+
+            if (res.orderId) {
+                addLog('success', 'Order ID: ' + res.orderId.substring(0, 12) + '...');
+            }
+
+            // Risk Dashboard neu laden
+            if (typeof loadRiskDashboard === 'function') {
+                loadRiskDashboard();
+            }
         } else {
             addLog('error', res.error || 'Trade fehlgeschlagen');
         }
     } catch (err) {
         addLog('error', 'Trade Fehler: ' + err.message);
+    } finally {
+        // Buttons wieder aktivieren
+        document.getElementById('btn-trade-yes').disabled = false;
+        document.getElementById('btn-trade-no').disabled = false;
     }
 }
 

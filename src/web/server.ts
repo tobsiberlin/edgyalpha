@@ -365,14 +365,15 @@ app.get('/manifest.json', (_req: Request, res: Response) => {
 app.get('/api/status', requireAuth, (_req: Request, res: Response) => {
   const scannerStatus = scanner.getStatus();
   const lastResult = scanner.getLastResult();
+  const riskDashboard = runtimeState.getRiskDashboard();
 
   const status: SystemStatus = {
     uptime: process.uptime(),
     lastScan: scannerStatus.lastScan,
     totalScans: scannerStatus.totalScans,
     signalsToday: lastResult?.signalsFound.length || 0,
-    tradesToday: 0, // TODO: Implementieren
-    pnlToday: 0, // TODO: Implementieren
+    tradesToday: riskDashboard.daily.trades,
+    pnlToday: riskDashboard.daily.pnl,
     isScanning: scannerStatus.isScanning,
     errors: lastResult?.errors || [],
   };
@@ -687,50 +688,202 @@ app.get('/api/wallet', requireAuth, async (_req: Request, res: Response) => {
   }
 });
 
-// API: Trade bestätigen
+// API: Trade bestätigen und ausführen
 app.post('/api/trade/:signalId', requireAuth, async (req: Request, res: Response) => {
   const { signalId } = req.params;
-  const { direction } = req.body;
+  const { direction, amount } = req.body;
+  const tradeAmount = amount || config.trading.maxBetUsdc;
 
-  // 1. Prüfe ob Trading aktiviert
-  if (!config.trading.enabled) {
+  // 1. Execution Mode und Kill-Switch prüfen
+  const state = runtimeState.getState();
+  const canTradeCheck = runtimeState.canTrade();
+
+  if (!canTradeCheck.allowed) {
     res.json({
       success: false,
-      error: 'Trading ist deaktiviert. Aktiviere TRADING_ENABLED=true in .env',
+      error: canTradeCheck.reason,
     });
     return;
   }
 
-  // 2. Prüfe ob Wallet konfiguriert
-  if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
+  // 2. Signal finden
+  const lastResult = scanner.getLastResult();
+  const signal = lastResult?.signalsFound.find(s => s.id === signalId);
+
+  if (!signal) {
     res.json({
       success: false,
-      error: 'Wallet nicht konfiguriert. Setze WALLET_PRIVATE_KEY und WALLET_ADDRESS in .env',
+      error: 'Signal nicht gefunden. Möglicherweise veraltet - bitte Scan neu starten.',
     });
     return;
   }
 
-  // 3. Prüfe Balance
+  // 3. Token-ID aus Market extrahieren
+  const outcomeLabel = direction === 'YES' ? 'Yes' : 'No';
+  const outcome = signal.market.outcomes.find(o => o.name.toLowerCase() === outcomeLabel.toLowerCase());
+  const tokenId = outcome?.id;
+
+  if (!tokenId || tokenId.startsWith('outcome-')) {
+    res.json({
+      success: false,
+      error: `Keine gültige Token-ID für ${outcomeLabel}. Markt möglicherweise nicht handelbar.`,
+    });
+    return;
+  }
+
+  // 4. Execution basierend auf Mode
   try {
-    const balance = await tradingClient.getWalletBalance();
-    if (balance.usdc < 1) {
+    const executionMode = state.executionMode;
+
+    // PAPER MODE: Nur simulieren
+    if (executionMode === 'paper') {
+      logger.info(`[PAPER] Web Trade: ${direction} $${tradeAmount} auf ${signal.market.question.substring(0, 50)}...`);
+
+      // Paper Trade im Risk State tracken (Position öffnen)
+      runtimeState.openPosition(
+        signal.market.id,
+        tradeAmount,
+        direction.toLowerCase() as 'yes' | 'no',
+        outcome?.price || 0.5
+      );
+
+      // WebSocket Event
+      io.emit('trade_executed', {
+        mode: 'paper',
+        direction,
+        amount: tradeAmount,
+        market: signal.market.question.substring(0, 50),
+      });
+
       res.json({
-        success: false,
-        error: `Nicht genug USDC. Verfügbar: $${balance.usdc.toFixed(2)}. Minimum: $1.00`,
+        success: true,
+        mode: 'paper',
+        message: 'Paper Trade simuliert',
+        direction,
+        amount: tradeAmount,
+        price: outcome?.price,
       });
       return;
     }
 
-    // 4. Trade loggen (echte CLOB Integration kommt später)
-    logger.info(`Trade bestätigt: ${signalId} -> ${direction}`);
-    logger.info(`Balance: $${balance.usdc.toFixed(2)} USDC`);
+    // SHADOW MODE: Simulieren + Quote holen
+    if (executionMode === 'shadow') {
+      logger.info(`[SHADOW] Web Trade: ${direction} $${tradeAmount} auf ${signal.market.question.substring(0, 50)}...`);
 
-    res.json({
-      success: true,
-      message: `Trade ${direction} für Signal ${signalId} vorbereitet`,
-      note: 'CLOB API Integration kommt im nächsten Update. Trade wurde geloggt.',
-      balance: balance.usdc,
+      // Versuche echtes Orderbook zu holen für realistische Simulation
+      let fillPrice = outcome?.price || 0.5;
+      if (tradingClient.isClobReady()) {
+        const orderbook = await tradingClient.getOrderbook(tokenId);
+        if (orderbook && orderbook.asks.length > 0) {
+          fillPrice = orderbook.asks[0].price;
+        }
+      }
+
+      runtimeState.openPosition(
+        signal.market.id,
+        tradeAmount,
+        direction.toLowerCase() as 'yes' | 'no',
+        fillPrice
+      );
+
+      io.emit('trade_executed', {
+        mode: 'shadow',
+        direction,
+        amount: tradeAmount,
+        market: signal.market.question.substring(0, 50),
+        fillPrice,
+      });
+
+      res.json({
+        success: true,
+        mode: 'shadow',
+        message: 'Shadow Trade simuliert (mit echtem Quote)',
+        direction,
+        amount: tradeAmount,
+        fillPrice,
+      });
+      return;
+    }
+
+    // LIVE MODE: Echter Trade
+    // Zusätzliche Checks für Live
+    if (!config.trading.enabled) {
+      res.json({
+        success: false,
+        error: 'Trading ist deaktiviert. Aktiviere TRADING_ENABLED=true in .env',
+      });
+      return;
+    }
+
+    if (!WALLET_PRIVATE_KEY || !WALLET_ADDRESS) {
+      res.json({
+        success: false,
+        error: 'Wallet nicht konfiguriert für Live-Trading.',
+      });
+      return;
+    }
+
+    if (!tradingClient.isClobReady()) {
+      res.json({
+        success: false,
+        error: 'CLOB Client nicht bereit. Bitte warten oder Server neu starten.',
+      });
+      return;
+    }
+
+    // Balance prüfen
+    const balance = await tradingClient.getWalletBalance();
+    if (balance.usdc < tradeAmount) {
+      res.json({
+        success: false,
+        error: `Nicht genug USDC. Verfügbar: $${balance.usdc.toFixed(2)}, benötigt: $${tradeAmount}`,
+      });
+      return;
+    }
+
+    logger.info(`[LIVE] Web Trade: ${direction} $${tradeAmount} auf ${signal.market.question.substring(0, 50)}...`);
+
+    // Echte Order platzieren
+    const orderResult = await tradingClient.placeMarketOrder({
+      tokenId,
+      side: 'BUY',
+      amount: tradeAmount,
     });
+
+    if (orderResult.success) {
+      // Risk State updaten (Position öffnen)
+      runtimeState.openPosition(
+        signal.market.id,
+        tradeAmount,
+        direction.toLowerCase() as 'yes' | 'no',
+        orderResult.fillPrice || outcome?.price || 0.5
+      );
+
+      io.emit('trade_executed', {
+        mode: 'live',
+        direction,
+        amount: tradeAmount,
+        market: signal.market.question.substring(0, 50),
+        orderId: orderResult.orderId,
+        fillPrice: orderResult.fillPrice,
+      });
+
+      res.json({
+        success: true,
+        mode: 'live',
+        message: 'Trade erfolgreich ausgeführt!',
+        orderId: orderResult.orderId,
+        fillPrice: orderResult.fillPrice,
+        amount: tradeAmount,
+        direction,
+      });
+    } else {
+      res.json({
+        success: false,
+        error: orderResult.error || 'Order fehlgeschlagen',
+      });
+    }
+
   } catch (err) {
     const error = err as Error;
     logger.error(`Trade Fehler: ${error.message}`);

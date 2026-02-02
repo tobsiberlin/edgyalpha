@@ -7,6 +7,32 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.6.0] - 2026-02-02
+
+### Hinzugefuegt
+- **Web Dashboard: Echte Trade-Execution**
+  - `/api/trade/:signalId` Endpoint vollstaendig implementiert (war Platzhalter)
+  - Paper Mode: Trades werden simuliert und im Risk State getrackt
+  - Shadow Mode: Trades werden mit echtem Orderbook-Quote simuliert
+  - Live Mode: Echte CLOB API Orders via `tradingClient.placeMarketOrder()`
+  - Kill-Switch und Risk Gates werden vor jedem Trade geprueft
+
+- **Web Dashboard: Konfigurierbarer Trade-Betrag**
+  - Input-Feld im Drilldown-Panel fuer Trade-Betrag (1-100 USDC)
+  - Betrag wird im Trade-Request an Backend gesendet
+  - Live-Mode Warnung mit Bestaetigung vor echtem Trade
+
+- **WebSocket Events fuer Trades**
+  - `trade_executed` Event wird bei jedem Trade emittiert
+  - Frontend-Handler aktualisiert Risk Dashboard automatisch
+  - Log-Eintrag mit Mode, Direction, Betrag und Order-ID
+
+### Behoben
+- **Stats-TODOs im System Status**
+  - `tradesToday` und `pnlToday` zeigen jetzt echte Werte aus `runtimeState.getRiskDashboard()`
+
+---
+
 ## [3.5.0] - 2026-02-02
 
 ### Hinzugefuegt
