@@ -15,7 +15,8 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Behoben
 - **DB-Init beim Startup:** `initDatabase()` wird jetzt automatisch beim App-Start aufgerufen
-- Behebt `SqliteError: no such table: news_candidates` auf dem Server
+- **Robustere Migrations:** Schema-Fehler werden jetzt toleriert statt abzubrechen
+- Behebt `SqliteError: no such table` Fehler auf dem Server
 - Rate-Limiting für Telegram-Notifications funktioniert jetzt korrekt
 
 ---

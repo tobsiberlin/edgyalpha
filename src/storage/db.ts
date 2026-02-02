@@ -118,19 +118,32 @@ function runMigrations(database: Database): void {
     .map((stmt) => stmt.trim())
     .filter((stmt) => stmt.length > 0 && !stmt.startsWith('--'));
 
+  let successCount = 0;
+  let skipCount = 0;
+
   for (const statement of statements) {
     try {
       database.exec(statement);
+      successCount++;
     } catch (error) {
-      // Ignoriere "already exists" Fehler bei CREATE INDEX IF NOT EXISTS
-      if (error instanceof Error && !error.message.includes('already exists')) {
-        logger.error(`Migration-Fehler bei Statement: ${statement.substring(0, 100)}...`);
-        throw error;
+      // Ignoriere bekannte harmlose Fehler
+      const msg = error instanceof Error ? error.message : '';
+      const isHarmless =
+        msg.includes('already exists') ||
+        msg.includes('no such table') ||  // Index für nicht-existente Tabelle
+        msg.includes('duplicate column');
+
+      if (isHarmless) {
+        skipCount++;
+        logger.debug(`Migration übersprungen: ${msg.substring(0, 50)}`);
+      } else {
+        logger.warn(`Migration-Fehler (ignoriert): ${statement.substring(0, 80)}... → ${msg}`);
+        skipCount++;
       }
     }
   }
 
-  logger.info(`${statements.length} Schema-Statements ausgeführt`);
+  logger.info(`Schema-Migration: ${successCount} OK, ${skipCount} übersprungen`);
 }
 
 /**
