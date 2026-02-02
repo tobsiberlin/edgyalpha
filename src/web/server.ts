@@ -11,6 +11,31 @@ import { tradingClient } from '../api/trading.js';
 import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode } from '../types/index.js';
 import { runtimeState, StateChangeEvent } from '../runtime/state.js';
+import { runBacktest, BacktestOptions, generateJsonReport, generateMarkdownReport } from '../backtest/index.js';
+import { BacktestResult } from '../alpha/types.js';
+import { getStats } from '../storage/repositories/historical.js';
+import { initDatabase } from '../storage/db.js';
+
+// Backtest State
+interface BacktestState {
+  running: boolean;
+  progress: number;
+  currentPhase: string;
+  result: BacktestResult | null;
+  error: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+}
+
+let backtestState: BacktestState = {
+  running: false,
+  progress: 0,
+  currentPhase: 'idle',
+  result: null,
+  error: null,
+  startedAt: null,
+  completedAt: null,
+};
 
 // Use process.cwd() for paths (works with both ESM and CJS)
 const publicPath = join(process.cwd(), 'src', 'web', 'public');
@@ -467,6 +492,213 @@ app.post('/api/risk/reset', requireAuth, (_req: Request, res: Response) => {
     success: true,
     message: 'Täglicher Risk-Reset durchgeführt',
     dashboard: runtimeState.getRiskDashboard(),
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    BACKTEST API
+// ═══════════════════════════════════════════════════════════════
+
+// API: Historische Daten Stats
+app.get('/api/backtest/data', requireAuth, (_req: Request, res: Response) => {
+  try {
+    initDatabase();
+    const stats = getStats();
+    res.json({
+      available: stats.tradeCount > 0,
+      tradeCount: stats.tradeCount,
+      marketCount: stats.marketCount,
+      resolvedCount: stats.resolvedCount,
+      dateRange: stats.dateRange,
+    });
+  } catch (err) {
+    const error = err as Error;
+    res.json({
+      available: false,
+      error: error.message,
+      hint: 'Importiere Daten mit: npm run import:polydata',
+    });
+  }
+});
+
+// API: Backtest Status
+app.get('/api/backtest/status', requireAuth, (_req: Request, res: Response) => {
+  res.json({
+    running: backtestState.running,
+    progress: backtestState.progress,
+    currentPhase: backtestState.currentPhase,
+    hasResult: backtestState.result !== null,
+    error: backtestState.error,
+    startedAt: backtestState.startedAt,
+    completedAt: backtestState.completedAt,
+  });
+});
+
+// API: Backtest Results
+app.get('/api/backtest/results', requireAuth, (req: Request, res: Response) => {
+  if (!backtestState.result) {
+    res.status(404).json({ error: 'Kein Backtest-Ergebnis verfügbar' });
+    return;
+  }
+
+  const { format } = req.query;
+
+  if (format === 'markdown') {
+    const md = generateMarkdownReport(backtestState.result);
+    res.type('text/markdown').send(md);
+  } else if (format === 'json-file') {
+    const json = generateJsonReport(backtestState.result);
+    res.type('application/json').send(json);
+  } else {
+    // Standard: Zusammenfassung für UI
+    const { engine, period, metrics, calibration, trades } = backtestState.result;
+    res.json({
+      engine,
+      period: {
+        from: period.from.toISOString(),
+        to: period.to.toISOString(),
+      },
+      metrics,
+      calibration,
+      tradeCount: trades.length,
+      topTrades: trades
+        .filter(t => t.pnl !== null)
+        .sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0))
+        .slice(0, 10)
+        .map(t => ({
+          marketId: t.marketId,
+          direction: t.direction,
+          entryPrice: t.entryPrice,
+          pnl: t.pnl,
+          predictedEdge: t.predictedEdge,
+          actualEdge: t.actualEdge,
+        })),
+      worstTrades: trades
+        .filter(t => t.pnl !== null)
+        .sort((a, b) => (a.pnl ?? 0) - (b.pnl ?? 0))
+        .slice(0, 10)
+        .map(t => ({
+          marketId: t.marketId,
+          direction: t.direction,
+          entryPrice: t.entryPrice,
+          pnl: t.pnl,
+          predictedEdge: t.predictedEdge,
+          actualEdge: t.actualEdge,
+        })),
+    });
+  }
+});
+
+// API: Backtest starten
+app.post('/api/backtest', requireAuth, async (req: Request, res: Response) => {
+  // Bereits laufend?
+  if (backtestState.running) {
+    res.status(409).json({
+      error: 'Backtest läuft bereits',
+      progress: backtestState.progress,
+      currentPhase: backtestState.currentPhase,
+    });
+    return;
+  }
+
+  const { engine, from, to, bankroll, slippage } = req.body;
+
+  // Validierung
+  if (!['timeDelay', 'mispricing', 'meta'].includes(engine)) {
+    res.status(400).json({ error: 'engine muss "timeDelay", "mispricing" oder "meta" sein' });
+    return;
+  }
+
+  // State reset
+  backtestState = {
+    running: true,
+    progress: 0,
+    currentPhase: 'Initialisiere...',
+    result: null,
+    error: null,
+    startedAt: new Date(),
+    completedAt: null,
+  };
+
+  // Emit start event
+  io.emit('backtest_started', {
+    engine,
+    from,
+    to,
+    bankroll: bankroll || 1000,
+  });
+
+  // Respond immediately
+  res.json({
+    success: true,
+    message: 'Backtest gestartet',
+    engine,
+  });
+
+  // Run backtest in background
+  try {
+    // Progress updates
+    backtestState.currentPhase = 'Lade historische Daten...';
+    backtestState.progress = 10;
+    io.emit('backtest_progress', { progress: 10, phase: backtestState.currentPhase });
+
+    const options: BacktestOptions = {
+      engine: engine as 'timeDelay' | 'mispricing' | 'meta',
+      from: from ? new Date(from) : new Date('2024-01-01'),
+      to: to ? new Date(to) : new Date(),
+      initialBankroll: bankroll || 1000,
+      slippageEnabled: slippage !== false,
+    };
+
+    backtestState.currentPhase = 'Simuliere Trades...';
+    backtestState.progress = 30;
+    io.emit('backtest_progress', { progress: 30, phase: backtestState.currentPhase });
+
+    const result = await runBacktest(options);
+
+    backtestState.currentPhase = 'Berechne Metriken...';
+    backtestState.progress = 80;
+    io.emit('backtest_progress', { progress: 80, phase: backtestState.currentPhase });
+
+    // Done
+    backtestState.running = false;
+    backtestState.progress = 100;
+    backtestState.currentPhase = 'Fertig';
+    backtestState.result = result;
+    backtestState.completedAt = new Date();
+
+    io.emit('backtest_completed', {
+      success: true,
+      engine: result.engine,
+      tradeCount: result.trades.length,
+      totalPnl: result.metrics.totalPnl,
+      winRate: result.metrics.winRate,
+      sharpeRatio: result.metrics.sharpeRatio,
+    });
+
+    logger.info(`Backtest abgeschlossen: ${result.trades.length} Trades, PnL=$${result.metrics.totalPnl.toFixed(2)}`);
+  } catch (err) {
+    const error = err as Error;
+    backtestState.running = false;
+    backtestState.error = error.message;
+    backtestState.currentPhase = 'Fehler';
+
+    io.emit('backtest_error', { error: error.message });
+    logger.error(`Backtest Fehler: ${error.message}`);
+  }
+});
+
+// API: Backtest abbrechen
+app.post('/api/backtest/cancel', requireAuth, (_req: Request, res: Response) => {
+  if (!backtestState.running) {
+    res.status(400).json({ error: 'Kein Backtest läuft' });
+    return;
+  }
+
+  // TODO: Implement cancellation (needs backtest engine support)
+  res.json({
+    success: false,
+    message: 'Abbrechen wird noch nicht unterstützt',
   });
 });
 

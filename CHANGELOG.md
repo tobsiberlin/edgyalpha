@@ -7,6 +7,27 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [2.2.0] - 2026-02-02
+
+### Hinzugefügt
+- **Backtest Web-Integration**
+  - POST /api/backtest - Backtest starten via Web
+  - GET /api/backtest/status - Progress-Tracking
+  - GET /api/backtest/results - Ergebnisse in UI/Markdown/JSON
+  - WebSocket Progress-Events (backtest_progress, backtest_completed)
+  - Full UI mit Engine-Auswahl, Zeitraum, Bankroll, Slippage
+  - Live Results-Dashboard mit Top/Worst Trades
+
+- **Pipeline Health Dashboard**
+  - View für alle System-Pipelines (RSS, Dawum, Polymarket, Scanner, Ticker, WebSocket)
+  - Echtzeit-Status mit Stale-Detection (>10 Min = stale)
+  - Error-Count Tracking
+  - Pipeline Event Log
+  - Auto-Refresh alle 30 Sekunden
+  - WebSocket Reconnect-Tracking
+
+---
+
 ## [2.1.0] - 2026-02-02
 
 ### Hinzugefügt

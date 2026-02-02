@@ -1081,7 +1081,7 @@ body {
                 </div>
                 <div class="nav-item" data-view="markets" onclick="showView('markets')">
                     <span class="nav-icon">◈</span>
-                    <span>MARKETS</span>
+                    <span>PIPELINES</span>
                 </div>
                 <div class="nav-item" data-view="risk" onclick="showView('risk')">
                     <span class="nav-icon">◆</span>
@@ -1283,11 +1283,100 @@ body {
             <!-- MARKETS VIEW -->
             <div class="viewport-content" id="view-markets">
                 <div class="viewport-header">
-                    <div class="viewport-title">POLYMARKET SCANNER</div>
+                    <div class="viewport-title">PIPELINE HEALTH</div>
+                    <div class="viewport-actions">
+                        <div class="metric">
+                            <span class="status-dot" id="pipeline-overall-status"></span>
+                            <span class="metric-label" id="pipeline-overall-text">CHECKING</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="console-log" style="padding: 40px; text-align: center;">
-                    <span style="color: var(--text-muted);">> Markets view coming soon...</span>
-                    <span class="console-cursor"></span>
+                <div style="padding: 16px; overflow-y: auto;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                        <!-- RSS Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-rss">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>📡 RSS FEEDS</span>
+                                <span class="status-dot" id="pl-rss-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-rss-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Success</span><span class="data-value" id="pl-rss-last">--</span></div>
+                                <div class="data-row"><span class="data-label">Error Count</span><span class="data-value" id="pl-rss-errors">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Dawum Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-dawum">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>📊 DAWUM UMFRAGEN</span>
+                                <span class="status-dot" id="pl-dawum-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-dawum-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Success</span><span class="data-value" id="pl-dawum-last">--</span></div>
+                                <div class="data-row"><span class="data-label">Error Count</span><span class="data-value" id="pl-dawum-errors">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Polymarket Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-polymarket">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>📈 POLYMARKET API</span>
+                                <span class="status-dot" id="pl-polymarket-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-polymarket-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Success</span><span class="data-value" id="pl-polymarket-last">--</span></div>
+                                <div class="data-row"><span class="data-label">Error Count</span><span class="data-value" id="pl-polymarket-errors">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Scanner Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-scanner">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>🔍 SCANNER ENGINE</span>
+                                <span class="status-dot" id="pl-scanner-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-scanner-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Scan</span><span class="data-value" id="pl-scanner-last">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Signal</span><span class="data-value" id="pl-scanner-signal">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Ticker Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-ticker">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>📰 NEWS TICKER</span>
+                                <span class="status-dot" id="pl-ticker-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-ticker-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Last Success</span><span class="data-value" id="pl-ticker-last">--</span></div>
+                                <div class="data-row"><span class="data-label">Error Count</span><span class="data-value" id="pl-ticker-errors">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- WebSocket Pipeline -->
+                        <div class="panel pipeline-card" id="pipeline-websocket">
+                            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>🔌 WEBSOCKET</span>
+                                <span class="status-dot" id="pl-ws-dot"></span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="pl-ws-status">--</span></div>
+                                <div class="data-row"><span class="data-label">Connected</span><span class="data-value" id="pl-ws-connected">--</span></div>
+                                <div class="data-row"><span class="data-label">Reconnects</span><span class="data-value" id="pl-ws-reconnects">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Logs -->
+                    <div class="panel" style="margin-top: 16px;">
+                        <div class="panel-header">PIPELINE EVENTS</div>
+                        <div class="panel-body console-log" id="pipeline-log" style="height: 200px; overflow-y: auto;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1295,10 +1384,85 @@ body {
             <div class="viewport-content" id="view-backtest">
                 <div class="viewport-header">
                     <div class="viewport-title">BACKTEST RUNNER</div>
+                    <div class="viewport-actions">
+                        <div class="metric" id="bt-data-status">
+                            <span class="metric-label">DATA</span>
+                            <span class="metric-value" id="bt-trade-count">--</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="console-log" style="padding: 40px; text-align: center;">
-                    <span style="color: var(--text-muted);">> Backtest interface coming soon...</span>
-                    <span class="console-cursor"></span>
+                <div style="display: grid; grid-template-columns: 300px 1fr; gap: 1px; background: var(--border-dim); height: calc(100% - 44px);">
+                    <!-- Backtest Config Panel -->
+                    <div style="background: var(--bg-panel); padding: 16px; overflow-y: auto;">
+                        <div class="panel" style="margin-bottom: 16px;">
+                            <div class="panel-header">KONFIGURATION</div>
+                            <div class="panel-body">
+                                <div style="margin-bottom: 12px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">ENGINE</label>
+                                    <select id="bt-engine" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
+                                        <option value="meta">META (Combined)</option>
+                                        <option value="timeDelay">TIME_DELAY (News)</option>
+                                        <option value="mispricing">MISPRICING (Value)</option>
+                                    </select>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                                    <div>
+                                        <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">VON</label>
+                                        <input type="date" id="bt-from" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 10px;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">BIS</label>
+                                        <input type="date" id="bt-to" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 10px;">
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">BANKROLL ($)</label>
+                                    <input type="number" id="bt-bankroll" value="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
+                                </div>
+                                <div style="margin-bottom: 16px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="bt-slippage" checked style="accent-color: var(--green-profit);">
+                                        Slippage-Modell aktivieren
+                                    </label>
+                                </div>
+                                <button class="btn primary" style="width: 100%;" id="bt-run-btn" onclick="runBacktest()">
+                                    ▶ BACKTEST STARTEN
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Progress -->
+                        <div class="panel" id="bt-progress-panel" style="display: none;">
+                            <div class="panel-header">FORTSCHRITT</div>
+                            <div class="panel-body">
+                                <div style="margin-bottom: 8px;">
+                                    <div style="height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden;">
+                                        <div id="bt-progress-bar" style="height: 100%; background: var(--green-profit); width: 0%; transition: width 0.3s;"></div>
+                                    </div>
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-secondary);" id="bt-progress-text">Initialisiere...</div>
+                            </div>
+                        </div>
+
+                        <!-- Data Info -->
+                        <div class="panel">
+                            <div class="panel-header">HISTORISCHE DATEN</div>
+                            <div class="panel-body" id="bt-data-info">
+                                <span style="color: var(--text-muted);">Lade...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Backtest Results -->
+                    <div style="background: var(--bg-panel); overflow-y: auto;">
+                        <div id="bt-results" style="padding: 16px;">
+                            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                                <div style="font-size: 32px; margin-bottom: 16px;">📊</div>
+                                <div>Konfiguriere und starte einen Backtest</div>
+                                <div style="font-size: 10px; margin-top: 8px;">Ergebnisse werden hier angezeigt</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1971,6 +2135,359 @@ function initClock() {
     update();
     setInterval(update, 1000);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        BACKTEST
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadBacktestData() {
+    try {
+        const res = await fetch('/api/backtest/data', { credentials: 'include' }).then(r => r.json());
+        const container = document.getElementById('bt-data-info');
+
+        if (res.available) {
+            document.getElementById('bt-trade-count').textContent = res.tradeCount.toLocaleString();
+
+            // Set default dates from data range
+            if (res.dateRange?.from) {
+                document.getElementById('bt-from').value = res.dateRange.from.substring(0, 10);
+            }
+            if (res.dateRange?.to) {
+                document.getElementById('bt-to').value = res.dateRange.to.substring(0, 10);
+            }
+
+            container.innerHTML = `
+                <div class="data-row"><span class="data-label">Trades</span><span class="data-value">${res.tradeCount.toLocaleString()}</span></div>
+                <div class="data-row"><span class="data-label">Märkte</span><span class="data-value">${res.marketCount.toLocaleString()}</span></div>
+                <div class="data-row"><span class="data-label">Resolved</span><span class="data-value">${res.resolvedCount.toLocaleString()}</span></div>
+                <div class="data-row"><span class="data-label">Von</span><span class="data-value">${res.dateRange?.from?.substring(0, 10) || '--'}</span></div>
+                <div class="data-row"><span class="data-label">Bis</span><span class="data-value">${res.dateRange?.to?.substring(0, 10) || '--'}</span></div>
+            `;
+        } else {
+            document.getElementById('bt-trade-count').textContent = '0';
+            container.innerHTML = `
+                <div style="color: var(--amber-watch); font-size: 10px;">
+                    ${res.error || 'Keine Daten'}<br><br>
+                    <span style="color: var(--text-muted);">${res.hint || 'Importiere mit npm run import:polydata'}</span>
+                </div>
+            `;
+        }
+    } catch (err) {
+        document.getElementById('bt-data-info').innerHTML = '<span style="color: var(--red-risk);">Fehler beim Laden</span>';
+    }
+}
+
+async function runBacktest() {
+    const btn = document.getElementById('bt-run-btn');
+    const progressPanel = document.getElementById('bt-progress-panel');
+
+    btn.disabled = true;
+    btn.textContent = '◌ LÄUFT...';
+    progressPanel.style.display = 'block';
+
+    const params = {
+        engine: document.getElementById('bt-engine').value,
+        from: document.getElementById('bt-from').value || undefined,
+        to: document.getElementById('bt-to').value || undefined,
+        bankroll: parseFloat(document.getElementById('bt-bankroll').value) || 1000,
+        slippage: document.getElementById('bt-slippage').checked
+    };
+
+    addLog('info', '════════════════════════════════════════');
+    addLog('info', 'STARTE BACKTEST: ' + params.engine.toUpperCase());
+    addLog('info', '════════════════════════════════════════');
+
+    try {
+        const res = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(params)
+        }).then(r => r.json());
+
+        if (res.error) {
+            throw new Error(res.error);
+        }
+
+        addLog('success', 'Backtest gestartet');
+
+        // Poll for completion
+        pollBacktestStatus();
+    } catch (err) {
+        addLog('error', 'Backtest Fehler: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '▶ BACKTEST STARTEN';
+        progressPanel.style.display = 'none';
+    }
+}
+
+async function pollBacktestStatus() {
+    const btn = document.getElementById('bt-run-btn');
+    const progressBar = document.getElementById('bt-progress-bar');
+    const progressText = document.getElementById('bt-progress-text');
+    const progressPanel = document.getElementById('bt-progress-panel');
+
+    try {
+        const status = await fetch('/api/backtest/status', { credentials: 'include' }).then(r => r.json());
+
+        progressBar.style.width = status.progress + '%';
+        progressText.textContent = status.currentPhase;
+
+        if (status.running) {
+            setTimeout(pollBacktestStatus, 500);
+        } else if (status.error) {
+            addLog('error', 'Backtest fehlgeschlagen: ' + status.error);
+            btn.disabled = false;
+            btn.textContent = '▶ BACKTEST STARTEN';
+            progressPanel.style.display = 'none';
+        } else if (status.hasResult) {
+            addLog('success', 'Backtest abgeschlossen');
+            btn.disabled = false;
+            btn.textContent = '▶ BACKTEST STARTEN';
+            progressPanel.style.display = 'none';
+            loadBacktestResults();
+        }
+    } catch (err) {
+        addLog('error', 'Status-Abfrage fehlgeschlagen');
+        btn.disabled = false;
+        btn.textContent = '▶ BACKTEST STARTEN';
+    }
+}
+
+async function loadBacktestResults() {
+    try {
+        const res = await fetch('/api/backtest/results', { credentials: 'include' }).then(r => r.json());
+
+        const container = document.getElementById('bt-results');
+        const pnlClass = res.metrics.totalPnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = res.metrics.totalPnl >= 0 ? '+' : '';
+
+        container.innerHTML = `
+            <div class="panel" style="margin-bottom: 16px;">
+                <div class="panel-header">ERGEBNIS: ${res.engine.toUpperCase()} ENGINE</div>
+                <div class="panel-body">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: center; margin-bottom: 16px;">
+                        <div>
+                            <div style="font-size: 28px; font-weight: 700;" class="${pnlClass}">${pnlSign}$${res.metrics.totalPnl.toFixed(2)}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">TOTAL PnL</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 28px; font-weight: 700;">${(res.metrics.winRate * 100).toFixed(1)}%</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">WIN RATE</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 28px; font-weight: 700;">${res.metrics.sharpeRatio.toFixed(2)}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">SHARPE</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 28px; font-weight: 700;">${res.tradeCount}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">TRADES</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-muted);">
+                        Zeitraum: ${res.period.from.substring(0, 10)} bis ${res.period.to.substring(0, 10)}
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 16px;">
+                <div class="panel-header">METRIKEN</div>
+                <div class="panel-body">
+                    <div class="data-row"><span class="data-label">Max Drawdown</span><span class="data-value negative">-$${Math.abs(res.metrics.maxDrawdown).toFixed(2)}</span></div>
+                    <div class="data-row"><span class="data-label">Brier Score</span><span class="data-value">${res.metrics.brierScore.toFixed(3)}</span></div>
+                    <div class="data-row"><span class="data-label">Edge Capture</span><span class="data-value">${(res.metrics.avgEdgeCapture * 100).toFixed(1)}%</span></div>
+                    <div class="data-row"><span class="data-label">Avg Slippage</span><span class="data-value">${(res.metrics.avgSlippage * 100).toFixed(2)}%</span></div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 16px;">
+                <div class="panel-header">TOP 5 TRADES</div>
+                <div class="panel-body" style="font-size: 10px;">
+                    ${res.topTrades.slice(0, 5).map(t => `
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
+                            <span style="color: var(--text-muted);">${t.marketId.substring(0, 12)}...</span>
+                            <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
+                            <span class="positive">+$${t.pnl?.toFixed(2) || '0.00'}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">WORST 5 TRADES</div>
+                <div class="panel-body" style="font-size: 10px;">
+                    ${res.worstTrades.slice(0, 5).map(t => `
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
+                            <span style="color: var(--text-muted);">${t.marketId.substring(0, 12)}...</span>
+                            <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
+                            <span class="negative">$${t.pnl?.toFixed(2) || '0.00'}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        addLog('info', 'Ergebnis: PnL=' + pnlSign + '$' + res.metrics.totalPnl.toFixed(2) + ', WinRate=' + (res.metrics.winRate * 100).toFixed(1) + '%');
+        addLog('info', '════════════════════════════════════════');
+    } catch (err) {
+        addLog('error', 'Ergebnisse laden fehlgeschlagen');
+    }
+}
+
+// WebSocket events for backtest
+if (typeof socket !== 'undefined') {
+    socket?.on('backtest_progress', (data) => {
+        document.getElementById('bt-progress-bar').style.width = data.progress + '%';
+        document.getElementById('bt-progress-text').textContent = data.phase;
+    });
+
+    socket?.on('backtest_completed', (data) => {
+        addLog('success', 'Backtest: ' + data.tradeCount + ' Trades, PnL=$' + data.totalPnl.toFixed(2));
+        loadBacktestResults();
+    });
+
+    socket?.on('backtest_error', (data) => {
+        addLog('error', 'Backtest Fehler: ' + data.error);
+    });
+}
+
+// Load data when switching views
+const origShowView = showView;
+showView = function(viewId) {
+    origShowView(viewId);
+    if (viewId === 'backtest') {
+        loadBacktestData();
+    } else if (viewId === 'markets') {
+        loadPipelineHealth();
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        PIPELINE HEALTH
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let pipelineReconnects = 0;
+
+async function loadPipelineHealth() {
+    try {
+        const res = await fetch('/api/pipelines/health', { credentials: 'include' }).then(r => r.json());
+
+        // Overall status
+        const overallDot = document.getElementById('pipeline-overall-status');
+        const overallText = document.getElementById('pipeline-overall-text');
+        overallDot.className = 'status-dot ' + (res.overall ? '' : 'error');
+        overallText.textContent = res.overall ? 'ALL HEALTHY' : 'ISSUES DETECTED';
+
+        // Update each pipeline
+        res.pipelines.forEach(p => {
+            updatePipelineCard(p.name, p);
+        });
+
+        // Scanner specific
+        if (res.lastScan) {
+            document.getElementById('pl-scanner-last').textContent = formatTimeAgo(new Date(res.lastScan));
+        }
+        if (res.lastSignal) {
+            document.getElementById('pl-scanner-signal').textContent = formatTimeAgo(new Date(res.lastSignal));
+        }
+
+        // WebSocket status
+        document.getElementById('pl-ws-status').textContent = socket?.connected ? 'CONNECTED' : 'DISCONNECTED';
+        document.getElementById('pl-ws-dot').className = 'status-dot ' + (socket?.connected ? '' : 'error');
+        document.getElementById('pl-ws-connected').textContent = socket?.connected ? 'Yes' : 'No';
+        document.getElementById('pl-ws-reconnects').textContent = pipelineReconnects;
+
+        addPipelineLog('info', 'Pipeline-Status aktualisiert');
+    } catch (err) {
+        addPipelineLog('error', 'Fehler beim Laden: ' + err.message);
+    }
+}
+
+function updatePipelineCard(name, data) {
+    const statusEl = document.getElementById(`pl-${name}-status`);
+    const dotEl = document.getElementById(`pl-${name}-dot`);
+    const lastEl = document.getElementById(`pl-${name}-last`);
+    const errorsEl = document.getElementById(`pl-${name}-errors`);
+
+    if (statusEl) {
+        statusEl.textContent = data.status === 'ok' ? 'HEALTHY' : data.status === 'stale' ? 'STALE' : 'ERROR';
+        statusEl.className = 'data-value ' + (data.status === 'ok' ? 'positive' : data.status === 'stale' ? 'warning' : 'negative');
+    }
+    if (dotEl) {
+        dotEl.className = 'status-dot ' + (data.status === 'ok' ? '' : data.status === 'stale' ? 'warning' : 'error');
+    }
+    if (lastEl && data.lastSuccess) {
+        lastEl.textContent = formatTimeAgo(new Date(data.lastSuccess));
+    }
+    if (errorsEl) {
+        errorsEl.textContent = data.errorCount || 0;
+        errorsEl.className = 'data-value ' + (data.errorCount > 0 ? 'negative' : '');
+    }
+}
+
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHr = Math.floor(diffMin / 60);
+
+    if (diffSec < 60) return diffSec + 's ago';
+    if (diffMin < 60) return diffMin + 'm ago';
+    if (diffHr < 24) return diffHr + 'h ago';
+    return date.toLocaleDateString('de-DE');
+}
+
+function addPipelineLog(level, message) {
+    const log = document.getElementById('pipeline-log');
+    if (!log) return;
+
+    const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `
+        <span class="log-time">[${time}]</span>
+        <span class="log-level ${level}">${level.toUpperCase().padEnd(7)}</span>
+        <span class="log-message">${message}</span>
+    `;
+
+    log.appendChild(entry);
+    while (log.children.length > 100) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+}
+
+// Track WebSocket reconnects
+if (socket) {
+    socket.on('connect', () => {
+        document.getElementById('pl-ws-status').textContent = 'CONNECTED';
+        document.getElementById('pl-ws-dot').className = 'status-dot';
+        document.getElementById('pl-ws-connected').textContent = 'Yes';
+    });
+    socket.on('reconnect', () => {
+        pipelineReconnects++;
+        document.getElementById('pl-ws-reconnects').textContent = pipelineReconnects;
+        addPipelineLog('warn', 'WebSocket reconnected');
+    });
+    socket.on('disconnect', () => {
+        document.getElementById('pl-ws-status').textContent = 'DISCONNECTED';
+        document.getElementById('pl-ws-dot').className = 'status-dot error';
+        document.getElementById('pl-ws-connected').textContent = 'No';
+        addPipelineLog('error', 'WebSocket disconnected');
+    });
+
+    // Pipeline alerts
+    socket.on('pipeline_alert', (data) => {
+        addPipelineLog('warn', `Pipeline ${data.pipeline} unhealthy (${data.errorCount} errors)`);
+        loadPipelineHealth();
+    });
+}
+
+// Auto-refresh pipeline health every 30 seconds when on that view
+setInterval(() => {
+    if (document.getElementById('view-markets').classList.contains('active')) {
+        loadPipelineHealth();
+    }
+}, 30000);
     </script>
 </body>
 </html>
