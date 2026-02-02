@@ -43,16 +43,13 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Telemetry Modul: formatSignalForDisplay, formatRiskGates, buildTelegramAlert
 - Telegram V2: Neues Alert-Format mit Alpha-Type, Top-Features, Risk-Gates Summary
 
-### Geplant (noch nicht implementiert)
-- SQLite Storage-Layer mit `better-sqlite3`
-- Feature-Flags: `ALPHA_ENGINE` (timeDelay|mispricing|meta), `EXECUTION_MODE` (paper|shadow|live)
-- TIME_DELAY Alpha-Engine (Informations-Timing)
-- MISPRICING Alpha-Engine (Value-/Struktur-Alpha)
-- Meta-Combiner (Walk-Forward Weights)
-- Backtesting-Framework mit echten Daten aus poly_data
-- Gestufte Execution (paper/shadow/live)
-- Risk-Gates und Quarter-Kelly Sizing
-- Slippage-Modell aus echten Trades kalibriert
+**Phase 5 - Backtesting (ERLEDIGT):**
+- TradeSimulator: VWAP-basierte Fill-Preise, Slippage-Modellierung, Fees
+- Metrics: PnL, Win-Rate, Max-Drawdown, Sharpe-Ratio, Edge-Capture
+- Calibration: Brier-Score, ECE, Reliability-Buckets, Over-/Underconfidence-Analyse
+- Report: Markdown + JSON Output, Console-Formatierung
+- CLI: `npm run backtest --engine meta --from 2024-01-01 --to 2024-06-30`
+- Walk-Forward für Meta-Combiner (kein Lookahead-Bias)
 
 ---
 

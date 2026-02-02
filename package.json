@@ -18,7 +18,8 @@
     "markets": "tsx scripts/markets.ts",
     "dawum": "tsx scripts/dawum.ts",
     "import:polydata": "tsx scripts/import-polydata.ts",
-    "rss": "tsx scripts/rss.ts"
+    "rss": "tsx scripts/rss.ts",
+    "backtest": "tsx scripts/backtest.ts"
   },
   "keywords": [
     "polymarket",
