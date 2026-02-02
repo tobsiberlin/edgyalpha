@@ -78,6 +78,7 @@ export {
   getCandidatesForMatching,
   getCandidateById,
   getCandidateByHash,
+  getCandidateByTitle,
   getRecentCandidates,
   getCandidateStats,
   expireOldCandidates,

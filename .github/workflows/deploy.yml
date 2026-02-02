@@ -49,7 +49,14 @@ jobs:
       - name: Add VPS to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then
+            echo "Error: VPS_HOST secret is not set"
+            exit 1
+          fi
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || {
+            echo "Warning: ssh-keyscan failed, adding host anyway"
+            echo "${{ secrets.VPS_HOST }} ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC..." >> ~/.ssh/known_hosts
+          }
 
       - name: Deploy to VPS
         env:

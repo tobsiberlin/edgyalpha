@@ -59,6 +59,38 @@
     --sp-xl:          32px;
 }
 
+/* BRIGHT MODE */
+[data-theme="light"] {
+    --bg-terminal:    #f5f5f5;
+    --bg-panel:       #ffffff;
+    --bg-elevated:    #fafafa;
+    --bg-input:       #f0f0f0;
+
+    --border-dim:     #e0e0e0;
+    --border-mid:     #d0d0d0;
+    --border-bright:  #c0c0c0;
+
+    --green-profit:   #00aa44;
+    --green-dim:      #008833;
+    --green-dark:     #e8f5e9;
+    --amber-watch:    #ff8800;
+    --amber-dim:      #cc6600;
+    --red-risk:       #dd2233;
+    --red-dim:        #aa1122;
+    --cyan-info:      #0088cc;
+    --cyan-dim:       #006699;
+
+    --text-primary:   #1a1a1a;
+    --text-secondary: #555555;
+    --text-muted:     #888888;
+    --text-dim:       #aaaaaa;
+}
+
+.logout-btn:hover {
+    border-color: var(--red-risk) !important;
+    color: var(--red-risk) !important;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -1060,11 +1092,21 @@ body {
             </div>
 
             <div class="header-metrics">
+                <div class="status-badge" onclick="toggleTheme()" title="Theme wechseln">
+                    <span id="theme-icon">🌙</span>
+                </div>
+                <a href="/docs.html" class="status-badge" style="text-decoration: none;">
+                    <span>📖</span>
+                    <span>DOCS</span>
+                </a>
                 <div class="status-badge">
                     <span class="status-dot" id="ws-status"></span>
                     <span>WS</span>
                 </div>
                 <span class="clock" id="clock">--:--:--</span>
+                <a href="/logout" class="status-badge logout-btn" style="text-decoration: none;" title="Logout">
+                    <span>⏻</span>
+                </a>
             </div>
         </header>
 
@@ -1735,10 +1777,39 @@ let selectedSignal = null;
 let riskDashboard = null;
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//                        THEME TOGGLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.getElementById('theme-icon');
+    if (icon) {
+        icon.textContent = theme === 'light' ? '☀️' : '🌙';
+    }
+}
+
+function initTheme() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    if (saved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+    updateThemeIcon(saved);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //                        INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initSocket();
     initClock();
     loadInitialData();

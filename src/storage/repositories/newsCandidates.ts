@@ -375,6 +375,21 @@ export function getRecentCandidates(limit = 50): NewsCandidate[] {
 }
 
 /**
+ * Sucht Candidate nach Titel (für Ticker-Integration)
+ */
+export function getCandidateByTitle(title: string): NewsCandidate | null {
+  const db = ensureDatabase();
+  const row = db.prepare(`
+    SELECT * FROM news_candidates
+    WHERE title = ? AND status = 'new'
+    ORDER BY ingested_at DESC
+    LIMIT 1
+  `).get(title) as Record<string, unknown> | undefined;
+
+  return row ? rowToCandidate(row) : null;
+}
+
+/**
  * Statistiken über Candidates
  */
 export interface CandidateStats {

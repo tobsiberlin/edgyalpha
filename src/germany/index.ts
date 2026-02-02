@@ -12,6 +12,59 @@ import {
   type NewsItem,
   WORKING_RSS_FEEDS,
 } from './rss.js';
+import { getDatabase, initDatabase, isDatabaseInitialized } from '../storage/db.js';
+
+// ═══════════════════════════════════════════════════════════════
+// PERSISTENT SEEN NEWS HASHES (verhindert Push-Storm nach Restart)
+// ═══════════════════════════════════════════════════════════════
+
+function ensureDatabase(): ReturnType<typeof getDatabase> {
+  if (!isDatabaseInitialized()) {
+    initDatabase();
+  }
+  return getDatabase();
+}
+
+function loadSeenHashes(): Set<string> {
+  try {
+    const db = ensureDatabase();
+    const rows = db.prepare('SELECT hash FROM seen_news_hashes').all() as Array<{hash: string}>;
+    logger.info(`[SEEN_HASHES] ${rows.length} Hashes aus DB geladen`);
+    return new Set(rows.map(r => r.hash));
+  } catch (err) {
+    logger.warn(`[SEEN_HASHES] DB nicht verfügbar, nutze leeres Set: ${(err as Error).message}`);
+    return new Set();
+  }
+}
+
+function saveSeenHash(hash: string, source: string, title: string): void {
+  try {
+    const db = ensureDatabase();
+    db.prepare(`
+      INSERT OR IGNORE INTO seen_news_hashes (hash, source, title)
+      VALUES (?, ?, ?)
+    `).run(hash, source, title.substring(0, 200));
+  } catch (err) {
+    logger.debug(`[SEEN_HASHES] Konnte Hash nicht speichern: ${(err as Error).message}`);
+  }
+}
+
+function cleanupOldHashes(maxAgeDays = 7): void {
+  try {
+    const db = ensureDatabase();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - maxAgeDays);
+    const result = db.prepare(`
+      DELETE FROM seen_news_hashes
+      WHERE seen_at < ?
+    `).run(cutoff.toISOString());
+    if (result.changes > 0) {
+      logger.info(`[SEEN_HASHES] ${result.changes} alte Hashes gelöscht`);
+    }
+  } catch (err) {
+    logger.debug(`[SEEN_HASHES] Cleanup Fehler: ${(err as Error).message}`);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT-DRIVEN ALMAN SCANNER
@@ -115,15 +168,19 @@ class GermanySources extends EventEmitter {
   private lastUpdate: Date | null = null;
 
   // Event-driven: Track gesehene News-IDs für Delta-Detection
-  private seenNewsIds: Set<string> = new Set();
+  // JETZT PERSISTENT! Verhindert Push-Storm nach Restart
+  private seenNewsIds: Set<string>;
   private rssPollingInterval: NodeJS.Timeout | null = null;
   private isPolling: boolean = false;
+  private hashCleanupInterval: NodeJS.Timeout | null = null;
 
   // RSS-Polling Intervall (60 Sekunden für schnelle Erkennung)
   private readonly RSS_POLL_INTERVAL = 60 * 1000;
 
   constructor() {
     super();
+    // Lade persistente Hashes aus DB
+    this.seenNewsIds = loadSeenHashes();
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -137,12 +194,16 @@ class GermanySources extends EventEmitter {
       return;
     }
 
+    // Refresh seenNewsIds aus DB (für Multi-Instance-Support)
+    this.seenNewsIds = loadSeenHashes();
+
     const healthSummary = getHealthSummary();
     logger.info('═══════════════════════════════════════════════════════');
     logger.info('ALMAN SCANNER EVENT-LISTENER GESTARTET');
     logger.info(`   Polling-Intervall: ${this.RSS_POLL_INTERVAL / 1000}s`);
     logger.info(`   Feeds: ${WORKING_RSS_FEEDS.length} (kuratiert)`);
     logger.info(`   Health: ${healthSummary.ok} OK, ${healthSummary.error} Fehler`);
+    logger.info(`   Seen Hashes: ${this.seenNewsIds.size} (persistent)`);
     logger.info('═══════════════════════════════════════════════════════');
 
     this.isPolling = true;
@@ -160,12 +221,21 @@ class GermanySources extends EventEmitter {
         logger.error(`RSS-Polling Fehler: ${(err as Error).message}`);
       }
     }, this.RSS_POLL_INTERVAL);
+
+    // Cleanup alte Hashes einmal täglich (12 Stunden)
+    this.hashCleanupInterval = setInterval(() => {
+      cleanupOldHashes(7);
+    }, 12 * 60 * 60 * 1000);
   }
 
   stopEventListener(): void {
     if (this.rssPollingInterval) {
       clearInterval(this.rssPollingInterval);
       this.rssPollingInterval = null;
+    }
+    if (this.hashCleanupInterval) {
+      clearInterval(this.hashCleanupInterval);
+      this.hashCleanupInterval = null;
     }
     this.isPolling = false;
     logger.info('RSS Event-Listener gestoppt');
@@ -197,6 +267,8 @@ class GermanySources extends EventEmitter {
 
       if (!this.seenNewsIds.has(newsId)) {
         this.seenNewsIds.add(newsId);
+        // PERSISTENT: Hash in DB speichern um Push-Storm nach Restart zu verhindern
+        saveSeenHash(newsId, item.data.source as string, item.title);
         newNews.push(item);
 
         // Pruefe ob Breaking News (relevant fuer Markets)

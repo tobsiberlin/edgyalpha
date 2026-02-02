@@ -295,3 +295,27 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   max_per_day INTEGER DEFAULT 8,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- seen_news_hashes (Persistent Dedupe für RSS Polling - verhindert Push-Storm nach Restart)
+CREATE TABLE IF NOT EXISTS seen_news_hashes (
+  hash TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  title TEXT,
+  seen_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_seen_news_seen_at ON seen_news_hashes(seen_at);
+
+-- notification_push_log (Audit Log für alle Pushes)
+CREATE TABLE IF NOT EXISTS notification_push_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  push_type TEXT NOT NULL,               -- TIME_DELAY|MISPRICING|SYSTEM|DIGEST
+  candidate_id INTEGER,
+  market_id TEXT,
+  message_preview TEXT,
+  rate_limit_state TEXT,                 -- JSON: {allowed, reason, pushesToday, cooldownActive}
+  suppressed INTEGER DEFAULT 0,          -- 1 wenn unterdrückt
+  suppression_reason TEXT,
+  sent_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_push_log_sent ON notification_push_log(sent_at);
+CREATE INDEX IF NOT EXISTS idx_push_log_type ON notification_push_log(push_type);

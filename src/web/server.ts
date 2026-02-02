@@ -626,6 +626,66 @@ app.get('/api/execution/quality', requireAuth, (_req: Request, res: Response) =>
   }
 });
 
+// API: Notification Stats (Push-Policy Monitoring)
+app.get('/api/notifications/stats', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { getNotificationState, getNotificationSettings } = await import('../notifications/rateLimiter.js');
+    const { getCandidateStats } = await import('../storage/repositories/newsCandidates.js');
+
+    const state = getNotificationState();
+    const settings = getNotificationSettings(process.env.TELEGRAM_CHAT_ID || '');
+    const candidateStats = getCandidateStats();
+
+    // Push-Log Statistiken aus DB
+    const db = (await import('../storage/db.js')).getDatabase();
+    const today = new Date().toISOString().split('T')[0];
+    const hour = new Date();
+    hour.setHours(hour.getHours() - 1);
+
+    const pushesTodayRow = db.prepare(`
+      SELECT COUNT(*) as count FROM notification_push_log
+      WHERE DATE(sent_at) = ? AND suppressed = 0
+    `).get(today) as { count: number } | undefined;
+
+    const pushesLastHourRow = db.prepare(`
+      SELECT COUNT(*) as count FROM notification_push_log
+      WHERE sent_at > ? AND suppressed = 0
+    `).get(hour.toISOString()) as { count: number } | undefined;
+
+    const suppressedTodayRow = db.prepare(`
+      SELECT COUNT(*) as count, suppression_reason FROM notification_push_log
+      WHERE DATE(sent_at) = ? AND suppressed = 1
+      GROUP BY suppression_reason
+    `).all(today) as Array<{ count: number; suppression_reason: string }>;
+
+    res.json({
+      currentState: {
+        lastPushAt: state.lastPushAt,
+        pushesToday: state.pushesToday,
+        maxPerDay: settings.maxPerDay,
+        cooldownMinutes: settings.cooldownMinutes,
+        pushMode: settings.pushMode,
+        quietHoursEnabled: settings.quietHoursEnabled,
+        quietHours: `${settings.quietHoursStart}-${settings.quietHoursEnd}`,
+      },
+      stats: {
+        pushesLastHour: pushesLastHourRow?.count || 0,
+        pushesToday: pushesTodayRow?.count || 0,
+        suppressedToday: suppressedTodayRow.reduce((sum, r) => sum + r.count, 0),
+        suppressionReasons: suppressedTodayRow,
+      },
+      candidates: candidateStats,
+      quietHoursQueue: state.quietHoursQueue.length,
+    });
+  } catch (err) {
+    res.json({
+      error: (err as Error).message,
+      currentState: null,
+      stats: null,
+    });
+  }
+});
+
 // API: Equity Curve (kumuliertes PnL über Zeit)
 app.get('/api/stats/equity', requireAuth, (_req: Request, res: Response) => {
   try {
@@ -1045,6 +1105,124 @@ runtimeState.on('dailyReset', () => {
 
 runtimeState.on('pipelineUnhealthy', (data: { pipeline: string; errorCount: number }) => {
   io.emit('pipeline_alert', data);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    PERPLEXITY LLM ENGINE API
+// ═══════════════════════════════════════════════════════════════
+
+// API: LLM Engine Status
+app.get('/api/llm/status', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+    res.json({
+      active: perplexityEngine.isActive(),
+      stats: perplexityEngine.getStats(),
+    });
+  } catch (err) {
+    res.json({
+      active: false,
+      error: 'Perplexity Engine nicht verfügbar',
+      message: (err as Error).message,
+    });
+  }
+});
+
+// API: LLM Engine Stats
+app.get('/api/llm/stats', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+    res.json(perplexityEngine.toJSON());
+  } catch (err) {
+    res.json({
+      stats: null,
+      error: (err as Error).message,
+    });
+  }
+});
+
+// API: Recent LLM Signals
+app.get('/api/llm/signals', requireAuth, async (req: Request, res: Response) => {
+  const limit = parseInt(String(req.query?.limit || '20'), 10);
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+    const signals = perplexityEngine.getSignals(limit);
+    res.json({
+      signals,
+      count: signals.length,
+      limit,
+    });
+  } catch (err) {
+    res.json({
+      signals: [],
+      count: 0,
+      error: (err as Error).message,
+    });
+  }
+});
+
+// API: Strong LLM Signals only
+app.get('/api/llm/signals/strong', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+    const signals = perplexityEngine.getStrongSignals();
+    res.json({
+      signals,
+      count: signals.length,
+    });
+  } catch (err) {
+    res.json({
+      signals: [],
+      count: 0,
+      error: (err as Error).message,
+    });
+  }
+});
+
+// API: Initialize LLM Engine
+app.post('/api/llm/init', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+
+    if (perplexityEngine.isActive()) {
+      res.json({
+        success: false,
+        message: 'Engine bereits aktiv',
+        active: true,
+      });
+      return;
+    }
+
+    const success = await perplexityEngine.initialize();
+    res.json({
+      success,
+      message: success ? 'Engine erfolgreich gestartet' : 'Initialisierung fehlgeschlagen',
+      active: perplexityEngine.isActive(),
+    });
+  } catch (err) {
+    res.json({
+      success: false,
+      error: (err as Error).message,
+    });
+  }
+});
+
+// API: Shutdown LLM Engine
+app.post('/api/llm/shutdown', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
+    await perplexityEngine.shutdown();
+    res.json({
+      success: true,
+      message: 'Engine heruntergefahren',
+      active: false,
+    });
+  } catch (err) {
+    res.json({
+      success: false,
+      error: (err as Error).message,
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

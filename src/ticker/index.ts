@@ -3,6 +3,8 @@ import logger from '../utils/logger.js';
 import { germanySources, BreakingNewsEvent } from '../germany/index.js';
 import { polymarketClient } from '../api/polymarket.js';
 import { Market } from '../types/index.js';
+import { notificationService } from '../notifications/notificationService.js';
+import { MarketInfo, SourceInfo } from '../notifications/pushGates.js';
 
 // ═══════════════════════════════════════════════════════════════
 //              LIVE NEWS TICKER - DAUERFEUER MODUS
@@ -162,6 +164,12 @@ class NewsTicker extends EventEmitter {
         },
       };
       this.emitTick(matchFoundEvent);
+
+      // ══════════════════════════════════════════════════════════════
+      // KRITISCH: NotificationService über Match informieren
+      // Das verbindet den Ticker mit der Push-Pipeline
+      // ══════════════════════════════════════════════════════════════
+      await this.notifyMatchToNotificationService(news, matches[0]);
     } else {
       const noMatchEvent: TickerEvent = {
         id: `${Date.now()}-nomatch`,
@@ -367,6 +375,62 @@ class NewsTicker extends EventEmitter {
 
   getMarketCount(): number {
     return this.cachedMarkets.length;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //              NOTIFICATION SERVICE INTEGRATION
+  // Verbindet Ticker-Matches mit der Push-Pipeline
+  // ═══════════════════════════════════════════════════════════════
+
+  private async notifyMatchToNotificationService(
+    news: BreakingNewsEvent,
+    topMatch: { id: string; question: string; matchScore: number; price: number }
+  ): Promise<void> {
+    try {
+      // 1. Prüfe ob NotificationService bereits einen Candidate für diese News hat
+      // (Der Telegram Bot sollte bereits processBreakingNews aufgerufen haben)
+      const { getCandidateByTitle } = await import('../storage/repositories/newsCandidates.js');
+      const existingCandidate = getCandidateByTitle(news.title);
+
+      if (!existingCandidate) {
+        logger.debug(`[TICKER] Kein Candidate für News gefunden: ${news.title.substring(0, 40)}...`);
+        return;
+      }
+
+      // 2. Erstelle MarketInfo für Gate-Check
+      const marketInfo: MarketInfo = {
+        marketId: topMatch.id,
+        question: topMatch.question,
+        currentPrice: topMatch.price,
+        totalVolume: 50000, // Mindest-Volume für Gate-Pass
+      };
+
+      // 3. Erstelle SourceInfo
+      const sourceInfo: SourceInfo = {
+        sourceId: news.source,
+        sourceName: news.source,
+        reliabilityScore: 0.7, // Standard für kuratierte Quellen
+      };
+
+      // 4. Informiere NotificationService
+      const expectedLagMinutes = news.timeAdvantageSeconds
+        ? Math.ceil(news.timeAdvantageSeconds / 60)
+        : 15;
+
+      const matched = await notificationService.setMatchAndEvaluate(
+        existingCandidate.id,
+        marketInfo,
+        sourceInfo,
+        expectedLagMinutes
+      );
+
+      if (matched) {
+        logger.info(`[TICKER] Match an NotificationService übergeben: ${news.title.substring(0, 40)}...`);
+        this.stats.alphaSignals++;
+      }
+    } catch (err) {
+      logger.debug(`[TICKER] NotificationService-Integration Fehler: ${(err as Error).message}`);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
