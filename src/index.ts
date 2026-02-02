@@ -40,21 +40,27 @@ async function main(): Promise<void> {
   logger.info('═══════════════════════════════════════════════════════');
 
   try {
-    // 1. Deutschland-Quellen vorladen (falls aktiviert)
-    if (config.germany.enabled) {
-      logger.info('Lade Deutschland-Datenquellen...');
-      await germanySources.fetchAll();
-    }
+    // 1. Web-Server SOFORT starten (kritisch für Health-Checks)
+    logger.info('Starte Web-Server...');
+    startWebServer();
 
     // 2. Telegram Bot starten (falls aktiviert)
     if (config.telegram.enabled) {
       logger.info('Starte Telegram Bot...');
-      await telegramBot.start();
+      telegramBot.start().catch(err => {
+        logger.error(`Telegram Bot Fehler: ${err.message}`);
+      });
     }
 
-    // 3. Web-Server starten
-    logger.info('Starte Web-Server...');
-    startWebServer();
+    // 3. Deutschland-Quellen parallel laden (non-blocking)
+    if (config.germany.enabled) {
+      logger.info('Lade Deutschland-Datenquellen (async)...');
+      germanySources.fetchAll().then(() => {
+        logger.info('Deutschland-Datenquellen geladen');
+      }).catch(err => {
+        logger.warn(`Deutschland-Daten Fehler (non-fatal): ${err.message}`);
+      });
+    }
 
     // 4. Scanner starten
     logger.info('Starte Alpha Scanner...');
