@@ -45,6 +45,7 @@ export interface AuditLogEntry {
   pnlImpact?: number;
   riskStateBefore?: Partial<PersistedRiskState> | Record<string, unknown>;
   riskStateAfter?: Partial<PersistedRiskState> | Record<string, unknown>;
+  createdAt?: number; // Unix timestamp in ms
 }
 
 /**
@@ -274,5 +275,6 @@ export function getAuditLog(limit: number = 100): AuditLogEntry[] {
     pnlImpact: row.pnl_impact as number | undefined,
     riskStateBefore: row.risk_state_before ? JSON.parse(row.risk_state_before as string) : undefined,
     riskStateAfter: row.risk_state_after ? JSON.parse(row.risk_state_after as string) : undefined,
+    createdAt: row.created_at ? new Date(row.created_at as string).getTime() : undefined,
   }));
 }

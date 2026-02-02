@@ -2,7 +2,92 @@
 
 > Detaillierter Plan: siehe `../PLAN.md`
 
-## Status: ✅ PHASE 5 + STABILITY COMPLETE
+## Status: ✅ PHASE 5 + STABILITY + PERFEKTIONIERUNG COMPLETE
+
+---
+
+## Perfektionierung Web & Telegram Bot (2026-02-02)
+
+### Phase 1: Kritische Fixes (Stabilitat)
+
+#### 1.1 Telegram Bot - Trade-Execution Bug
+- [x] **Problem:** `handleConfirm()` emittet nur Event, fuhrt Trade nicht aus
+- [x] **Fix:** Direkte Trade-Execution wie bei Quick-Buy implementieren
+- [x] **Datei:** `src/telegram/index.ts` Zeilen 2251-2287
+
+#### 1.2 Telegram Bot - User-Authentifizierung
+- [x] **Problem:** Bot antwortet auf ALLE Chat-IDs
+- [x] **Fix:** Auth-Check auf konfigurierte chatId
+- [x] **Datei:** `src/telegram/index.ts` - setupCommands()
+
+#### 1.3 Web - XSS-Schutz
+- [x] **Problem:** innerHTML mit unsanitierten Market-Fragen
+- [x] **Fix:** textContent statt innerHTML verwenden
+- [x] **Datei:** `src/web/public/index.html`
+
+#### 1.4 Stabilitat - Process Lock bei uncaughtException
+- [x] **Problem:** Lock wird nicht freigegeben bei uncaughtException
+- [x] **Fix:** releaseLock() in allen exit-Pfaden
+- [x] **Datei:** `src/index.ts` Zeilen 155-159
+
+#### 1.5 Stabilitat - Graceful Shutdown Timeout
+- [x] **Problem:** Shutdown kann hangen ohne Timeout
+- [x] **Fix:** Max 10s Timeout, dann forceful exit
+- [x] **Datei:** `src/index.ts` - setupGracefulShutdown()
+
+#### 1.6 Scanner - isScanning Flag
+- [x] **Problem:** Flag nicht in finally-Block zuruckgesetzt
+- [x] **Fix:** finally-Block hinzufugen
+- [x] **Datei:** `src/scanner/index.ts`
+
+### Phase 2: Stabilitat & UX
+
+#### 2.1 WebSocket Reconnect-Logik
+- [x] **Problem:** Keine Reconnect-Strategie bei Disconnect
+- [x] **Fix:** Exponential Backoff Reconnection
+- [x] **Datei:** `src/web/public/index.html`
+
+#### 2.2 Telegram - pendingTrades Cleanup
+- [x] **Problem:** Memory Leak - alte Trades werden nicht entfernt
+- [x] **Fix:** TTL-basiertes Cleanup (1h)
+- [x] **Datei:** `src/telegram/index.ts`
+
+#### 2.3 Telegram - editingField Reset
+- [x] **Problem:** editingField nicht zuruckgesetzt bei Fehler
+- [x] **Fix:** Reset bei ungultigem Wert
+- [x] **Datei:** `src/telegram/index.ts` - handleTextInput()
+
+#### 2.4 Telegram - MarketURL Fix
+- [x] **Problem:** MarketURL nutzt signalId statt marketId
+- [x] **Fix:** Korrekten marketId verwenden
+- [x] **Datei:** `src/telegram/index.ts` - handleSafeBetConfirm()
+
+#### 2.5 Watchdog Tuning
+- [x] **Problem:** maxFailures 3x30s = 90s zu lang
+- [x] **Fix:** Auf 2 Versuche reduzieren (60s)
+- [x] **Datei:** `src/runtime/watchdog.ts`
+
+#### 2.6 Config - Web-Auth Default
+- [x] **Problem:** WEB_AUTH_ENABLED default false (Dashboard offen!)
+- [x] **Fix:** Warnung wenn Auth deaktiviert
+- [x] **Datei:** `src/utils/config.ts` und `src/web/server.ts`
+
+#### 2.7 Web - Chart Memory Leak
+- [x] **Problem:** Chart bei jedem Signal-Wechsel neu erstellt
+- [x] **Fix:** Chart-Instanz cachen, clear() statt remove()
+- [x] **Datei:** `src/web/public/index.html`
+
+#### 2.8 Web - Equity Curve Timestamp
+- [x] **Problem:** Timestamp nutzt Date.now() statt echtem Timestamp
+- [x] **Fix:** createdAt aus Audit-Log verwenden
+- [x] **Datei:** `src/web/server.ts`
+
+### Phase 3: Dokumentation & Deploy
+
+- [x] CHANGELOG.md aktualisieren (Version 3.5.0)
+- [x] README.md aktualisieren
+- [x] Build verifizieren (`npm run build`, `npm run lint`)
+- [x] Alle Anderungen committen und pushen
 
 ---
 
@@ -164,130 +249,6 @@
 
 ---
 
-## Review Notes
-
-### Phase 1 (2026-02-02)
-- Feature-Flags funktionieren
-- SQLite Storage läuft
-- Types sind sauber getrennt
-
-### Phase 2 (2026-02-02)
-- Polymarket Filter-Kaskade mit Telemetrie
-- RSS 40 stabile Feeds, Health-Tracking
-- Dawum CDU/CSU korrekt zusammengeführt
-- poly_data Loader mit Streaming
-
-### Phase 3 (2026-02-02)
-- TIME_DELAY: Fuzzy-Matching + Multi-Source Confirmation
-- MISPRICING: Transparente P_true (keine Blackbox)
-- Meta-Combiner: Online Logistic Regression
-
-### Phase 4 (2026-02-02)
-- Risk-Gates: 6 Checks, Kill-Switch
-- Sizing: Quarter-Kelly mit Caps
-- Execution: paper/shadow/live strikt getrennt
-
-### Phase 5 (2026-02-02)
-- Backtest: VWAP-Fills, Brier-Score, Reliability-Buckets
-- Walk-Forward: kein Lookahead-Bias
-
----
-
-## Task #46: Breaking News Auto-Execute
-
-### Ziel
-Automatische Trade-Ausführung bei `breaking_confirmed` Signals mit hohem Edge.
-Speed ist essentiell für Zeitvorsprung!
-
-### Implementierung
-- [x] Config erweitern (AUTO_TRADE_*)
-- [x] AutoTrader Service erstellen
-- [x] TimeDelayEngine Integration
-- [x] Telegram Notifications
-- [x] Runtime-Settings erweitern
-
-### Status: ABGESCHLOSSEN (2026-02-02)
-
----
-
-## Task #47: PRODUCTION READY - CLOB Order Execution
-
-> Ohne diese Tasks → Kein Live-Trading möglich
-
-### Phase 1.1: CLOB Order Execution Validierung
-
-**Problem:** `placeOrder()` und `placeMarketOrder()` sind implementiert, aber NICHT end-to-end getestet.
-
-- [x] Order-Status-Polling implementieren (`getOrderStatus()`)
-- [x] Partial Fill Handling
-- [x] Order Cancellation bei Timeout (30s default)
-- [x] Error-Type-Unterscheidung (insufficient_balance, market_closed, price_moved)
-- [x] Retry-Logik bei transienten Fehlern (3 Versuche, exponential backoff)
-- [x] Test-Script für Mini-Trade erstellen (`npm run test:clob`)
-- [x] Dry-Run Test erfolgreich (CLOB Client, Balance, Orderbook)
-- [x] ethers v6 → v5 Kompatibilitäts-Wrapper (`_signTypedData`)
-- [ ] End-to-End Live-Test mit 0.01 USDC (benötigt gefundetes Wallet)
-
-### Phase 1.2: Position Tracking & Sync ✅
-- [x] `getOpenOrders()` Integration
-- [x] `getRecentTrades()` für PnL-Berechnung
-- [x] `syncPositions()` mit Mismatch Detection
-- [x] `calculateRealizedPnL()` aus echten CLOB Fills
-
-### Phase 1.3: Kill-Switch Hardening ✅
-- [x] `FORCE_PAPER_MODE` ENV-Variable (Hardware Kill-Switch)
-- [x] `CONSECUTIVE_FAILURES_KILL` ENV-Variable (default: 3)
-- [x] Auto Kill-Switch bei 3+ fehlgeschlagenen Trades
-- [x] `recordTradeSuccess()` / `recordTradeFailure()` Tracking
-- [x] `isForcePaperModeActive()` Check in executeWithMode
-
-### Phase 2: Risk Management Hardening ✅
-- [x] `maxPerMarketPercent` - 10% Bankroll Limit
-- [x] `maxSlippagePercent` - 2% Slippage Limit
-- [x] `minOrderbookDepth` - 2x Trade Size Liquidität
-- [x] `checkOrderbookDepth()` - Slippage-Schätzung
-- [x] `checkExtendedRiskGates()` - Erweiterte Checks mit Orderbook
-
-### Phase 3: Observability ✅
-- [x] `/health` Telegram Command - System Status
-- [x] `/positions` erweitert mit echten CLOB-Daten
-- [x] `consecutiveFailures` im RiskDashboard
-- [x] Error-Tracking in executeLive()
-
-### Status: ✅ PRODUCTION READY (außer Live-Test)
-
-**Nächster Schritt:** Live-Test mit echtem Wallet (VPN erforderlich für Deutschland)
-
----
-
-## Task #48: Alpha Engine Kalibrierung ✅
-
-### Implementiert
-- [x] `volatility30d` für jeden Markt (`src/alpha/volatility.ts`)
-- [x] Source Reliability Tracking in DB Schema (`reliability_score`)
-- [x] Push Gates evaluieren Source Reliability
-- [x] Time Advantage Stats aggregieren `prediction_accuracy` pro Quelle
-
-### Future Enhancement (nicht kritisch)
-- [ ] Automatischer Source Reliability Feedback Loop (Outcome → Source Score)
-  - Aktuell: Manuelle Initialwerte + time_advantage_stats Tracking
-  - Zukunft: Nach Trade-Resolution automatisch Source-Score anpassen
-
-### Status: ABGESCHLOSSEN (2026-02-02)
-
----
-
-## Phase 5: Operations - ÜBERSPRUNGEN
-
-> Entscheidung: Nicht kritisch für MVP, kann später nachgezogen werden
-
-- [ ] Monitoring (Prometheus/Grafana)
-- [ ] Backup-Strategie
-- [ ] Security Hardening
-- [ ] Runbook
-
----
-
 ## 🚀 PRODUCTION READY ZUSAMMENFASSUNG
 
 ### ✅ Alle kritischen Komponenten implementiert:
@@ -316,6 +277,15 @@ Speed ist essentiell für Zeitvorsprung!
    - TIME_DELAY mit Fuzzy-Matching
    - MISPRICING mit Bayesian P_true
    - Meta-Combiner mit Online Learning
+
+6. **Perfektionierung (V3.5.0)**
+   - Telegram Trade-Execution Fix
+   - User-Authentifizierung
+   - XSS-Schutz
+   - Graceful Shutdown mit Timeout
+   - WebSocket Reconnect
+   - Memory Leak Fixes
+   - Watchdog Tuning
 
 ### ⚠️ Ausstehend für Go-Live:
 - [ ] VPN-Zugang für Deutschland

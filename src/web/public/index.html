@@ -2454,17 +2454,46 @@ function bootSequence() {
 //                        WEBSOCKET
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Reconnect-State für Exponential Backoff
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY = 1000; // 1 Sekunde
+
 function initSocket() {
-    socket = io();
+    socket = io({
+        reconnection: true,
+        reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+        reconnectionDelay: BASE_RECONNECT_DELAY,
+        reconnectionDelayMax: 30000, // Max 30 Sekunden
+    });
 
     socket.on('connect', () => {
         document.getElementById('ws-status').classList.remove('offline', 'error');
+        reconnectAttempts = 0; // Reset bei erfolgreicher Verbindung
         addLog('success', 'WebSocket verbunden');
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
         document.getElementById('ws-status').classList.add('error');
-        addLog('error', 'WebSocket getrennt');
+        addLog('error', 'WebSocket getrennt: ' + reason);
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+        reconnectAttempts = attemptNumber;
+        const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, attemptNumber - 1), 30000);
+        addLog('info', `Reconnect Versuch ${attemptNumber}/${MAX_RECONNECT_ATTEMPTS} (${delay/1000}s)...`);
+    });
+
+    socket.on('reconnect', (attemptNumber) => {
+        addLog('success', `WebSocket reconnected nach ${attemptNumber} Versuchen`);
+        reconnectAttempts = 0;
+        // Daten neu laden nach Reconnect
+        loadInitialData();
+    });
+
+    socket.on('reconnect_failed', () => {
+        addLog('error', 'WebSocket Reconnect fehlgeschlagen - Seite neu laden');
+        document.getElementById('ws-status').title = 'Verbindung verloren - Seite neu laden';
     });
 
     socket.on('scan_started', () => {
@@ -2748,6 +2777,14 @@ function isGermanyRelevantMarket(marketQuestion) {
     return GERMANY_MARKET_KEYWORDS.some(kw => lower.includes(kw));
 }
 
+// XSS-Schutz: Escape HTML-Entities in User-Content
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function renderSignals() {
     const container = document.getElementById('signal-list');
     document.getElementById('signal-count').textContent = signals.length;
@@ -2765,18 +2802,22 @@ function renderSignals() {
     container.innerHTML = signals.map((s, i) => {
         const scoreClass = s.score > 0.7 ? '' : s.score > 0.5 ? 'medium' : 'low';
         const isGerman = s.germanSource !== undefined;
+        // XSS-Schutz: Escape market.question da es von externer Quelle kommt
+        const safeQuestion = escapeHtml(s.market?.question || 'Unknown');
+        const safeCategory = escapeHtml(s.market?.category || 'MARKET');
+        const safeDirection = escapeHtml(s.direction || '--');
 
         return `
             <div class="signal-item ${s.score > 0.7 ? 'high-alpha' : ''}" onclick="selectSignal(${i})">
                 <div class="signal-score ${scoreClass}">${(s.score * 100).toFixed(0)}%</div>
                 <div class="signal-info">
-                    <div class="signal-question">${s.market?.question || 'Unknown'}</div>
+                    <div class="signal-question">${safeQuestion}</div>
                     <div class="signal-meta">
                         ${isGerman ? '<span class="signal-tag german">DE</span>' : ''}
-                        <span class="signal-tag">${s.market?.category || 'MARKET'}</span>
+                        <span class="signal-tag">${safeCategory}</span>
                     </div>
                 </div>
-                <div class="signal-direction ${s.direction?.toLowerCase()}">${s.direction}</div>
+                <div class="signal-direction ${safeDirection.toLowerCase()}">${safeDirection}</div>
                 <div class="signal-edge">+${(s.edge * 100).toFixed(1)}%</div>
                 <div class="signal-size">$${s.kellyBet?.toFixed(0) || '--'}</div>
             </div>
@@ -2842,17 +2883,19 @@ function updateReasoningSection(signal) {
     section.style.display = 'block';
     summary.textContent = reasoning.summary || '--';
 
-    // Faktoren rendern
+    // Faktoren rendern (mit XSS-Schutz)
     if (reasoning.factors && reasoning.factors.length > 0) {
         factorsContainer.innerHTML = reasoning.factors.map(f => {
             const pct = Math.round(f.value * 100);
+            const safeName = escapeHtml(f.name);
+            const safeExplanation = escapeHtml(f.explanation);
             return `
                 <div class="reasoning-factor">
                     <div class="factor-header">
-                        <span class="factor-name">${f.name}</span>
+                        <span class="factor-name">${safeName}</span>
                         <span class="factor-value">${pct}%</span>
                     </div>
-                    <div class="factor-explanation">${f.explanation}</div>
+                    <div class="factor-explanation">${safeExplanation}</div>
                 </div>
             `;
         }).join('');

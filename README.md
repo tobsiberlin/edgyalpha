@@ -176,6 +176,28 @@ Die "EUSSR-Tracker"-Seite im Web-Interface zeigt das Herzstück des Features:
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
+### Stabilitaet & Sicherheit (V3.5.0)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║           S T A B I L I T A E T   &   S I C H E R H E I T         ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  TELEGRAM AUTH  [████████████] Nur autorisierte Chat-IDs         ║
+║  XSS SCHUTZ     [████████████] HTML-Escaping im Frontend         ║
+║  WEBSOCKET      [████████████] Auto-Reconnect mit Backoff        ║
+║  PROCESS LOCK   [████████████] Single-Instance Garantie          ║
+║  GRACEFUL STOP  [████████████] 10s Timeout, Lock-Freigabe        ║
+║  MEMORY MGMT    [████████████] TTL-basiertes Cleanup             ║
+║                                                                   ║
+║  > Telegram Bot prueft Chat-ID bei jedem Command                 ║
+║  > WebSocket reconnected automatisch (max 10 Versuche)           ║
+║  > Process Lock wird bei jedem Exit-Pfad freigegeben             ║
+║  > Scanner-Flag wird auch bei Fehlern zurueckgesetzt             ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
 ---
 
 ## Cash-Machine V2.0 (NEU!)

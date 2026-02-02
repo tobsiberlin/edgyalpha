@@ -7,6 +7,78 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.5.0] - 2026-02-02
+
+### Hinzugefuegt
+- **Telegram Bot: Echte Trade-Execution**
+  - `handleConfirm()` fuehrt Trades jetzt direkt aus (vorher: nur Event emit)
+  - Paper/Shadow Mode: Trades werden simuliert
+  - Live Mode: Trades werden via CLOB API ausgefuehrt
+  - Bestaetigungsnachricht mit Fill-Preis und Order-ID
+
+- **Telegram Bot: User-Authentifizierung**
+  - Auth-Check auf konfigurierte Chat-ID
+  - Nicht autorisierte Nutzer erhalten Fehlermeldung
+  - Logging bei unauthorized access attempts
+
+- **WebSocket Reconnect-Logik**
+  - Exponential Backoff bei Verbindungsabbruch
+  - Max 10 Reconnect-Versuche mit bis zu 30s Delay
+  - Automatisches Daten-Neuladen nach Reconnect
+  - Status-Anzeige im Frontend
+
+- **XSS-Schutz im Web-Frontend**
+  - `escapeHtml()` Funktion fuer alle User-generierten Inhalte
+  - Market-Fragen, Kategorien, Directions werden escaped
+  - Reasoning-Faktoren werden escaped
+
+- **Graceful Shutdown mit Timeout**
+  - Max 10 Sekunden Timeout fuer Shutdown
+  - Process Lock wird bei allen Exit-Pfaden freigegeben
+  - Verhindert haengende Prozesse
+
+- **Equity Curve mit echten Timestamps**
+  - `createdAt` Feld im AuditLogEntry Interface
+  - Equity Curve zeigt echte Trade-Zeitpunkte
+  - Nicht mehr alle Datenpunkte mit gleichem Timestamp
+
+### Geaendert
+- **Scanner: isScanning Flag in finally-Block**
+  - Flag wird IMMER zurueckgesetzt, auch bei Fehlern
+  - Verhindert permanentes Blockieren des Scanners
+
+- **Watchdog: Schnellere Reaktion**
+  - maxFailures von 3 auf 2 reduziert
+  - Healing startet nach 60s statt 90s
+
+- **Telegram: pendingTrades mit TTL**
+  - Alte Trades werden nach 1 Stunde automatisch entfernt
+  - Verhindert Memory Leaks
+  - Cleanup-Intervall alle 5 Minuten
+
+- **Telegram: editingField Reset**
+  - Bei ungueltiger Eingabe wird editingField zurueckgesetzt
+  - Verhindert State-Bugs bei wiederholter Eingabe
+
+- **Telegram: MarketURL Fix**
+  - SafeBet-Confirm nutzt jetzt marketId aus Scanner-Cache
+  - Korrekte Polymarket-Links statt ungueltige signalId-URLs
+
+### Behoben
+- **Kritisch: Trades wurden nicht ausgefuehrt**
+  - `handleConfirm()` emittete nur Event, fuehrte Trade nicht aus
+  - Jetzt: Direkte Execution wie bei Quick-Buy
+
+- **Kritisch: Process Lock bei Crash**
+  - `uncaughtException` und `unhandledRejection` geben Lock frei
+  - Neue Instanz kann starten nach Crash
+
+- **Kritisch: Scanner konnte blockieren**
+  - `isScanning` Flag nicht in finally-Block
+  - Konnte bei Fehler permanent true bleiben
+
+---
+
 ## [3.4.0] - 2026-02-02
 
 ### Hinzugefuegt

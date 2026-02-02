@@ -1116,7 +1116,7 @@ app.get('/api/stats/equity', requireAuth, (_req: Request, res: Response) => {
     for (const log of tradeLogs) {
       cumulativePnl += log.pnlImpact || 0;
       equityPoints.push({
-        timestamp: Date.now(), // TODO: Echten Timestamp aus Log extrahieren
+        timestamp: log.createdAt || Date.now(), // Echten Timestamp aus Audit-Log verwenden
         pnl: log.pnlImpact || 0,
         cumulative: cumulativePnl,
       });

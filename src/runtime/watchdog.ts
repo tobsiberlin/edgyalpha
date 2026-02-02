@@ -76,7 +76,7 @@ class WatchdogService extends EventEmitter {
       },
       critical: true,
       consecutiveFailures: 0,
-      maxFailures: 3,
+      maxFailures: 2, // Schnellere Reaktion: 2x30s = 60s statt 90s
     });
 
     // 2. News Ticker Check

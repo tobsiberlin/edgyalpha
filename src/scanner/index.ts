@@ -151,11 +151,13 @@ export class AlphaScanner extends EventEmitter {
       const error = err as Error;
       logger.error(`Scan-Fehler: ${error.message}`);
       errors.push(error.message);
+    } finally {
+      // KRITISCH: isScanning Flag IMMER zurücksetzen, auch bei Fehlern
+      this.isScanning = false;
     }
 
     const duration = Date.now() - startTime;
     this.totalScans++;
-    this.isScanning = false;
 
     const result: ScanResult = {
       timestamp: new Date(),

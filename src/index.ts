@@ -125,8 +125,24 @@ async function main(): Promise<void> {
 }
 
 function setupGracefulShutdown(): void {
+  let isShuttingDown = false;
+
   const shutdown = async (signal: string): Promise<void> => {
+    // Verhindere mehrfache Shutdowns
+    if (isShuttingDown) {
+      logger.warn('Shutdown bereits aktiv, ignoriere...');
+      return;
+    }
+    isShuttingDown = true;
+
     logger.info(`${signal} empfangen, fahre herunter...`);
+
+    // Timeout für Graceful Shutdown (10 Sekunden)
+    const shutdownTimeout = setTimeout(() => {
+      logger.error('Graceful Shutdown Timeout (10s) - Force Exit!');
+      releaseLock();
+      process.exit(1);
+    }, 10_000);
 
     try {
       scanner.stop();
@@ -142,8 +158,10 @@ function setupGracefulShutdown(): void {
       releaseLock();
     } catch (err) {
       logger.error(`Shutdown-Fehler: ${(err as Error).message}`);
+      releaseLock();
     }
 
+    clearTimeout(shutdownTimeout);
     logger.info('Auf Wiedersehen! 👋');
     process.exit(0);
   };
@@ -151,15 +169,17 @@ function setupGracefulShutdown(): void {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  // Unhandled Errors
+  // Unhandled Errors - KRITISCH: Lock freigeben vor Exit!
   process.on('uncaughtException', (err) => {
     logger.error(`Uncaught Exception: ${err.message}`);
     logger.error(err.stack || '');
+    releaseLock(); // Lock freigeben damit neue Instanz starten kann
     process.exit(1);
   });
 
   process.on('unhandledRejection', (reason) => {
     logger.error(`Unhandled Rejection: ${reason}`);
+    releaseLock(); // Lock freigeben damit neue Instanz starten kann
     process.exit(1);
   });
 }

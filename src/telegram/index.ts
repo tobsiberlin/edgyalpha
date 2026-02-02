@@ -73,8 +73,10 @@ function hasGermanyRelevance(marketQuestion: string): boolean {
 export class TelegramAlertBot extends EventEmitter {
   private bot: TelegramBot | null = null;
   private chatId: string;
-  private pendingTrades: Map<string, TradeRecommendation> = new Map();
+  private pendingTrades: Map<string, { recommendation: TradeRecommendation; createdAt: number }> = new Map();
   private editingField: string | null = null; // Welches Feld wird gerade bearbeitet?
+  private pendingTradesCleanupInterval: NodeJS.Timeout | null = null;
+  private readonly PENDING_TRADE_TTL_MS = 60 * 60 * 1000; // 1 Stunde TTL
 
   // ═══════════════════════════════════════════════════════════════
   // SINGLE MENU MESSAGE SYSTEM
@@ -155,6 +157,11 @@ export class TelegramAlertBot extends EventEmitter {
       this.setupCallbackHandlers();
       this.setupScannerEvents();
 
+      // Cleanup-Timer für alte pendingTrades starten (alle 5 Minuten)
+      this.pendingTradesCleanupInterval = setInterval(() => {
+        this.cleanupPendingTrades();
+      }, 5 * 60 * 1000);
+
       logger.info('Telegram Bot gestartet');
       // KEIN automatisches sendWelcome() mehr!
       // Das Menü wird nur gesendet wenn User /start oder /menu eingibt.
@@ -163,6 +170,31 @@ export class TelegramAlertBot extends EventEmitter {
       const error = err as Error;
       logger.error(`Telegram Bot Fehler: ${error.message}`);
     }
+  }
+
+  /**
+   * Entfernt alte pendingTrades nach TTL (Memory Leak Prevention)
+   */
+  private cleanupPendingTrades(): void {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [id, entry] of this.pendingTrades.entries()) {
+      if (now - entry.createdAt > this.PENDING_TRADE_TTL_MS) {
+        this.pendingTrades.delete(id);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      logger.debug(`[Telegram] Cleaned up ${cleaned} expired pending trades`);
+    }
+  }
+
+  /**
+   * Prüft ob eine Chat-ID autorisiert ist
+   */
+  private isAuthorized(chatId: string): boolean {
+    // Erlaubt nur die konfigurierte Chat-ID
+    return chatId === this.chatId || chatId === config.telegram.chatId;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -333,18 +365,38 @@ ${this.DIVIDER}
   private setupCommands(): void {
     if (!this.bot) return;
 
+    // AUTH-CHECK: Alle Commands prüfen ob User autorisiert ist
     this.bot.onText(/\/start/, async (msg) => {
-      this.chatId = msg.chat.id.toString();
-      await this.sendWelcome();
+      const chatId = msg.chat.id.toString();
+      // /start ist Spezialfall - aktualisiert chatId falls noch nicht gesetzt
+      if (!this.chatId || this.chatId === '' || chatId === config.telegram.chatId) {
+        this.chatId = chatId;
+        await this.sendWelcome();
+      } else if (!this.isAuthorized(chatId)) {
+        await this.bot?.sendMessage(chatId, '❌ Nicht autorisiert. Dieser Bot ist privat.');
+        logger.warn(`[Telegram] Unauthorized /start attempt from chat ${chatId}`);
+        return;
+      } else {
+        await this.sendWelcome();
+      }
     });
 
     this.bot.onText(/\/menu/, async (msg) => {
-      await this.sendMainMenu(msg.chat.id.toString());
+      const chatId = msg.chat.id.toString();
+      if (!this.isAuthorized(chatId)) {
+        await this.bot?.sendMessage(chatId, '❌ Nicht autorisiert.');
+        return;
+      }
+      await this.sendMainMenu(chatId);
     });
 
     // /scan - Starte einen Scan
     this.bot.onText(/\/scan/, async (msg) => {
       const chatId = msg.chat.id.toString();
+      if (!this.isAuthorized(chatId)) {
+        await this.bot?.sendMessage(chatId, '❌ Nicht autorisiert.');
+        return;
+      }
       await this.sendMessage('🔥 *Starte Scan...*\n\n_Die Maschine rattert..._', chatId);
 
       try {
@@ -1847,6 +1899,7 @@ _Tippe den neuen Wert ein:_`;
     const numValue = parseFloat(text.replace(/[^0-9.]/g, ''));
 
     if (isNaN(numValue) || numValue <= 0) {
+      this.editingField = null; // WICHTIG: Reset bei Fehler (sonst Memory Leak/State Bug)
       await this.sendMessage('❌ Ungültiger Wert. Bitte eine Zahl eingeben.', chatId);
       return;
     }
@@ -2214,13 +2267,14 @@ _Stand: ${new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin' })}
   // ═══════════════════════════════════════════════════════════════
 
   private async handleTrade(direction: string, signalId: string, chatId: string, messageId?: number): Promise<void> {
-    const recommendation = this.pendingTrades.get(signalId);
+    const entry = this.pendingTrades.get(signalId);
 
-    if (!recommendation) {
+    if (!entry) {
       await this.sendMessage('⚠️ Signal nicht mehr verfügbar', chatId);
       return;
     }
 
+    const recommendation = entry.recommendation;
     const dir = direction.toUpperCase();
     const message = `${this.HEADER}
 
@@ -2249,23 +2303,72 @@ Möchtest du diesen Trade ausführen?`;
   }
 
   private async handleConfirm(direction: string, signalId: string, chatId: string, messageId?: number): Promise<void> {
-    const recommendation = this.pendingTrades.get(signalId);
+    const entry = this.pendingTrades.get(signalId);
 
-    if (!recommendation) {
+    if (!entry) {
+      await this.sendMessage('⚠️ Signal nicht mehr verfügbar', chatId);
       return;
     }
 
-    this.emit('trade_confirmed', {
-      signal: recommendation.signal,
-      recommendation,
-      direction,
-    });
+    const recommendation = entry.recommendation;
+    const state = runtimeState.getState();
 
-    this.pendingTrades.delete(signalId);
+    // Kill-Switch Check
+    if (state.killSwitchActive) {
+      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      this.pendingTrades.delete(signalId);
+      return;
+    }
 
-    const message = `${this.HEADER}
+    // Status-Nachricht senden
+    const processingMessage = `${this.HEADER}
 
-✅ *TRADE AUSGEFÜHRT*
+⏳ *TRADE WIRD AUSGEFÜHRT...*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  VERARBEITUNG                   │
+├─────────────────────────────────┤
+│  Richtung:    ${direction.toUpperCase().padEnd(10, ' ')}        │
+│  Betrag:      $${String(recommendation.positionSize).padStart(8, ' ')}        │
+│  Status:      Sende Order...    │
+└─────────────────────────────────┘
+\`\`\`
+
+_Bitte warten..._`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, processingMessage);
+    }
+
+    try {
+      // Bestimme Token-ID basierend auf Richtung
+      const outcomes = recommendation.signal.market.outcomes;
+      const tokenId = direction.toLowerCase() === 'yes'
+        ? outcomes[0]?.id
+        : outcomes[1]?.id;
+
+      if (!tokenId) {
+        throw new Error('Token-ID nicht verfügbar');
+      }
+
+      // Paper/Shadow Mode: Simulieren
+      if (state.executionMode !== 'live') {
+        const modeEmoji = state.executionMode === 'paper' ? '📝' : '👻';
+
+        // Emit Event für Tracking
+        this.emit('trade_confirmed', {
+          signal: recommendation.signal,
+          recommendation,
+          direction,
+          simulated: true,
+        });
+
+        const successMessage = `${this.HEADER}
+
+${modeEmoji} *TRADE SIMULIERT (${state.executionMode.toUpperCase()})*
 
 ${this.DIVIDER}
 
@@ -2273,17 +2376,90 @@ ${this.DIVIDER}
 ┌─────────────────────────────────┐
 │  BESTÄTIGT                      │
 ├─────────────────────────────────┤
-│  Richtung:    ${direction.padEnd(10, ' ')}        │
+│  Richtung:    ${direction.toUpperCase().padEnd(10, ' ')}        │
 │  Betrag:      $${String(recommendation.positionSize).padStart(8, ' ')}        │
-│  Status:      Ausgeführt        │
+│  Status:      Simuliert         │
 └─────────────────────────────────┘
 \`\`\`
 
-_Trade wird verarbeitet..._`;
+_Kein echter Trade - ${state.executionMode} Mode aktiv._`;
 
-    if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getBackButton());
+        if (messageId) {
+          await this.editMessage(chatId, messageId, successMessage, this.getBackButton());
+        }
+
+        logger.info(`[Telegram] Trade simulated (${state.executionMode}): ${direction} @ $${recommendation.positionSize}`);
+      } else {
+        // LIVE Mode: Echte Ausführung
+        const orderResult = await tradingClient.placeMarketOrder({
+          tokenId,
+          side: 'BUY',
+          amount: recommendation.positionSize,
+        });
+
+        // Emit Event für Tracking
+        this.emit('trade_confirmed', {
+          signal: recommendation.signal,
+          recommendation,
+          direction,
+          orderResult,
+        });
+
+        const fillPrice = orderResult.fillPrice ? `@ ${(orderResult.fillPrice * 100).toFixed(1)}¢` : '';
+        const orderId = orderResult.orderId ? orderResult.orderId.substring(0, 8) : 'N/A';
+
+        const successMessage = `${this.HEADER}
+
+🚀 *TRADE AUSGEFÜHRT (LIVE)*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  BESTÄTIGT                      │
+├─────────────────────────────────┤
+│  Richtung:    ${direction.toUpperCase().padEnd(10, ' ')}        │
+│  Betrag:      $${String(recommendation.positionSize).padStart(8, ' ')}        │
+│  Preis:       ${fillPrice.padEnd(14, ' ')}        │
+│  Order-ID:    ${orderId.padEnd(8, ' ')}        │
+│  Status:      ✅ Filled         │
+└─────────────────────────────────┘
+\`\`\`
+
+_Trade erfolgreich ausgeführt!_`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, successMessage, this.getBackButton());
+        }
+
+        logger.info(`[Telegram] Trade executed (LIVE): ${direction} @ $${recommendation.positionSize} - Order ${orderId}`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[Telegram] Trade execution failed: ${error.message}`);
+
+      // Fallback: Zeige Polymarket Link
+      const marketUrl = `https://polymarket.com/event/${recommendation.signal.market.id}`;
+
+      const errorMessage = `${this.HEADER}
+
+❌ *TRADE FEHLGESCHLAGEN*
+
+${this.DIVIDER}
+
+Fehler: ${error.message}
+
+${this.DIVIDER}
+
+Bitte manuell auf Polymarket ausführen:
+[📊 Polymarket öffnen](${marketUrl})`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMessage, this.getBackButton());
+      }
     }
+
+    this.pendingTrades.delete(signalId);
   }
 
   private async handleCancel(signalId: string, chatId: string, messageId?: number): Promise<void> {
@@ -2321,10 +2497,10 @@ _Zurück zum Hauptmenü_`;
       return;
     }
 
-    // Store for trading
+    // Store for trading (mit TTL für Memory Leak Prevention)
     const { createTradeRecommendation } = await import('../scanner/alpha.js');
     const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
-    this.pendingTrades.set(signal.id, recommendation);
+    this.pendingTrades.set(signal.id, { recommendation, createdAt: Date.now() });
 
     const message = `${this.HEADER}
 
@@ -2496,7 +2672,7 @@ ${hasSignals
   async sendBreakingSignal(signal: AlphaSignal): Promise<void> {
     const { createTradeRecommendation } = await import('../scanner/alpha.js');
     const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
-    this.pendingTrades.set(signal.id, recommendation);
+    this.pendingTrades.set(signal.id, { recommendation, createdAt: Date.now() });
 
     const isGerman = signal.germanSource !== undefined;
     const prefix = isGerman ? '🇩🇪 EUSSR-TRACKER-VORSPRUNG!' : '🚨 ALPHA ALARM!';
@@ -3251,7 +3427,17 @@ _Simuliert - kein echter Trade._`;
       }
 
       // Live Mode: Link zu Polymarket
-      const marketUrl = `https://polymarket.com/event/${signalId}`;
+      // WICHTIG: Versuche marketId aus Scanner-Cache zu holen, da signalId != marketId
+      let marketUrl = `https://polymarket.com/`;
+      try {
+        const lastResult = scanner.getLastResult();
+        const signal = lastResult?.signalsFound.find((s) => s.id === signalId);
+        if (signal?.market?.id) {
+          marketUrl = `https://polymarket.com/event/${signal.market.id}`;
+        }
+      } catch {
+        // Fallback zur Hauptseite
+      }
 
       const liveMessage = `${this.HEADER}
 
