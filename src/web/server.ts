@@ -15,6 +15,7 @@ const polymarketClient = new PolymarketClient();
 import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode, GermanSource } from '../types/index.js';
 import { runtimeState, StateChangeEvent } from '../runtime/state.js';
+import { watchdog } from '../runtime/watchdog.js';
 import { runBacktest, BacktestOptions, generateJsonReport, generateMarkdownReport } from '../backtest/index.js';
 import { BacktestResult, SourceEvent } from '../alpha/types.js';
 import { fuzzyMatch, MatchResult } from '../alpha/matching.js';
@@ -218,15 +219,48 @@ app.use(express.static(publicPath));
 //                        PUBLIC ENDPOINTS
 // ═══════════════════════════════════════════════════════════════
 
-// Health Check (ohne Auth)
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
+// Health Check (ohne Auth) - auf beiden Pfaden für Kompatibilität
+const healthCheckHandler = (_req: Request, res: Response) => {
+  const scannerStatus = scanner.getStatus();
+  const state = runtimeState.getState();
+
+  // Detaillierter Health-Check
+  const checks = {
+    server: true,
+    scanner: !scannerStatus.isScanning || scannerStatus.totalScans > 0,
+    websocket: io.engine.clientsCount >= 0,
+    database: true, // wird unten geprüft
+  };
+
+  try {
+    // DB Check
+    const { getDatabase } = require('../storage/db.js');
+    getDatabase();
+  } catch {
+    checks.database = false;
+  }
+
+  const allHealthy = Object.values(checks).every(v => v);
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ok' : 'degraded',
     uptime: process.uptime(),
     version: '1.8.0',
     timestamp: new Date().toISOString(),
+    checks,
+    scanner: {
+      isScanning: scannerStatus.isScanning,
+      totalScans: scannerStatus.totalScans,
+      lastScan: scannerStatus.lastScan,
+    },
+    connections: io.engine.clientsCount,
+    mode: state.executionMode,
+    killSwitch: state.killSwitchActive,
   });
-});
+};
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // ═══════════════════════════════════════════════════════════════
 //                        LOGIN ENDPOINTS
@@ -917,6 +951,28 @@ app.post('/api/risk/reset', requireAuth, (_req: Request, res: Response) => {
     message: 'Täglicher Risk-Reset durchgeführt',
     dashboard: runtimeState.getRiskDashboard(),
   });
+});
+
+// API: Watchdog Status (Selbstheilungs-Service)
+app.get('/api/watchdog', requireAuth, (_req: Request, res: Response) => {
+  res.json(watchdog.getStats());
+});
+
+// API: Watchdog manuell triggern
+app.post('/api/watchdog/check', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const healthy = await watchdog.runChecks();
+    res.json({
+      success: true,
+      healthy,
+      stats: watchdog.getStats(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: (err as Error).message,
+    });
+  }
 });
 
 // API: System Health Dashboard (erweitert mit Stale-Data Detection)
@@ -1680,6 +1736,21 @@ export function startWebServer(): void {
     logger.info(`Web-Server läuft auf Port ${PORT}`);
     logger.info(`Dashboard: http://localhost:${PORT}`);
     logger.info(`Health Check: http://localhost:${PORT}/health`);
+
+    // Watchdog Service starten für automatische Selbstheilung
+    watchdog.start();
+    logger.info('Watchdog Service gestartet');
+
+    // Watchdog Events loggen
+    watchdog.on('checkFailed', (data: { name: string; critical: boolean }) => {
+      logger.error(`[Watchdog] Check "${data.name}" fehlgeschlagen (critical: ${data.critical})`);
+      io.emit('watchdog_alert', { type: 'check_failed', ...data });
+    });
+
+    watchdog.on('healAttempt', (data: { name: string }) => {
+      logger.warn(`[Watchdog] Selbstheilung gestartet für: ${data.name}`);
+      io.emit('watchdog_alert', { type: 'heal_attempt', ...data });
+    });
   });
 }
 

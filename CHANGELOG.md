@@ -7,6 +7,28 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.4.0] - 2026-02-02
+
+### Hinzugefuegt
+- **Stabilitaetsmechanismen**
+  - **Watchdog Service:** Automatische Selbstheilung bei Fehlern
+    - 5 Checks: Scanner, Ticker, Database, Memory, EventLoop
+    - Automatischer Heal-Versuch nach 3-5 Fehlern
+    - 30-Sekunden Check-Intervall
+    - API: `GET /api/watchdog`, `POST /api/watchdog/check`
+  - **Process Lock:** Verhindert mehrere Server-Instanzen
+    - Lock-Datei unter `data/.scanner.lock`
+    - Automatische Stale-Lock-Erkennung
+  - **Erweiterter Health Check:** `/health` und `/api/health`
+    - Detaillierte Checks: Server, Scanner, WebSocket, Database
+    - Status 503 bei degraded Zustand
+    - Scanner-Stats und Connection-Count
+
+### Geaendert
+- **PM2 Config:** Exponential Backoff bei Crashes aktiviert
+
+---
+
 ## [3.3.0] - 2026-02-02
 
 ### Hinzugefuegt

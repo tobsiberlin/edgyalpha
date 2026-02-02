@@ -100,8 +100,25 @@
 
 ## Fehler-Vermeidung
 
-### Noch keine Fehler dokumentiert
-_Wird aktualisiert nach User-Korrekturen_
+### Stabilitaetsprobleme (2026-02-02)
+
+**Problem:** User frustriert weil "alles kaputt" - WebSocket getrennt, Seiten laden nicht, Daten fehlen.
+
+**Ursachen:**
+1. Mehrere Server-Instanzen liefen gleichzeitig (Telegram 409 Conflict)
+2. Keine automatische Selbstheilung bei Teil-Ausfällen
+3. Health-Check nicht detailliert genug
+
+**Loesung:**
+1. **Process Lock** (`data/.scanner.lock`) verhindert doppelte Instanzen
+2. **Watchdog Service** prueft alle 30s kritische Komponenten und heilt automatisch
+3. **Detaillierter Health Check** zeigt genau was funktioniert und was nicht
+
+**Lektion:** Bei Production-Software IMMER Stabilitaetsmechanismen einbauen:
+- Single-Instance Enforcement
+- Health Checks mit granularem Status
+- Automatische Selbstheilung
+- Klare Fehlermeldungen fuer den User
 
 ---
 

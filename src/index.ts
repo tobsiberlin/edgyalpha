@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// PROCESS LOCK - MUSS ALS ERSTES IMPORTIERT WERDEN!
+// Der Lock-Check wird beim Import automatisch ausgeführt
+import { releaseLock } from './utils/processLock.js';
+
 import { config, NODE_ENV } from './utils/config.js';
 import logger from './utils/logger.js';
 import { scanner } from './scanner/index.js';
@@ -133,6 +137,9 @@ function setupGracefulShutdown(): void {
 
       watchlistSyncService.stop();
       logger.info('Watchlist Sync Service gestoppt');
+
+      // Process Lock freigeben
+      releaseLock();
     } catch (err) {
       logger.error(`Shutdown-Fehler: ${(err as Error).message}`);
     }
@@ -157,8 +164,9 @@ function setupGracefulShutdown(): void {
   });
 }
 
-// Start
+// Start (Lock wurde bereits am Anfang geprüft)
 main().catch((err) => {
   console.error('Fatal Error:', err);
+  releaseLock();
   process.exit(1);
 });

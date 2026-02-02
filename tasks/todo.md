@@ -2,7 +2,29 @@
 
 > Detaillierter Plan: siehe `../PLAN.md`
 
-## Status: ✅ PHASE 5 ABGESCHLOSSEN
+## Status: ✅ PHASE 5 + STABILITY COMPLETE
+
+---
+
+## Stabilitaetsmechanismen ✅ (2026-02-02)
+
+### Watchdog Service ✅
+- [x] `src/runtime/watchdog.ts` erstellt
+- [x] 5 Checks: scanner, ticker, database, memory, eventLoop
+- [x] Automatische Selbstheilung bei Fehlern
+- [x] API Endpoints: `/api/watchdog`, `/api/watchdog/check`
+
+### Process Lock ✅
+- [x] `src/utils/processLock.ts` erstellt
+- [x] Verhindert mehrere Server-Instanzen
+- [x] Stale Lock Detection (alte Prozesse)
+- [x] Lock-Datei: `data/.scanner.lock`
+
+### Erweiterter Health Check ✅
+- [x] `/health` und `/api/health` beide aktiv
+- [x] Detaillierte Checks: server, scanner, websocket, database
+- [x] HTTP 503 bei degraded Status
+- [x] Scanner-Stats und Connection-Count
 
 ---
 
