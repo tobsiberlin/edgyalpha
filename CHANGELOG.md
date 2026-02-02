@@ -7,6 +7,56 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.9] - 2026-02-02
+
+### Geaendert
+- **Echte Volatilitaets-Berechnung fuer Kelly Sizing** (`src/alpha/volatility.ts`)
+  - Mindestens 30 taegliche Datenpunkte fuer echte Berechnung (vorher 7)
+  - Fallback auf DEFAULT_VOLATILITY (0.15) nur bei zu wenig Daten
+  - **Wichtiges Logging bei Fallback** mit `[VOLATILITY FALLBACK]` Prefix
+  - Cache speichert jetzt auch Datenpunkte-Anzahl
+  - Neue Konstanten exportiert: `DEFAULT_VOLATILITY`, `MIN_DAILY_RETURNS`
+  - Neue Funktion `getVolatilityCacheStats()` fuer Monitoring
+
+- **MispricingEngine: Bessere Volatility-Integration** (`src/alpha/mispricingEngine.ts`)
+  - `calculateMarketQualityAsync()` loggt jetzt Volatility-Quelle (calculated/cached/fallback)
+  - `calculateMarketQuality()` (sync) hat jetzt `volatilityOverride` Parameter
+  - Warnung in Reasons wenn Default-Volatilitaet verwendet wird
+
+### Hinzugefuegt
+- **Volatility Tests** (`src/__tests__/volatility.test.ts`)
+  - Tests fuer Fallback-Verhalten
+  - Tests fuer Cache-Funktionalitaet
+  - Tests fuer Konstanten
+
+### Warum wichtig
+- **Korrektes Kelly Sizing benoetigt echte Volatilitaet!**
+- Hardcoded 0.15 fuehrte zu falschem Position-Sizing
+- Jetzt: 30-Tage annualisierte Volatilitaet aus historischen Preisdaten
+- Bei wenig Daten: Explizites Logging fuer Debugging
+
+---
+
+## [3.0.8] - 2026-02-02
+
+### Hinzugefuegt
+- **Position-Sync beim Server-Start** (`src/runtime/positionSync.ts`)
+  - KRITISCH: Nach Restart "vergisst" das System offene Positionen
+  - Neue `syncPositionsToRiskState()` Funktion synchronisiert automatisch:
+    - Holt aktuelle Positionen von Polymarket API
+    - Berechnet Exposure pro Market
+    - Aktualisiert `riskGates.ts` Risk State
+    - Aktualisiert `runtime/state.ts` Runtime State
+  - Neue `syncPositionsFromApi()` Methode in RuntimeStateManager
+  - Audit-Log Eintrag bei jeder Synchronisierung
+  - Wird automatisch beim Server-Start in `src/index.ts` aufgerufen
+
+### Geaendert
+- `src/index.ts`: Position-Sync nach DB-Init hinzugefuegt
+- `src/runtime/state.ts`: Neue `syncPositionsFromApi()` Methode
+
+---
+
 ## [3.0.7] - 2026-02-02
 
 ### Behoben

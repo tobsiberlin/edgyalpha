@@ -502,13 +502,20 @@ export class MispricingEngine {
   // ═══════════════════════════════════════════════════════════════
 
   /**
-   * Berechne Market-Quality Metriken (sync, ohne Volatility)
+   * Berechne Market-Quality Metriken (sync Version)
+   *
+   * HINWEIS: Verwendet Default-Volatilität (0.15) da sync.
+   * Für korrektes Kelly Sizing IMMER calculateMarketQualityAsync() verwenden!
+   *
+   * @param market - Der Markt
+   * @param volatilityOverride - Optional: Überschreibe Default-Volatilität (z.B. aus Cache)
    */
-  calculateMarketQuality(market: Market): MarketQuality {
+  calculateMarketQuality(market: Market, volatilityOverride?: number): MarketQuality {
     const liquidityScore = this.calculateLiquidityScore(market);
     const spreadProxy = this.calculateSpreadProxy(market);
     const volume24h = market.volume24h;
-    const volatility = 0.15; // Default wenn sync
+    // Default-Volatilität, wenn keine echte verfügbar (sollte vermieden werden!)
+    const volatility = volatilityOverride ?? 0.15;
 
     const reasons: string[] = [];
     let tradeable = true;
@@ -528,6 +535,11 @@ export class MispricingEngine {
       tradeable = false;
     }
 
+    // Warnung bei Default-Volatilität
+    if (volatilityOverride === undefined) {
+      reasons.push(`Volatilitaet: Default (${(volatility * 100).toFixed(0)}%) - async Berechnung empfohlen`);
+    }
+
     if (tradeable) {
       reasons.push('Market-Quality OK');
     }
@@ -545,13 +557,14 @@ export class MispricingEngine {
 
   /**
    * Berechne Market-Quality Metriken (async, mit echter Volatility)
+   * BEVORZUGTE METHODE für korrektes Kelly Sizing!
    */
   async calculateMarketQualityAsync(market: Market): Promise<MarketQuality> {
     const liquidityScore = this.calculateLiquidityScore(market);
     const spreadProxy = this.calculateSpreadProxy(market);
     const volume24h = market.volume24h;
 
-    // Echte Volatility berechnen
+    // Echte Volatility berechnen (aus historischen Daten oder Cache)
     const volResult = await this.getVolatility30d(market);
     const volatility = volResult.volatility30d;
 
@@ -573,9 +586,13 @@ export class MispricingEngine {
       tradeable = false;
     }
 
-    // Hohe Volatility warnen (aber nicht blocken)
-    if (volatility > 0.5) {
-      reasons.push(`Hohe Volatilitaet: ${(volatility * 100).toFixed(1)}%`);
+    // Volatility-Info in Reasons
+    if (volResult.source === 'fallback') {
+      reasons.push(`Volatilitaet: ${(volatility * 100).toFixed(1)}% (Fallback - wenig Daten)`);
+    } else if (volatility > 0.5) {
+      reasons.push(`Hohe Volatilitaet: ${(volatility * 100).toFixed(1)}% (${volResult.source})`);
+    } else {
+      reasons.push(`Volatilitaet: ${(volatility * 100).toFixed(1)}% (${volResult.source})`);
     }
 
     if (tradeable) {
