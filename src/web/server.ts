@@ -18,6 +18,8 @@ import { runBacktest, BacktestOptions, generateJsonReport, generateMarkdownRepor
 import { BacktestResult } from '../alpha/types.js';
 import { getStats } from '../storage/repositories/historical.js';
 import { initDatabase } from '../storage/db.js';
+import { getSystemHealthDashboard } from '../storage/repositories/pipelineHealth.js';
+import { getAuditLog } from '../storage/repositories/riskState.js';
 
 // Backtest State
 interface BacktestState {
@@ -535,6 +537,50 @@ app.post('/api/risk/reset', requireAuth, (_req: Request, res: Response) => {
     message: 'Täglicher Risk-Reset durchgeführt',
     dashboard: runtimeState.getRiskDashboard(),
   });
+});
+
+// API: System Health Dashboard (erweitert mit Stale-Data Detection)
+app.get('/api/system/health', requireAuth, (_req: Request, res: Response) => {
+  try {
+    const dashboard = getSystemHealthDashboard();
+    res.json(dashboard);
+  } catch (err) {
+    // Fallback wenn DB nicht verfügbar
+    const state = runtimeState.getState();
+    res.json({
+      overall: 'degraded',
+      pipelines: Object.entries(state.pipelineHealth).map(([name, health]) => ({
+        pipelineName: name,
+        lastSuccessAt: health.lastSuccess,
+        consecutiveErrors: health.errorCount,
+        isHealthy: health.healthy,
+        isStale: false,
+      })),
+      freshness: [],
+      staleAlerts: ['Pipeline Health DB nicht verfügbar'],
+      timestamp: new Date(),
+    });
+  }
+});
+
+// API: Audit Log (letzte Einträge)
+app.get('/api/audit', requireAuth, (req: Request, res: Response) => {
+  const limit = parseInt(String(req.query?.limit || '50'), 10);
+  try {
+    const logs = getAuditLog(limit);
+    res.json({
+      entries: logs,
+      count: logs.length,
+      limit,
+    });
+  } catch (err) {
+    res.json({
+      entries: [],
+      count: 0,
+      limit,
+      error: (err as Error).message,
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

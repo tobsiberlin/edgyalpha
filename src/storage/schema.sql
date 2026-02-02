@@ -197,3 +197,29 @@ CREATE INDEX IF NOT EXISTS idx_price_market ON price_history(market_id);
 CREATE INDEX IF NOT EXISTS idx_price_token ON price_history(token_id);
 CREATE INDEX IF NOT EXISTS idx_price_ts ON price_history(timestamp);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_unique ON price_history(token_id, timestamp);
+
+-- pipeline_health (Persistent Pipeline Status für Stale-Data Detection)
+CREATE TABLE IF NOT EXISTS pipeline_health (
+  pipeline_name TEXT PRIMARY KEY,  -- 'polymarket', 'rss', 'dawum', 'telegram'
+  last_success_at TEXT,            -- Letzter erfolgreicher Fetch
+  last_error_at TEXT,              -- Letzter Fehler
+  last_error_message TEXT,         -- Fehlermeldung
+  consecutive_errors INTEGER NOT NULL DEFAULT 0,
+  total_runs INTEGER NOT NULL DEFAULT 0,
+  total_errors INTEGER NOT NULL DEFAULT 0,
+  avg_duration_ms REAL,            -- Durchschnittliche Laufzeit
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- data_freshness (Tracking für Daten-Aktualität pro Quelle)
+CREATE TABLE IF NOT EXISTS data_freshness (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_type TEXT NOT NULL,       -- 'market_prices', 'news', 'polls', 'signals'
+  source_id TEXT,                  -- Optional: spezifische ID
+  as_of TEXT NOT NULL,             -- Zeitpunkt der Daten (nicht Fetch-Zeit!)
+  fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  stale_threshold_minutes INTEGER DEFAULT 5,  -- Ab wann als "stale" betrachtet
+  UNIQUE(source_type, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_freshness_type ON data_freshness(source_type);
+CREATE INDEX IF NOT EXISTS idx_freshness_as_of ON data_freshness(as_of);
