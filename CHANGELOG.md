@@ -7,6 +7,126 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.0] - 2026-02-02 - CASH-MACHINE V2.0
+
+### Hinzugefügt
+
+- **Echte Kelly-Formel für Prediction Markets** (`src/alpha/sizing.ts`)
+  - `calculateKellyFraction()` - Mathematisch korrekte Kelly-Berechnung
+  - Formel: f* = p - q/b (wobei b = (1/price) - 1)
+  - Korrekte Odds-Berechnung für YES und NO Positionen
+  - Edge/EV-Validierung vor Sizing
+
+- **Adaptive Scaling System**
+  - `calculateScalingFactors()` - Dynamische Position-Sizing-Anpassung
+  - Drawdown Scaling: Reduziert ab 10% DD, stoppt bei 30%
+  - Streak Scaling: Reduziert nach 2+ konsekutiven Losses
+  - Volatility Scaling: Reduziert bei hoher Markt-Volatilität
+  - Regime Scaling: Passt an Recent Win Rate an
+  - Time Scaling: Optional für Off-Hours (deaktiviert für 24/7 Markets)
+
+- **Execution Quality Monitor** (`src/alpha/executionQuality.ts`)
+  - Vollständiges Tracking von Signal → Order → Fill
+  - Slippage-Analyse: Expected vs. Actual
+  - Latency-Monitoring: Signal-to-Order, Order-to-Fill, Total
+  - Fill Rate Tracking
+  - Execution Quality Score (0-100)
+  - Alerts: High Slippage, Slow Fill, Model Drift
+  - Slippage-Analyse nach Dimension: Direction, Volume, Spread, Volatility
+  - Automatische Empfehlungen zur Optimierung
+  - API: `GET /api/execution/quality`
+
+- **Rolling Performance Dashboard** (Web UI)
+  - Neuer View "PERFORMANCE" im Web-Interface
+  - Live KPI Cards: PnL, Win Rate, Trades, Sharpe, Max DD, Exec Quality
+  - Rolling Equity Curve (Canvas-basiert, keine Dependencies)
+  - Engine Performance Tracking (TimeDelay, Mispricing, Meta)
+  - Streak Stats: Current Streak, Best Win, Worst Loss
+  - Avg Win/Loss, Profit Factor
+  - Execution Quality Details im Dashboard
+  - System Recommendations Anzeige
+  - Auto-Refresh alle 60 Sekunden
+
+- **Erweitertes Backtest UI**
+  - Equity Curve Chart (Canvas-basiert)
+  - Download-Buttons: JSON, CSV, Markdown
+  - Erweiterte Metriken: Profit Factor, Avg Win/Loss, Gross Profit/Loss
+  - Calibration Chart (Predicted vs. Actual)
+  - Out-of-Sample Checkbox für Walk-Forward Validation
+  - CSV Export: `GET /api/backtest/results?format=csv`
+
+### Geändert
+- `calculatePositionSize()` unterstützt jetzt optionalen `AdaptiveState` Parameter
+- `SizingResult` Interface enthält jetzt optionale `scalingFactors`
+- Backtest Results API liefert jetzt `equityCurve` Daten
+
+### Neue Dateien
+- `src/alpha/executionQuality.ts` - Execution Quality Monitoring
+- `src/alpha/index.ts` - Export ergänzt
+
+---
+
+## [2.7.0] - 2026-02-02
+
+### Hinzugefügt
+- **Equity Curve Chart im Dashboard**
+  - Canvas-basierter Chart für kumuliertes PnL
+  - `/api/stats/equity` Endpoint für Trade-Historie
+
+- **Audit Log API**
+  - `/api/audit` für vollständiges Audit-Log
+  - Anzeige im Web-Dashboard
+
+---
+
+## [2.6.0] - 2026-02-02
+
+### Hinzugefügt
+- **Telegram Slash-Commands für Operations**
+  - `/cooldown` - Intraday Risk Status anzeigen
+  - `/digest` - Tages-Zusammenfassung
+  - `/settings` - Push-Einstellungen
+  - `/push [mode]` - Push-Modus ändern
+  - `/quiet [on|off]` - Quiet Hours Toggle
+
+---
+
+## [2.5.0] - 2026-02-02
+
+### Hinzugefügt
+- **Telegram Push Policy V1 - Anti-Spam System** (`src/notifications/`)
+  - Rate Limiter mit Cooldown (15 Min), Daily Cap (8), Quiet Hours (23:00-07:00)
+  - Push Gates: match_confidence, price_premove, expected_lag, volume, spread
+  - News Candidate Pipeline: RSS → Candidate (DB) → Gate Check → Push
+  - `news_candidates` und `notification_state` Tabellen in SQLite
+  - Decoupling: `breaking_news` Events → `push_ready` Events
+
+- **Notification Settings pro Chat**
+  - Push-Modi: TIME_DELAY_ONLY, ALL_ENGINES, CRITICAL_ONLY
+  - Quiet Hours konfigurierbar
+  - Min Match Confidence einstellbar
+
+---
+
+## [2.4.0] - 2026-02-02
+
+### Hinzugefügt
+- **Intraday Drawdown-Limits** (`src/runtime/state.ts`)
+  - Rolling Window Trade-Tracking
+  - Intraday High Water Mark
+  - Auto-Cooldown nach 3 konsekutiven Losses
+  - Rapid Loss Detection (30% in 15 Min)
+  - 50% Daily Limit Protection
+
+- **Meta-Combiner Drift Detection** (`src/alpha/driftDetection.ts`)
+  - Coefficient Drift Detection
+  - Weight Drift Detection (Flip-Erkennung)
+  - Performance Drift Detection
+  - Auto-Throttle nach 3 kritischen Drifts (30 Min)
+  - `DriftDetector` Singleton mit EventEmitter
+
+---
+
 ## [2.3.0] - 2026-02-02
 
 ### Hinzugefügt

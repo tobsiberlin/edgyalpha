@@ -117,7 +117,69 @@
 
 ---
 
-## Alpha Engines V2 (NEU!)
+## Cash-Machine V2.0 (NEU!)
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│                    CASH-MACHINE V2.0 - ADVANCED INFRASTRUCTURE         │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  ECHTE KELLY-FORMEL                                         │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  f* = p - q/b  (mathematisch korrekt für Prediction Markets) │     │
+│   │  • Korrekte Odds-Berechnung: b = (1/price) - 1              │     │
+│   │  • EV-Validierung vor jedem Trade                           │     │
+│   │  • Unterstützt YES und NO Positionen                        │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  ADAPTIVE SCALING                                           │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Dynamische Position-Sizing basierend auf:                  │     │
+│   │  • Drawdown Scaling (reduziert ab 10% DD, stoppt bei 30%)   │     │
+│   │  • Streak Scaling (reduziert nach 2+ konsekutiven Losses)   │     │
+│   │  • Volatility Scaling (reduziert bei hoher Volatilität)     │     │
+│   │  • Regime Scaling (passt an Recent Win Rate an)             │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  EXECUTION QUALITY MONITOR                                  │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Vollständiges Tracking: Signal → Order → Fill              │     │
+│   │  • Slippage-Analyse (Expected vs. Actual)                   │     │
+│   │  • Latency-Monitoring (P50, P95, Max)                       │     │
+│   │  • Fill Rate & Execution Quality Score (0-100)              │     │
+│   │  • Alerts: High Slippage, Slow Fill, Model Drift            │     │
+│   │  • Automatische Optimierungs-Empfehlungen                   │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  PERFORMANCE DASHBOARD                                      │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Rolling Performance Dashboard im Web UI:                   │     │
+│   │  • Live KPIs: PnL, Win Rate, Sharpe, Max DD                 │     │
+│   │  • Equity Curve (Canvas-basiert, keine Dependencies)        │     │
+│   │  • Engine Performance (TimeDelay, Mispricing, Meta)         │     │
+│   │  • Streak Stats & Profit Factor                             │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  ERWEITERTES BACKTEST UI                                    │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  • Equity Curve Chart                                       │     │
+│   │  • Download: JSON, CSV, Markdown                            │     │
+│   │  • Erweiterte Metriken: Profit Factor, Avg Win/Loss         │     │
+│   │  • Calibration Chart (Predicted vs. Actual)                 │     │
+│   │  • Walk-Forward Out-of-Sample Validation                    │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Alpha Engines V2
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
@@ -368,11 +430,17 @@ RSS_FEEDS_ENABLED=true
 | `/api/germany/polls` | `GET` | Dawum-Umfragen |
 | `/api/germany/news` | `GET` | RSS-News |
 | `/api/trade/:id` | `POST` | Trade ausführen |
-| `/api/risk/dashboard` | `GET` | Risk Dashboard (NEU!) |
-| `/api/risk/killswitch` | `POST` | Kill-Switch Toggle (NEU!) |
-| `/api/execution/mode` | `GET/POST` | Execution Mode (NEU!) |
-| `/api/runtime` | `GET` | Vollständiger Runtime-State (NEU!) |
-| `/api/settings` | `POST` | Settings Update (NEU!) |
+| `/api/risk/dashboard` | `GET` | Risk Dashboard |
+| `/api/risk/killswitch` | `POST` | Kill-Switch Toggle |
+| `/api/execution/mode` | `GET/POST` | Execution Mode |
+| `/api/execution/quality` | `GET` | Execution Quality Metrics (V3.0!) |
+| `/api/runtime` | `GET` | Vollständiger Runtime-State |
+| `/api/settings` | `POST` | Settings Update |
+| `/api/stats/equity` | `GET` | Equity Curve Daten (V3.0!) |
+| `/api/stats/trading` | `GET` | Trading Stats (V3.0!) |
+| `/api/backtest` | `POST` | Backtest starten |
+| `/api/backtest/status` | `GET` | Backtest Progress |
+| `/api/backtest/results` | `GET` | Ergebnisse (JSON/CSV/MD) (V3.0!) |
 
 ### WebSocket Events
 
