@@ -7,6 +7,41 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.7] - 2026-02-02
+
+### Behoben
+- **KRITISCH: Schema-Migration hat Tabellen nicht erstellt** (`src/storage/db.ts`)
+  - Problem: SQL-Statements wurden am Semikolon gesplittet, aber der erste Block
+    enthielt Kommentare am Anfang (`-- EdgyAlpha...`), wodurch das gesamte
+    erste Statement (inkl. CREATE TABLE) gefiltert wurde
+  - Lösung: Kommentarzeilen werden jetzt zeilenweise entfernt BEVOR am Semikolon
+    gesplittet wird
+  - Vorher: "0 OK, 28 übersprungen" (nur INDEX-Statements)
+  - Jetzt: "47 OK, 0 übersprungen" (alle Tabellen + Indizes)
+
+- **historical_trades/historical_markets Tabellen fehlten**
+  - Backtest fehlgeschlagen mit "no such table: historical_trades"
+  - Jetzt: Tabellen werden korrekt erstellt bei DB-Initialisierung
+
+### Hinzugefügt
+- **Demo-Daten Generator** (`scripts/generate-demo-data.ts`)
+  - `npm run generate:demo` - Generiert synthetische Markets und Trades
+  - Optionen: `--markets 50 --trades 100` für Anzahl
+  - Realistische Random-Walk Preisbewegungen
+  - 70% der Markets werden als "geschlossen" generiert
+
+- **Demo-Markets Resolution** (`scripts/resolve-demo-markets.ts`)
+  - `npm run resolve:demo` - Setzt Outcomes für geschlossene Demo-Markets
+  - Outcome basiert auf letztem Trade-Preis (probabilistisch)
+  - Notwendig für Backtesting mit Demo-Daten
+
+### Geändert
+- `scripts/import-polydata.ts`: Null-Handling in `formatNumber()` verbessert
+- `package.json`: Neue Scripts `generate:demo` und `resolve:demo` hinzugefügt
+- `README.md`: Dokumentation für historische Daten und Demo-Daten erweitert
+
+---
+
 ## [3.0.6] - 2026-02-02
 
 ### Behoben

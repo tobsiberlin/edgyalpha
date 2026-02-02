@@ -232,8 +232,24 @@
 npm run markets -- --minVolume 10000 --limit 50    # Polymarket Märkte
 npm run rss -- --health                             # RSS Feed Health
 npm run dawum                                       # Aktuelle Umfragen
-npm run import:polydata -- --all                    # Historische Daten
+npm run import:polydata -- --all                    # Historische Daten importieren
+npm run generate:demo                               # Demo-Daten generieren
+npm run resolve:demo                                # Demo-Markets auflösen
 npm run backtest -- --engine meta --from 2024-01-01 # Backtesting
+```
+
+### Historische Daten für Backtest
+
+```bash
+# Option 1: Demo-Daten generieren (für Tests)
+npm run generate:demo -- --markets 100 --trades 100
+npm run resolve:demo  # Markets mit Outcomes versehen
+npm run import:polydata -- --all
+
+# Option 2: Echte poly_data CSVs
+# 1. Lade markets.csv und trades.csv von poly_data
+# 2. Kopiere nach ./data/polydata/
+# 3. npm run import:polydata -- --all
 ```
 
 ### Feature-Flags

@@ -133,7 +133,8 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function formatNumber(n: number): string {
+function formatNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '0';
   return n.toLocaleString('de-DE');
 }
 

@@ -3061,9 +3061,13 @@ ${detailLines}`;
         reply_markup: keyboard,
         disable_web_page_preview: true,
       });
+      // Pipeline Success: Telegram Nachricht erfolgreich gesendet
+      runtimeState.recordPipelineSuccess('telegram');
       return sentMessage;
     } catch (err) {
-      logger.error(`Telegram Nachricht Fehler: ${(err as Error).message}`);
+      const error = err as Error;
+      logger.error(`Telegram Nachricht Fehler: ${error.message}`);
+      runtimeState.recordPipelineError('telegram', error.message);
       return undefined;
     }
   }

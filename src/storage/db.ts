@@ -113,10 +113,17 @@ function runMigrations(database: Database): void {
   const schema = fs.readFileSync(schemaPath, 'utf-8');
 
   // Schema-Statements einzeln ausführen
+  // 1. Entferne Kommentarzeilen (-- am Zeilenanfang)
+  // 2. Splitte an Semikolons
+  // 3. Filtere leere Statements
   const statements = schema
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => !line.startsWith('--')) // Kommentarzeilen entfernen
+    .join('\n')
     .split(';')
     .map((stmt) => stmt.trim())
-    .filter((stmt) => stmt.length > 0 && !stmt.startsWith('--'));
+    .filter((stmt) => stmt.length > 0);
 
   let successCount = 0;
   let skipCount = 0;
