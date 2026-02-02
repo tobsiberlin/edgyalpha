@@ -605,6 +605,27 @@ app.get('/api/audit', requireAuth, (req: Request, res: Response) => {
   }
 });
 
+// API: Execution Quality Metrics
+app.get('/api/execution/quality', requireAuth, (_req: Request, res: Response) => {
+  try {
+    // Import dynamisch da das Modul noch neu ist
+    import('../alpha/executionQuality.js').then(({ executionQualityMonitor }) => {
+      res.json(executionQualityMonitor.toJSON());
+    }).catch(err => {
+      res.json({
+        metrics: null,
+        error: 'Execution Quality Monitor nicht verfügbar',
+        message: (err as Error).message,
+      });
+    });
+  } catch (err) {
+    res.json({
+      metrics: null,
+      error: (err as Error).message,
+    });
+  }
+});
+
 // API: Equity Curve (kumuliertes PnL über Zeit)
 app.get('/api/stats/equity', requireAuth, (_req: Request, res: Response) => {
   try {
@@ -733,18 +754,69 @@ app.get('/api/backtest/results', requireAuth, (req: Request, res: Response) => {
   } else if (format === 'json-file') {
     const json = generateJsonReport(backtestState.result);
     res.type('application/json').send(json);
+  } else if (format === 'csv') {
+    // CSV Export
+    const { trades } = backtestState.result;
+    const header = 'signalId,marketId,direction,entryPrice,exitPrice,size,pnl,predictedEdge,actualEdge,slippage\n';
+    const rows = trades.map(t =>
+      `${t.signalId},${t.marketId},${t.direction},${t.entryPrice},${t.exitPrice ?? ''},${t.size},${t.pnl ?? ''},${t.predictedEdge},${t.actualEdge ?? ''},${t.slippage}`
+    ).join('\n');
+    res.type('text/csv').attachment('backtest_trades.csv').send(header + rows);
   } else {
-    // Standard: Zusammenfassung für UI
+    // Standard: Zusammenfassung für UI mit Equity Curve
     const { engine, period, metrics, calibration, trades } = backtestState.result;
+
+    // Equity Curve berechnen
+    const initialBankroll = backtestState.result.trades.length > 0 ? 1000 : 0;
+    let cumulative = initialBankroll;
+    let peak = initialBankroll;
+    const equityCurve: { index: number; equity: number; pnl: number; drawdown: number }[] = [];
+
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i];
+      if (t.pnl !== null) {
+        cumulative += t.pnl;
+        if (cumulative > peak) peak = cumulative;
+        const drawdown = peak > 0 ? (peak - cumulative) / peak : 0;
+        equityCurve.push({
+          index: i,
+          equity: cumulative,
+          pnl: t.pnl,
+          drawdown,
+        });
+      }
+    }
+
+    // Erweiterte Metriken
+    const completedTrades = trades.filter(t => t.pnl !== null);
+    const wins = completedTrades.filter(t => (t.pnl ?? 0) > 0);
+    const losses = completedTrades.filter(t => (t.pnl ?? 0) < 0);
+
+    const grossProfit = wins.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + (t.pnl ?? 0), 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const avgWin = wins.length > 0 ? grossProfit / wins.length : 0;
+    const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
+
     res.json({
       engine,
       period: {
         from: period.from.toISOString(),
         to: period.to.toISOString(),
       },
-      metrics,
+      metrics: {
+        ...metrics,
+        profitFactor,
+        avgWin,
+        avgLoss,
+        grossProfit,
+        grossLoss,
+        winCount: wins.length,
+        lossCount: losses.length,
+      },
       calibration,
       tradeCount: trades.length,
+      equityCurve,
       topTrades: trades
         .filter(t => t.pnl !== null)
         .sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0))

@@ -1091,6 +1091,10 @@ body {
 
             <div class="nav-section">
                 <div class="nav-header">ANALYSIS</div>
+                <div class="nav-item" data-view="performance" onclick="showView('performance')">
+                    <span class="nav-icon">📈</span>
+                    <span>PERFORMANCE</span>
+                </div>
                 <div class="nav-item" data-view="backtest" onclick="showView('backtest')">
                     <span class="nav-icon">▤</span>
                     <span>BACKTEST</span>
@@ -1433,11 +1437,20 @@ body {
                                     <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">BANKROLL ($)</label>
                                     <input type="number" id="bt-bankroll" value="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
                                 </div>
-                                <div style="margin-bottom: 16px;">
+                                <div style="margin-bottom: 12px;">
                                     <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
                                         <input type="checkbox" id="bt-slippage" checked style="accent-color: var(--green-profit);">
                                         Slippage-Modell aktivieren
                                     </label>
+                                </div>
+                                <div style="margin-bottom: 16px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="bt-walkforward" checked style="accent-color: var(--cyan-info);">
+                                        Walk-Forward (Out-of-Sample)
+                                    </label>
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">
+                                        Meta-Combiner lernt während des Tests
+                                    </div>
                                 </div>
                                 <button class="btn primary" style="width: 100%;" id="bt-run-btn" onclick="runBacktest()">
                                     ▶ BACKTEST STARTEN
@@ -1475,6 +1488,145 @@ body {
                                 <div>Konfiguriere und starte einen Backtest</div>
                                 <div style="font-size: 10px; margin-top: 8px;">Ergebnisse werden hier angezeigt</div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PERFORMANCE DASHBOARD VIEW -->
+            <div class="viewport-content" id="view-performance">
+                <div class="viewport-header">
+                    <div class="viewport-title">ROLLING PERFORMANCE DASHBOARD</div>
+                    <div class="viewport-actions">
+                        <select id="perf-window" onchange="loadPerformanceData()" style="background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 4px 8px; font-family: var(--font-mono); font-size: 10px;">
+                            <option value="7">7 TAGE</option>
+                            <option value="30" selected>30 TAGE</option>
+                            <option value="90">90 TAGE</option>
+                            <option value="all">ALL TIME</option>
+                        </select>
+                        <button class="btn" onclick="loadPerformanceData()" style="font-size: 10px;">↻ REFRESH</button>
+                    </div>
+                </div>
+                <div style="padding: 16px; overflow-y: auto; height: calc(100% - 44px);">
+                    <!-- KPI Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px;">
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-pnl" style="font-size: 24px; font-weight: 700;" class="positive">$0.00</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">TOTAL PnL</div>
+                        </div>
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-winrate" style="font-size: 24px; font-weight: 700;">0%</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">WIN RATE</div>
+                        </div>
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-trades" style="font-size: 24px; font-weight: 700;">0</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">TRADES</div>
+                        </div>
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-sharpe" style="font-size: 24px; font-weight: 700;">0.00</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">SHARPE</div>
+                        </div>
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-drawdown" style="font-size: 24px; font-weight: 700;" class="negative">0%</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">MAX DD</div>
+                        </div>
+                        <div class="panel" style="text-align: center; padding: 16px;">
+                            <div id="perf-quality" style="font-size: 24px; font-weight: 700;">--</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">EXEC QUALITY</div>
+                        </div>
+                    </div>
+
+                    <!-- Equity Curve -->
+                    <div class="panel" style="margin-bottom: 16px;">
+                        <div class="panel-header">EQUITY CURVE (ROLLING)</div>
+                        <div class="panel-body" style="padding: 0;">
+                            <div id="perf-equity-chart" style="height: 200px; width: 100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Zwei-Spalten Layout -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <!-- Engine Performance -->
+                        <div class="panel">
+                            <div class="panel-header">ENGINE PERFORMANCE</div>
+                            <div class="panel-body" id="perf-engines">
+                                <div class="data-row">
+                                    <span class="data-label">TIME_DELAY</span>
+                                    <span class="data-value" id="perf-timedelay">-- trades, $--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">MISPRICING</span>
+                                    <span class="data-value" id="perf-mispricing">-- trades, $--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">META</span>
+                                    <span class="data-value" id="perf-meta">-- trades, $--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Streaks -->
+                        <div class="panel">
+                            <div class="panel-header">STREAKS & STATS</div>
+                            <div class="panel-body">
+                                <div class="data-row">
+                                    <span class="data-label">Current Streak</span>
+                                    <span class="data-value" id="perf-streak">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Best Win Streak</span>
+                                    <span class="data-value positive" id="perf-best-streak">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Worst Loss Streak</span>
+                                    <span class="data-value negative" id="perf-worst-streak">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Avg Win</span>
+                                    <span class="data-value positive" id="perf-avg-win">$--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Avg Loss</span>
+                                    <span class="data-value negative" id="perf-avg-loss">$--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Profit Factor</span>
+                                    <span class="data-value" id="perf-profit-factor">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Execution Quality -->
+                    <div class="panel" style="margin-bottom: 16px;">
+                        <div class="panel-header">EXECUTION QUALITY ANALYSIS</div>
+                        <div class="panel-body">
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                                <div>
+                                    <div class="data-row"><span class="data-label">Fill Rate</span><span class="data-value" id="perf-fill-rate">--%</span></div>
+                                    <div class="data-row"><span class="data-label">Avg Slippage</span><span class="data-value" id="perf-avg-slippage">--%</span></div>
+                                </div>
+                                <div>
+                                    <div class="data-row"><span class="data-label">Expected Slip</span><span class="data-value" id="perf-exp-slippage">--%</span></div>
+                                    <div class="data-row"><span class="data-label">Slippage Cost</span><span class="data-value negative" id="perf-slip-cost">$--</span></div>
+                                </div>
+                                <div>
+                                    <div class="data-row"><span class="data-label">Avg Latency</span><span class="data-value" id="perf-latency">--ms</span></div>
+                                    <div class="data-row"><span class="data-label">P95 Latency</span><span class="data-value" id="perf-p95-latency">--ms</span></div>
+                                </div>
+                                <div>
+                                    <div class="data-row"><span class="data-label">Price Improve</span><span class="data-value" id="perf-price-improve">--%</span></div>
+                                    <div class="data-row"><span class="data-label">Model Accuracy</span><span class="data-value" id="perf-model-acc">--%</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendations -->
+                    <div class="panel">
+                        <div class="panel-header">SYSTEM RECOMMENDATIONS</div>
+                        <div class="panel-body" id="perf-recommendations" style="font-size: 11px;">
+                            <div style="color: var(--text-muted);">Lade Empfehlungen...</div>
                         </div>
                     </div>
                 </div>
@@ -2268,10 +2420,30 @@ async function loadBacktestResults() {
         const container = document.getElementById('bt-results');
         const pnlClass = res.metrics.totalPnl >= 0 ? 'positive' : 'negative';
         const pnlSign = res.metrics.totalPnl >= 0 ? '+' : '';
+        const profitFactorStr = res.metrics.profitFactor === Infinity ? '∞' : res.metrics.profitFactor?.toFixed(2) || '--';
 
         container.innerHTML = `
+            <!-- Header mit Download-Buttons -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div style="font-size: 14px; font-weight: 600; color: var(--green-profit);">
+                    ${res.engine.toUpperCase()} ENGINE BACKTEST
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="downloadBacktestJSON()" class="btn" style="font-size: 10px; padding: 6px 12px;">
+                        ↓ JSON
+                    </button>
+                    <button onclick="downloadBacktestCSV()" class="btn" style="font-size: 10px; padding: 6px 12px;">
+                        ↓ CSV
+                    </button>
+                    <button onclick="downloadBacktestMarkdown()" class="btn" style="font-size: 10px; padding: 6px 12px;">
+                        ↓ MD
+                    </button>
+                </div>
+            </div>
+
+            <!-- Haupt-KPIs -->
             <div class="panel" style="margin-bottom: 16px;">
-                <div class="panel-header">ERGEBNIS: ${res.engine.toUpperCase()} ENGINE</div>
+                <div class="panel-header">PERFORMANCE</div>
                 <div class="panel-body">
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: center; margin-bottom: 16px;">
                         <div>
@@ -2297,48 +2469,267 @@ async function loadBacktestResults() {
                 </div>
             </div>
 
+            <!-- Equity Curve Chart -->
+            <div class="panel" style="margin-bottom: 16px;">
+                <div class="panel-header">EQUITY CURVE</div>
+                <div class="panel-body" style="padding: 0;">
+                    <div id="bt-equity-chart" style="height: 200px; width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- Erweiterte Metriken -->
             <div class="panel" style="margin-bottom: 16px;">
                 <div class="panel-header">METRIKEN</div>
                 <div class="panel-body">
-                    <div class="data-row"><span class="data-label">Max Drawdown</span><span class="data-value negative">-$${Math.abs(res.metrics.maxDrawdown).toFixed(2)}</span></div>
-                    <div class="data-row"><span class="data-label">Brier Score</span><span class="data-value">${res.metrics.brierScore.toFixed(3)}</span></div>
-                    <div class="data-row"><span class="data-label">Edge Capture</span><span class="data-value">${(res.metrics.avgEdgeCapture * 100).toFixed(1)}%</span></div>
-                    <div class="data-row"><span class="data-label">Avg Slippage</span><span class="data-value">${(res.metrics.avgSlippage * 100).toFixed(2)}%</span></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div>
+                            <div class="data-row"><span class="data-label">Max Drawdown</span><span class="data-value negative">-$${Math.abs(res.metrics.maxDrawdown).toFixed(2)}</span></div>
+                            <div class="data-row"><span class="data-label">Profit Factor</span><span class="data-value">${profitFactorStr}</span></div>
+                            <div class="data-row"><span class="data-label">Brier Score</span><span class="data-value">${res.metrics.brierScore.toFixed(3)}</span></div>
+                            <div class="data-row"><span class="data-label">Edge Capture</span><span class="data-value">${(res.metrics.avgEdgeCapture * 100).toFixed(1)}%</span></div>
+                        </div>
+                        <div>
+                            <div class="data-row"><span class="data-label">Avg Win</span><span class="data-value positive">+$${res.metrics.avgWin?.toFixed(2) || '0.00'}</span></div>
+                            <div class="data-row"><span class="data-label">Avg Loss</span><span class="data-value negative">-$${res.metrics.avgLoss?.toFixed(2) || '0.00'}</span></div>
+                            <div class="data-row"><span class="data-label">Wins/Losses</span><span class="data-value">${res.metrics.winCount || 0} / ${res.metrics.lossCount || 0}</span></div>
+                            <div class="data-row"><span class="data-label">Avg Slippage</span><span class="data-value">${(res.metrics.avgSlippage * 100).toFixed(2)}%</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Calibration Buckets -->
+            ${res.calibration && res.calibration.length > 0 ? `
             <div class="panel" style="margin-bottom: 16px;">
-                <div class="panel-header">TOP 5 TRADES</div>
-                <div class="panel-body" style="font-size: 10px;">
-                    ${res.topTrades.slice(0, 5).map(t => `
-                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
-                            <span style="color: var(--text-muted);">${t.marketId.substring(0, 12)}...</span>
-                            <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
-                            <span class="positive">+$${t.pnl?.toFixed(2) || '0.00'}</span>
-                        </div>
-                    `).join('')}
+                <div class="panel-header">KALIBRIERUNG (Predicted vs Actual)</div>
+                <div class="panel-body" style="padding: 0;">
+                    <div id="bt-calibration-chart" style="height: 150px; width: 100%;"></div>
                 </div>
             </div>
+            ` : ''}
 
-            <div class="panel">
-                <div class="panel-header">WORST 5 TRADES</div>
-                <div class="panel-body" style="font-size: 10px;">
-                    ${res.worstTrades.slice(0, 5).map(t => `
-                        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
-                            <span style="color: var(--text-muted);">${t.marketId.substring(0, 12)}...</span>
-                            <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
-                            <span class="negative">$${t.pnl?.toFixed(2) || '0.00'}</span>
-                        </div>
-                    `).join('')}
+            <!-- Top/Worst Trades Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="panel">
+                    <div class="panel-header">TOP 5 TRADES</div>
+                    <div class="panel-body" style="font-size: 10px;">
+                        ${res.topTrades.slice(0, 5).map(t => `
+                            <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
+                                <span style="color: var(--text-muted); max-width: 100px; overflow: hidden; text-overflow: ellipsis;" title="${t.marketId}">${t.marketId.substring(0, 10)}...</span>
+                                <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
+                                <span class="positive">+$${t.pnl?.toFixed(2) || '0.00'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">WORST 5 TRADES</div>
+                    <div class="panel-body" style="font-size: 10px;">
+                        ${res.worstTrades.slice(0, 5).map(t => `
+                            <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-dim);">
+                                <span style="color: var(--text-muted); max-width: 100px; overflow: hidden; text-overflow: ellipsis;" title="${t.marketId}">${t.marketId.substring(0, 10)}...</span>
+                                <span style="color: var(--${t.direction === 'yes' ? 'green-profit' : 'red-risk'});">${t.direction.toUpperCase()}</span>
+                                <span class="negative">$${t.pnl?.toFixed(2) || '0.00'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         `;
+
+        // Equity Curve Chart rendern
+        renderEquityCurveChart(res.equityCurve || []);
+
+        // Calibration Chart rendern
+        if (res.calibration && res.calibration.length > 0) {
+            renderCalibrationChart(res.calibration);
+        }
 
         addLog('info', 'Ergebnis: PnL=' + pnlSign + '$' + res.metrics.totalPnl.toFixed(2) + ', WinRate=' + (res.metrics.winRate * 100).toFixed(1) + '%');
         addLog('info', '════════════════════════════════════════');
     } catch (err) {
         addLog('error', 'Ergebnisse laden fehlgeschlagen');
     }
+}
+
+// Equity Curve Chart mit Canvas (leichtgewichtig, keine externe Library)
+function renderEquityCurveChart(data) {
+    const container = document.getElementById('bt-equity-chart');
+    if (!container || !data || data.length === 0) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth || 600;
+    canvas.height = 200;
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 20, right: 20, bottom: 30, left: 60 };
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+
+    // Min/Max berechnen
+    const equities = data.map(d => d.equity);
+    const minEquity = Math.min(...equities) * 0.98;
+    const maxEquity = Math.max(...equities) * 1.02;
+    const range = maxEquity - minEquity || 1;
+
+    // Hintergrund
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Grid Lines
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padding.top + (chartHeight / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(canvas.width - padding.right, y);
+        ctx.stroke();
+    }
+
+    // Y-Achsen Labels
+    ctx.fillStyle = '#555555';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const value = maxEquity - (range / 4) * i;
+        const y = padding.top + (chartHeight / 4) * i;
+        ctx.fillText('$' + value.toFixed(0), padding.left - 8, y + 4);
+    }
+
+    // Equity Line zeichnen
+    if (data.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+
+        for (let i = 0; i < data.length; i++) {
+            const x = padding.left + (i / (data.length - 1)) * chartWidth;
+            const y = padding.top + ((maxEquity - data[i].equity) / range) * chartHeight;
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+
+        // Gradient Fill
+        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+        ctx.lineTo(padding.left, padding.top + chartHeight);
+        ctx.closePath();
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
+        gradient.addColorStop(0, 'rgba(0, 255, 136, 0.15)');
+        gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
+
+    // Baseline ($1000)
+    const baselineY = padding.top + ((maxEquity - 1000) / range) * chartHeight;
+    if (baselineY >= padding.top && baselineY <= padding.top + chartHeight) {
+        ctx.strokeStyle = '#555555';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padding.left, baselineY);
+        ctx.lineTo(canvas.width - padding.right, baselineY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Final Equity Label
+    if (data.length > 0) {
+        const finalEquity = data[data.length - 1].equity;
+        const finalY = padding.top + ((maxEquity - finalEquity) / range) * chartHeight;
+        ctx.fillStyle = finalEquity >= 1000 ? '#00ff88' : '#ff3344';
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.textAlign = 'left';
+        ctx.fillText('$' + finalEquity.toFixed(0), canvas.width - padding.right + 5, finalY + 4);
+    }
+}
+
+// Calibration Chart
+function renderCalibrationChart(buckets) {
+    const container = document.getElementById('bt-calibration-chart');
+    if (!container || !buckets || buckets.length === 0) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth || 600;
+    canvas.height = 150;
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+    const barWidth = chartWidth / buckets.length - 8;
+
+    // Hintergrund
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Diagonal Line (perfekte Kalibrierung)
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top + chartHeight);
+    ctx.lineTo(padding.left + chartWidth, padding.top);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Bars zeichnen
+    buckets.forEach((bucket, i) => {
+        const x = padding.left + i * (chartWidth / buckets.length) + 4;
+        const predictedHeight = bucket.predictedAvg * chartHeight;
+        const actualHeight = bucket.actualAvg * chartHeight;
+
+        // Predicted (grau)
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(x, padding.top + chartHeight - predictedHeight, barWidth / 2 - 2, predictedHeight);
+
+        // Actual (grün/rot basierend auf Abweichung)
+        const diff = bucket.actualAvg - bucket.predictedAvg;
+        ctx.fillStyle = Math.abs(diff) < 0.1 ? '#00ff88' : (diff > 0 ? '#00aaff' : '#ff3344');
+        ctx.fillRect(x + barWidth / 2, padding.top + chartHeight - actualHeight, barWidth / 2 - 2, actualHeight);
+
+        // Label
+        ctx.fillStyle = '#555555';
+        ctx.font = '9px JetBrains Mono';
+        ctx.textAlign = 'center';
+        const label = bucket.range[0].toFixed(1) + '-' + bucket.range[1].toFixed(1);
+        ctx.fillText(label, x + barWidth / 2, padding.top + chartHeight + 12);
+        ctx.fillText('n=' + bucket.count, x + barWidth / 2, padding.top + chartHeight + 24);
+    });
+
+    // Legend
+    ctx.font = '9px JetBrains Mono';
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(canvas.width - 100, 8, 10, 10);
+    ctx.fillStyle = '#888888';
+    ctx.fillText('Predicted', canvas.width - 85, 17);
+    ctx.fillStyle = '#00ff88';
+    ctx.fillRect(canvas.width - 100, 22, 10, 10);
+    ctx.fillStyle = '#888888';
+    ctx.fillText('Actual', canvas.width - 85, 31);
+}
+
+// Download Functions
+function downloadBacktestJSON() {
+    window.open('/api/backtest/results?format=json-file', '_blank');
+}
+
+function downloadBacktestCSV() {
+    window.location.href = '/api/backtest/results?format=csv';
+}
+
+function downloadBacktestMarkdown() {
+    window.open('/api/backtest/results?format=markdown', '_blank');
 }
 
 // WebSocket events for backtest
@@ -2495,6 +2886,269 @@ setInterval(() => {
         loadPipelineHealth();
     }
 }, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        PERFORMANCE DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let performanceData = null;
+let executionQualityData = null;
+
+async function loadPerformanceData() {
+    try {
+        // Load multiple APIs in parallel
+        const [tradingRes, equityRes, executionRes] = await Promise.all([
+            fetch('/api/stats/trading', { credentials: 'include' }).then(r => r.json()),
+            fetch('/api/stats/equity', { credentials: 'include' }).then(r => r.json()),
+            fetch('/api/execution/quality', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+        ]);
+
+        performanceData = { trading: tradingRes, equity: equityRes };
+        executionQualityData = executionRes;
+
+        // Update KPI Cards
+        const daily = tradingRes.daily || {};
+        const pnl = daily.pnl || 0;
+        const pnlEl = document.getElementById('perf-pnl');
+        pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+        pnlEl.className = pnl >= 0 ? 'positive' : 'negative';
+
+        const winRate = (daily.winRate || 0) * 100;
+        document.getElementById('perf-winrate').textContent = winRate.toFixed(1) + '%';
+
+        const trades = daily.trades || 0;
+        document.getElementById('perf-trades').textContent = trades;
+
+        // Sharpe (estimated from daily data)
+        const sharpe = calculateEstimatedSharpe(equityRes);
+        document.getElementById('perf-sharpe').textContent = sharpe.toFixed(2);
+
+        // Max Drawdown
+        const maxDD = calculateMaxDrawdown(equityRes.equityCurve || []);
+        const ddEl = document.getElementById('perf-drawdown');
+        ddEl.textContent = '-' + (maxDD * 100).toFixed(1) + '%';
+
+        // Execution Quality Score
+        if (executionRes && executionRes.metrics) {
+            document.getElementById('perf-quality').textContent = executionRes.metrics.executionQualityScore || '--';
+        }
+
+        // Update Equity Chart
+        renderPerformanceEquityCurve(equityRes.equityCurve || []);
+
+        // Update Streaks
+        updateStreakStats(daily);
+
+        // Update Execution Quality Details
+        if (executionRes && executionRes.metrics) {
+            updateExecutionQualityDisplay(executionRes.metrics);
+            updateRecommendations(executionRes.recommendations || []);
+        }
+
+    } catch (err) {
+        console.error('Performance load error:', err);
+    }
+}
+
+function calculateEstimatedSharpe(equityData) {
+    if (!equityData || !equityData.equityCurve || equityData.equityCurve.length < 2) return 0;
+
+    const returns = [];
+    for (let i = 1; i < equityData.equityCurve.length; i++) {
+        const prevEquity = equityData.equityCurve[i - 1].cumulative || 1000;
+        const currEquity = equityData.equityCurve[i].cumulative || 1000;
+        returns.push((currEquity - prevEquity) / prevEquity);
+    }
+
+    if (returns.length === 0) return 0;
+
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1);
+    const stdDev = Math.sqrt(variance);
+
+    if (stdDev === 0) return avgReturn > 0 ? 99 : 0;
+
+    // Annualized (assuming ~250 trades per year)
+    const annualizedReturn = avgReturn * 250;
+    const annualizedStdDev = stdDev * Math.sqrt(250);
+
+    return (annualizedReturn - 0.05) / annualizedStdDev; // 5% risk-free
+}
+
+function calculateMaxDrawdown(equityCurve) {
+    if (!equityCurve || equityCurve.length === 0) return 0;
+
+    let peak = 1000;
+    let maxDD = 0;
+
+    for (const point of equityCurve) {
+        const equity = point.equity || point.cumulative || 1000;
+        if (equity > peak) peak = equity;
+        const dd = (peak - equity) / peak;
+        if (dd > maxDD) maxDD = dd;
+    }
+
+    return maxDD;
+}
+
+function renderPerformanceEquityCurve(data) {
+    const container = document.getElementById('perf-equity-chart');
+    if (!container || !data || data.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">Keine Daten verfügbar</div>';
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth || 600;
+    canvas.height = 200;
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 20, right: 60, bottom: 30, left: 60 };
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+
+    // Prepare data
+    const equities = data.map(d => d.equity || d.cumulative || 1000);
+    const minEquity = Math.min(...equities) * 0.98;
+    const maxEquity = Math.max(...equities) * 1.02;
+    const range = maxEquity - minEquity || 1;
+
+    // Background
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Grid
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padding.top + (chartHeight / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(canvas.width - padding.right, y);
+        ctx.stroke();
+    }
+
+    // Y-Axis labels
+    ctx.fillStyle = '#555555';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+        const value = maxEquity - (range / 4) * i;
+        const y = padding.top + (chartHeight / 4) * i;
+        ctx.fillText('$' + value.toFixed(0), padding.left - 8, y + 4);
+    }
+
+    // Line
+    if (data.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < data.length; i++) {
+            const x = padding.left + (i / (data.length - 1)) * chartWidth;
+            const equity = data[i].equity || data[i].cumulative || 1000;
+            const y = padding.top + ((maxEquity - equity) / range) * chartHeight;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Fill
+        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+        ctx.lineTo(padding.left, padding.top + chartHeight);
+        ctx.closePath();
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
+        gradient.addColorStop(0, 'rgba(0, 255, 136, 0.15)');
+        gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
+
+    // Final value label
+    if (data.length > 0) {
+        const finalEquity = data[data.length - 1].equity || data[data.length - 1].cumulative || 1000;
+        const finalY = padding.top + ((maxEquity - finalEquity) / range) * chartHeight;
+        ctx.fillStyle = finalEquity >= 1000 ? '#00ff88' : '#ff3344';
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.textAlign = 'left';
+        ctx.fillText('$' + finalEquity.toFixed(0), canvas.width - padding.right + 5, finalY + 4);
+    }
+}
+
+function updateStreakStats(daily) {
+    // Current streak (simplified - would need trade history)
+    const wins = daily.wins || 0;
+    const losses = daily.losses || 0;
+
+    if (wins > 0 && losses === 0) {
+        document.getElementById('perf-streak').textContent = '+' + wins + ' W';
+        document.getElementById('perf-streak').className = 'data-value positive';
+    } else if (losses > 0 && wins === 0) {
+        document.getElementById('perf-streak').textContent = '-' + losses + ' L';
+        document.getElementById('perf-streak').className = 'data-value negative';
+    } else {
+        document.getElementById('perf-streak').textContent = 'Mixed';
+        document.getElementById('perf-streak').className = 'data-value';
+    }
+
+    // Avg Win/Loss
+    const avgWin = wins > 0 && daily.pnl > 0 ? daily.pnl / wins : 0;
+    const avgLoss = losses > 0 && daily.pnl < 0 ? Math.abs(daily.pnl) / losses : 0;
+    document.getElementById('perf-avg-win').textContent = '+$' + avgWin.toFixed(2);
+    document.getElementById('perf-avg-loss').textContent = '-$' + avgLoss.toFixed(2);
+
+    // Profit Factor
+    const grossProfit = avgWin * wins;
+    const grossLoss = avgLoss * losses;
+    const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : '--');
+    document.getElementById('perf-profit-factor').textContent = profitFactor;
+}
+
+function updateExecutionQualityDisplay(metrics) {
+    document.getElementById('perf-fill-rate').textContent = (metrics.fillRate * 100).toFixed(1) + '%';
+    document.getElementById('perf-avg-slippage').textContent = (metrics.avgActualSlippage * 100).toFixed(3) + '%';
+    document.getElementById('perf-exp-slippage').textContent = (metrics.avgExpectedSlippage * 100).toFixed(3) + '%';
+    document.getElementById('perf-slip-cost').textContent = '$' + (metrics.slippageCost || 0).toFixed(2);
+    document.getElementById('perf-latency').textContent = Math.round(metrics.avgTotalLatency || 0) + 'ms';
+    document.getElementById('perf-p95-latency').textContent = Math.round(metrics.p95Latency || 0) + 'ms';
+    document.getElementById('perf-price-improve').textContent = ((metrics.priceImprovementRate || 0) * 100).toFixed(0) + '%';
+
+    const accuracy = metrics.slippageAccuracy || 1;
+    const accuracyDisplay = accuracy < 1.5 && accuracy > 0.5 ? 'Good' : (accuracy >= 1.5 ? 'Under' : 'Over');
+    document.getElementById('perf-model-acc').textContent = accuracyDisplay;
+}
+
+function updateRecommendations(recommendations) {
+    const container = document.getElementById('perf-recommendations');
+    if (!recommendations || recommendations.length === 0) {
+        container.innerHTML = '<div style="color: var(--green-profit);">✓ Alle Systeme optimal</div>';
+        return;
+    }
+
+    container.innerHTML = recommendations.map((rec, i) => `
+        <div style="padding: 4px 0; ${i > 0 ? 'border-top: 1px solid var(--border-dim);' : ''}">
+            <span style="color: var(--amber-watch);">⚠</span> ${rec}
+        </div>
+    `).join('');
+}
+
+// Load performance when switching to view
+const origShowViewPerf = showView;
+showView = function(viewId) {
+    origShowViewPerf(viewId);
+    if (viewId === 'performance') {
+        loadPerformanceData();
+    }
+};
+
+// Auto-refresh performance every 60 seconds when on that view
+setInterval(() => {
+    if (document.getElementById('view-performance')?.classList.contains('active')) {
+        loadPerformanceData();
+    }
+}, 60000);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //                        PRICE CHARTS (Lightweight-Charts)
