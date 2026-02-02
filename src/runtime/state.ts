@@ -4,12 +4,22 @@
  *
  * WICHTIG: Dieser State ist das "Gehirn" des Systems.
  * Alle Kontrollen (Web, Telegram) ändern hier den Zustand.
+ *
+ * PERSISTENZ: Risk State wird in SQLite gespeichert und überlebt Server-Restarts.
+ * Kill-Switch, Daily PnL, Positions - alles bleibt erhalten.
  */
 
 import { EventEmitter } from 'events';
 import { ExecutionMode, AlphaEngine } from '../types/index.js';
 import { config, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
 import logger from '../utils/logger.js';
+import {
+  loadRiskState,
+  saveRiskState,
+  writeAuditLog,
+  type PersistedRiskState,
+  type AuditLogEntry,
+} from '../storage/repositories/riskState.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                         INTERFACES
@@ -75,49 +85,64 @@ export interface StateChangeEvent {
 
 class RuntimeStateManager extends EventEmitter {
   private state: RuntimeState;
+  private persistedState: PersistedRiskState | null = null;
 
   constructor() {
     super();
 
-    // Initialisiere mit Config-Werten
+    // Lade persistierten Risk State aus SQLite
+    let persisted: PersistedRiskState | null = null;
+    try {
+      persisted = loadRiskState();
+      this.persistedState = persisted;
+      logger.info('[RUNTIME] Risk State aus SQLite geladen');
+      logger.info(`[RUNTIME] Mode: ${persisted.executionMode}, Kill-Switch: ${persisted.killSwitchActive}, Daily PnL: ${persisted.dailyPnL.toFixed(2)}`);
+    } catch (err) {
+      logger.warn(`[RUNTIME] SQLite Risk State konnte nicht geladen werden: ${(err as Error).message}`);
+      logger.warn('[RUNTIME] Starte mit Default-Werten');
+    }
+
+    // Initialisiere mit Config-Werten, aber ÜBERSCHREIBE mit persistierten Werten
     this.state = {
-      // Execution Control
-      executionMode: config.executionMode,
+      // Execution Control - aus DB oder Config
+      executionMode: persisted?.executionMode || config.executionMode,
       alphaEngine: config.alphaEngine,
 
-      // Risk Control
-      killSwitchActive: false,
-      killSwitchReason: null,
-      killSwitchActivatedAt: null,
+      // Risk Control - KRITISCH: aus DB laden!
+      killSwitchActive: persisted?.killSwitchActive ?? false,
+      killSwitchReason: persisted?.killSwitchReason ?? null,
+      killSwitchActivatedAt: persisted?.killSwitchActivatedAt ?? null,
 
-      // Daily Risk Tracking
-      dailyPnL: 0,
-      dailyTrades: 0,
-      dailyWins: 0,
-      dailyLosses: 0,
+      // Daily Risk Tracking - aus DB laden!
+      dailyPnL: persisted?.dailyPnL ?? 0,
+      dailyTrades: persisted?.dailyTrades ?? 0,
+      dailyWins: persisted?.dailyWins ?? 0,
+      dailyLosses: persisted?.dailyLosses ?? 0,
 
-      // Position Tracking
-      openPositions: 0,
-      positionsPerMarket: new Map(),
-      totalExposure: 0,
+      // Position Tracking - aus DB laden!
+      openPositions: persisted ? Object.keys(persisted.positions).length : 0,
+      positionsPerMarket: persisted
+        ? new Map(Object.entries(persisted.positions).map(([k, v]) => [k, v.size]))
+        : new Map(),
+      totalExposure: persisted?.totalExposure ?? 0,
 
-      // Settings
-      maxBetUsdc: config.trading.maxBetUsdc,
-      riskPerTradePercent: config.trading.riskPerTradePercent,
-      minEdge: config.germany.minEdge * 100, // Als Prozent
-      minAlpha: config.trading.minAlphaForTrade * 100, // Als Prozent
-      minVolumeUsd: config.scanner.minVolumeUsd,
-      maxDailyLoss: 100, // Default
-      maxPositions: 10,
-      maxPerMarket: 50,
+      // Settings - aus DB oder Config
+      maxBetUsdc: persisted?.settings?.maxBetUsdc ?? config.trading.maxBetUsdc,
+      riskPerTradePercent: persisted?.settings?.riskPerTradePercent ?? config.trading.riskPerTradePercent,
+      minEdge: persisted?.settings?.minEdge ?? config.germany.minEdge * 100,
+      minAlpha: persisted?.settings?.minAlpha ?? config.trading.minAlphaForTrade * 100,
+      minVolumeUsd: persisted?.settings?.minVolumeUsd ?? config.scanner.minVolumeUsd,
+      maxDailyLoss: persisted?.settings?.maxDailyLoss ?? 100,
+      maxPositions: persisted?.settings?.maxPositions ?? 10,
+      maxPerMarket: persisted?.settings?.maxPerMarket ?? 50,
 
-      // System Health
+      // System Health - immer frisch starten
       lastScanAt: null,
       lastSignalAt: null,
       lastTradeAt: null,
       lastResetAt: new Date(),
 
-      // Pipeline Health
+      // Pipeline Health - immer frisch starten
       pipelineHealth: {
         polymarket: { healthy: true, lastSuccess: null, errorCount: 0 },
         rss: { healthy: true, lastSuccess: null, errorCount: 0 },
@@ -125,6 +150,12 @@ class RuntimeStateManager extends EventEmitter {
         telegram: { healthy: true, lastSuccess: null, errorCount: 0 },
       },
     };
+
+    // Log wenn Kill-Switch aktiv aus DB geladen wurde
+    if (this.state.killSwitchActive) {
+      logger.warn(`[RUNTIME] ⚠️ KILL-SWITCH WAR AKTIV: ${this.state.killSwitchReason}`);
+      logger.warn(`[RUNTIME] Aktiviert seit: ${this.state.killSwitchActivatedAt?.toISOString()}`);
+    }
 
     // Täglicher Reset um Mitternacht
     this.scheduleDailyReset();
@@ -234,6 +265,18 @@ class RuntimeStateManager extends EventEmitter {
     this.state.executionMode = mode;
     this.emitChange('executionMode', oldMode, mode, source);
 
+    // PERSISTIEREN in SQLite
+    this.persistRiskState();
+
+    // AUDIT LOG
+    this.writeAudit({
+      eventType: 'mode_change',
+      actor: source,
+      action: `Execution Mode gewechselt: ${oldMode} → ${mode}`,
+      riskStateBefore: { executionMode: oldMode as 'paper' | 'shadow' | 'live' },
+      riskStateAfter: { executionMode: mode as 'paper' | 'shadow' | 'live' },
+    });
+
     return {
       success: true,
       message: `Execution Mode gewechselt: ${oldMode} → ${mode}`,
@@ -261,12 +304,24 @@ class RuntimeStateManager extends EventEmitter {
 
     logger.warn(`[KILL-SWITCH] AKTIVIERT: ${reason} (via ${source})`);
     this.emit('killSwitchActivated', { reason, source });
+
+    // PERSISTIEREN - KRITISCH: Kill-Switch muss Restart überleben!
+    this.persistRiskState();
+
+    // AUDIT LOG
+    this.writeAudit({
+      eventType: 'kill_switch',
+      actor: source,
+      action: `KILL-SWITCH AKTIVIERT: ${reason}`,
+      riskStateBefore: { killSwitchActive: false },
+      riskStateAfter: { killSwitchActive: true, killSwitchReason: reason },
+    });
   }
 
   deactivateKillSwitch(source: StateChangeEvent['source'] = 'api'): void {
     if (!this.state.killSwitchActive) return;
 
-    const reason = this.state.killSwitchReason;
+    const previousReason = this.state.killSwitchReason;
     this.state.killSwitchActive = false;
     this.state.killSwitchReason = null;
     this.state.killSwitchActivatedAt = null;
@@ -274,7 +329,19 @@ class RuntimeStateManager extends EventEmitter {
     this.emitChange('killSwitchActive', true, false, source);
 
     logger.info(`[KILL-SWITCH] Deaktiviert (via ${source})`);
-    this.emit('killSwitchDeactivated', { previousReason: reason, source });
+    this.emit('killSwitchDeactivated', { previousReason, source });
+
+    // PERSISTIEREN
+    this.persistRiskState();
+
+    // AUDIT LOG
+    this.writeAudit({
+      eventType: 'kill_switch',
+      actor: source,
+      action: `KILL-SWITCH DEAKTIVIERT (vorheriger Grund: ${previousReason})`,
+      riskStateBefore: { killSwitchActive: true, killSwitchReason: previousReason },
+      riskStateAfter: { killSwitchActive: false },
+    });
   }
 
   toggleKillSwitch(source: StateChangeEvent['source'] = 'api'): boolean {
@@ -291,7 +358,10 @@ class RuntimeStateManager extends EventEmitter {
   // RISK TRACKING
   // ─────────────────────────────────────────────────────────────
 
-  recordTrade(pnl: number, marketId: string, sizeUsdc: number): void {
+  recordTrade(pnl: number, marketId: string, sizeUsdc: number, signalId?: string): void {
+    const previousPnL = this.state.dailyPnL;
+    const previousTrades = this.state.dailyTrades;
+
     // PnL aktualisieren
     this.state.dailyPnL += pnl;
     this.state.dailyTrades += 1;
@@ -309,6 +379,21 @@ class RuntimeStateManager extends EventEmitter {
 
     this.state.lastTradeAt = new Date();
 
+    // PERSISTIEREN - Jeder Trade wird gespeichert
+    this.persistRiskState();
+
+    // AUDIT LOG - Jeder Trade auditierbar
+    this.writeAudit({
+      eventType: 'trade',
+      actor: 'system',
+      action: `Trade ausgeführt: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDC auf Markt ${marketId}`,
+      marketId,
+      signalId,
+      pnlImpact: pnl,
+      riskStateBefore: { dailyPnL: previousPnL, dailyTrades: previousTrades },
+      riskStateAfter: { dailyPnL: this.state.dailyPnL, dailyTrades: this.state.dailyTrades },
+    });
+
     // Auto Kill-Switch bei großem Verlust
     if (this.state.dailyPnL <= -this.state.maxDailyLoss) {
       this.activateKillSwitch(
@@ -325,13 +410,19 @@ class RuntimeStateManager extends EventEmitter {
     this.state.positionsPerMarket.delete(marketId);
     this.state.totalExposure -= exposure;
     this.state.openPositions = Math.max(0, this.state.openPositions - 1);
+
+    // PERSISTIEREN
+    this.persistRiskState();
   }
 
-  openPosition(marketId: string, sizeUsdc: number): void {
+  openPosition(marketId: string, sizeUsdc: number, direction: 'yes' | 'no' = 'yes', entryPrice: number = 0): void {
     const current = this.state.positionsPerMarket.get(marketId) || 0;
     this.state.positionsPerMarket.set(marketId, current + sizeUsdc);
     this.state.openPositions += 1;
     this.state.totalExposure += sizeUsdc;
+
+    // PERSISTIEREN mit vollständigen Position-Details
+    this.persistRiskState(marketId, { size: sizeUsdc, entryPrice, direction });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -343,13 +434,29 @@ class RuntimeStateManager extends EventEmitter {
     'maxDailyLoss' | 'maxPositions' | 'maxPerMarket'
   >>, source: StateChangeEvent['source'] = 'api'): void {
     type SettingsKey = 'maxBetUsdc' | 'riskPerTradePercent' | 'minEdge' | 'minAlpha' | 'minVolumeUsd' | 'maxDailyLoss' | 'maxPositions' | 'maxPerMarket';
+    const changes: Record<string, { old: number; new: number }> = {};
+
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined && key in this.state) {
         const typedKey = key as SettingsKey;
         const oldValue = this.state[typedKey];
         this.state[typedKey] = value;
         this.emitChange(key, oldValue, value, source);
+        changes[key] = { old: oldValue, new: value };
       }
+    }
+
+    // PERSISTIEREN
+    this.persistRiskState();
+
+    // AUDIT LOG
+    if (Object.keys(changes).length > 0) {
+      this.writeAudit({
+        eventType: 'settings',
+        actor: source,
+        action: `Settings geändert: ${Object.entries(changes).map(([k, v]) => `${k}: ${v.old} → ${v.new}`).join(', ')}`,
+        details: changes,
+      });
     }
   }
 
@@ -388,6 +495,8 @@ class RuntimeStateManager extends EventEmitter {
   resetDaily(): void {
     const previousPnL = this.state.dailyPnL;
     const previousTrades = this.state.dailyTrades;
+    const previousWins = this.state.dailyWins;
+    const previousLosses = this.state.dailyLosses;
 
     this.state.dailyPnL = 0;
     this.state.dailyTrades = 0;
@@ -397,6 +506,34 @@ class RuntimeStateManager extends EventEmitter {
 
     // Kill-Switch NICHT automatisch deaktivieren - das muss manuell passieren
     // this.state.killSwitchActive = false;
+
+    // PERSISTIEREN - Resetten auch in DB
+    this.persistRiskState();
+
+    // AUDIT LOG
+    this.writeAudit({
+      eventType: 'daily_reset',
+      actor: 'scheduler',
+      action: `Täglicher Reset durchgeführt`,
+      details: {
+        previousPnL,
+        previousTrades,
+        previousWins,
+        previousLosses,
+      },
+      riskStateBefore: {
+        dailyPnL: previousPnL,
+        dailyTrades: previousTrades,
+        dailyWins: previousWins,
+        dailyLosses: previousLosses,
+      },
+      riskStateAfter: {
+        dailyPnL: 0,
+        dailyTrades: 0,
+        dailyWins: 0,
+        dailyLosses: 0,
+      },
+    });
 
     logger.info(`[RUNTIME] Täglicher Reset: PnL ${previousPnL.toFixed(2)} → 0, Trades ${previousTrades} → 0`);
     this.emit('dailyReset', { previousPnL, previousTrades });
@@ -417,6 +554,92 @@ class RuntimeStateManager extends EventEmitter {
     }, msUntilMidnight);
 
     logger.info(`[RUNTIME] Täglicher Reset geplant in ${Math.round(msUntilMidnight / 1000 / 60)} Minuten`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      PERSISTENCE (SQLite)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Persistiere aktuellen Risk State in SQLite
+   * Wird bei JEDER relevanten State-Änderung aufgerufen
+   */
+  private persistRiskState(newPositionMarketId?: string, newPosition?: { size: number; entryPrice: number; direction: 'yes' | 'no' }): void {
+    try {
+      // Positions in DB-Format konvertieren
+      const positions: Record<string, { size: number; entryPrice: number; direction: 'yes' | 'no' }> =
+        this.persistedState?.positions || {};
+
+      // Existierende Positions aus Memory aktualisieren
+      for (const [marketId, size] of this.state.positionsPerMarket.entries()) {
+        if (positions[marketId]) {
+          positions[marketId].size = size;
+        }
+      }
+
+      // Neue Position hinzufügen wenn angegeben
+      if (newPositionMarketId && newPosition) {
+        positions[newPositionMarketId] = newPosition;
+      }
+
+      // Geschlossene Positions entfernen
+      for (const marketId of Object.keys(positions)) {
+        if (!this.state.positionsPerMarket.has(marketId)) {
+          delete positions[marketId];
+        }
+      }
+
+      // Settings in DB-Format
+      const settings: Record<string, number> = {
+        maxBetUsdc: this.state.maxBetUsdc,
+        riskPerTradePercent: this.state.riskPerTradePercent,
+        minEdge: this.state.minEdge,
+        minAlpha: this.state.minAlpha,
+        minVolumeUsd: this.state.minVolumeUsd,
+        maxDailyLoss: this.state.maxDailyLoss,
+        maxPositions: this.state.maxPositions,
+        maxPerMarket: this.state.maxPerMarket,
+      };
+
+      // In SQLite speichern
+      saveRiskState({
+        executionMode: this.state.executionMode as 'paper' | 'shadow' | 'live',
+        killSwitchActive: this.state.killSwitchActive,
+        killSwitchReason: this.state.killSwitchReason,
+        killSwitchActivatedAt: this.state.killSwitchActivatedAt,
+        dailyPnL: this.state.dailyPnL,
+        dailyTrades: this.state.dailyTrades,
+        dailyWins: this.state.dailyWins,
+        dailyLosses: this.state.dailyLosses,
+        totalExposure: this.state.totalExposure,
+        positions,
+        settings,
+      });
+
+      // Lokalen Cache aktualisieren
+      if (this.persistedState) {
+        this.persistedState.positions = positions;
+        this.persistedState.settings = settings;
+      }
+
+      logger.debug('[RUNTIME] Risk State in SQLite persistiert');
+    } catch (err) {
+      logger.error(`[RUNTIME] Fehler beim Persistieren des Risk State: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Schreibe Audit-Log Eintrag
+   */
+  private writeAudit(entry: Omit<AuditLogEntry, 'actor'> & { actor: StateChangeEvent['source'] | AuditLogEntry['actor'] }): void {
+    try {
+      writeAuditLog({
+        ...entry,
+        actor: entry.actor as AuditLogEntry['actor'],
+      });
+    } catch (err) {
+      logger.error(`[RUNTIME] Fehler beim Schreiben des Audit-Logs: ${(err as Error).message}`);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

@@ -144,3 +144,56 @@ CREATE TABLE IF NOT EXISTS meta_combiner_state (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_combiner_updated ON meta_combiner_state(updated_at);
+
+-- risk_state (PERSISTENT - überlebt Restarts)
+CREATE TABLE IF NOT EXISTS risk_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),  -- Singleton: nur eine Zeile
+  execution_mode TEXT NOT NULL DEFAULT 'paper',
+  kill_switch_active INTEGER NOT NULL DEFAULT 0,
+  kill_switch_reason TEXT,
+  kill_switch_activated_at TEXT,
+  daily_pnl REAL NOT NULL DEFAULT 0,
+  daily_trades INTEGER NOT NULL DEFAULT 0,
+  daily_wins INTEGER NOT NULL DEFAULT 0,
+  daily_losses INTEGER NOT NULL DEFAULT 0,
+  daily_date TEXT NOT NULL,  -- Format: YYYY-MM-DD
+  total_exposure REAL NOT NULL DEFAULT 0,
+  positions TEXT NOT NULL DEFAULT '{}',  -- JSON: {marketId: {size, entryPrice, direction}}
+  settings TEXT NOT NULL DEFAULT '{}',   -- JSON: Runtime-Settings
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- audit_log (COMPLIANCE - jede Entscheidung auditierbar)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,  -- 'trade', 'mode_change', 'kill_switch', 'settings', 'login', 'error'
+  actor TEXT NOT NULL,       -- 'web', 'telegram', 'system', 'scheduler'
+  action TEXT NOT NULL,      -- Human-readable Beschreibung
+  details TEXT,              -- JSON: Zusätzliche Daten
+  market_id TEXT,            -- Optional: betroffener Markt
+  signal_id TEXT,            -- Optional: betroffenes Signal
+  pnl_impact REAL,           -- Optional: PnL-Auswirkung
+  risk_state_before TEXT,    -- JSON: Risk State vor Aktion
+  risk_state_after TEXT,     -- JSON: Risk State nach Aktion
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_log(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_market ON audit_log(market_id);
+
+-- price_history (lokaler Cache für Charts)
+CREATE TABLE IF NOT EXISTS price_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  market_id TEXT NOT NULL,
+  token_id TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,  -- Unix timestamp in ms
+  price REAL NOT NULL,
+  volume REAL,
+  source TEXT DEFAULT 'polymarket',
+  fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_price_market ON price_history(market_id);
+CREATE INDEX IF NOT EXISTS idx_price_token ON price_history(token_id);
+CREATE INDEX IF NOT EXISTS idx_price_ts ON price_history(timestamp);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_unique ON price_history(token_id, timestamp);
