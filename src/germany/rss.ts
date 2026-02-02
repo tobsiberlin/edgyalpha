@@ -25,10 +25,13 @@ export interface RSSFeed {
   category: 'politics' | 'economics' | 'sports' | 'geopolitics' | 'tech' | 'crypto';
 }
 
-// Kuratierte, stabile Feeds - getestet und zuverlässig
+// ═══════════════════════════════════════════════════════════════
+// DEUTSCHE FEEDS - NUR ECHTE DEUTSCHE QUELLEN!
+// Diese werden im "Deutsche News" Bereich angezeigt
+// ═══════════════════════════════════════════════════════════════
 export const WORKING_RSS_FEEDS: RSSFeed[] = [
   // ═══════════════════════════════════════════════════════════════
-  // DEUTSCHE POLITIK (10 Quellen)
+  // DEUTSCHE POLITIK (12 Quellen)
   // ═══════════════════════════════════════════════════════════════
   { url: 'https://www.tagesschau.de/xml/rss2/', name: 'Tagesschau', category: 'politics' },
   { url: 'https://www.tagesschau.de/inland/index~rss2.xml', name: 'Tagesschau Inland', category: 'politics' },
@@ -37,35 +40,69 @@ export const WORKING_RSS_FEEDS: RSSFeed[] = [
   { url: 'https://newsfeed.zeit.de/politik/index', name: 'Zeit Politik', category: 'politics' },
   { url: 'https://www.faz.net/rss/aktuell/politik/', name: 'FAZ Politik', category: 'politics' },
   { url: 'https://www.welt.de/feeds/section/politik.rss', name: 'Welt Politik', category: 'politics' },
-  { url: 'https://www.n-tv.de/rss/politik', name: 'n-tv Politik', category: 'politics' },
+  { url: 'https://www.n-tv.de/rss', name: 'n-tv', category: 'politics' },
   { url: 'https://rss.dw.com/xml/rss-de-all', name: 'DW Deutsch', category: 'politics' },
   { url: 'https://www.bundesregierung.de/breg-de/service/rss/992816', name: 'Bundesregierung', category: 'politics' },
+  { url: 'https://www.zeit.de/news/index', name: 'Zeit News', category: 'politics' },
+  { url: 'https://www.welt.de/feeds/latest.rss', name: 'Welt Aktuell', category: 'politics' },
 
   // ═══════════════════════════════════════════════════════════════
-  // WIRTSCHAFT & FINANZEN (8 Quellen)
+  // DEUTSCHE WIRTSCHAFT & FINANZEN (8 Quellen)
   // ═══════════════════════════════════════════════════════════════
   { url: 'https://www.handelsblatt.com/contentexport/feed/top-themen/', name: 'Handelsblatt', category: 'economics' },
   { url: 'https://www.faz.net/rss/aktuell/wirtschaft/', name: 'FAZ Wirtschaft', category: 'economics' },
   { url: 'https://www.faz.net/rss/aktuell/finanzen/', name: 'FAZ Finanzen', category: 'economics' },
   { url: 'https://www.manager-magazin.de/rss/manager-magazin.rss', name: 'Manager Magazin', category: 'economics' },
+  { url: 'https://www.wiwo.de/rss/wiwo-news.rss', name: 'Wirtschaftswoche', category: 'economics' },
+  { url: 'https://www.capital.de/rss/index.rss', name: 'Capital', category: 'economics' },
+  { url: 'https://www.spiegel.de/wirtschaft/index.rss', name: 'Spiegel Wirtschaft', category: 'economics' },
+  { url: 'https://www.welt.de/feeds/section/wirtschaft.rss', name: 'Welt Wirtschaft', category: 'economics' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // DEUTSCHER SPORT (6 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.kicker.de/rss/news', name: 'Kicker', category: 'sports' },
+  { url: 'https://www.sportschau.de/index~rss.xml', name: 'Sportschau', category: 'sports' },
+  { url: 'https://www.sport1.de/rss/fussball', name: 'Sport1', category: 'sports' },
+  { url: 'https://www.spox.com/rss/fussball-news.xml', name: 'Spox', category: 'sports' },
+  { url: 'https://www.kicker.de/rss/bundesliga', name: 'Kicker Bundesliga', category: 'sports' },
+  { url: 'https://www.transfermarkt.de/rss/news', name: 'Transfermarkt', category: 'sports' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // DEUTSCHE TECH (4 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.heise.de/rss/heise-atom.xml', name: 'Heise', category: 'tech' },
+  { url: 'https://rss.golem.de/rss.php?feed=RSS2.0', name: 'Golem', category: 'tech' },
+  { url: 'https://t3n.de/rss.xml', name: 't3n', category: 'tech' },
+  { url: 'https://www.chip.de/rss/rss_topnews.xml', name: 'Chip', category: 'tech' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // DEUTSCHE AUSLANDSNACHRICHTEN / GEOPOLITIK (4 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.tagesschau.de/ausland/index~rss2.xml', name: 'Tagesschau Ausland', category: 'geopolitics' },
+  { url: 'https://www.spiegel.de/ausland/index.rss', name: 'Spiegel Ausland', category: 'geopolitics' },
+  { url: 'https://www.faz.net/rss/aktuell/politik/ausland/', name: 'FAZ Ausland', category: 'geopolitics' },
+  { url: 'https://www.zeit.de/politik/ausland/index', name: 'Zeit Ausland', category: 'geopolitics' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// INTERNATIONALE FEEDS - Für Geopolitik-Matching & Alpha-Detection
+// Werden NICHT im "Deutsche News" Bereich angezeigt!
+// ═══════════════════════════════════════════════════════════════
+export const INTERNATIONAL_RSS_FEEDS: RSSFeed[] = [
+  // Wirtschaft International
   { url: 'https://feeds.reuters.com/reuters/businessNews', name: 'Reuters Business', category: 'economics' },
   { url: 'https://feeds.bloomberg.com/markets/news.rss', name: 'Bloomberg', category: 'economics' },
   { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', name: 'MarketWatch', category: 'economics' },
   { url: 'https://www.ecb.europa.eu/rss/press.html', name: 'ECB News', category: 'economics' },
 
-  // ═══════════════════════════════════════════════════════════════
-  // SPORT (6 Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { url: 'https://www.kicker.de/rss/news', name: 'Kicker', category: 'sports' },
-  { url: 'https://www.sportschau.de/index~rss.xml', name: 'Sportschau', category: 'sports' },
+  // Sport International
   { url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', name: 'BBC Sport Football', category: 'sports' },
   { url: 'https://www.theguardian.com/football/rss', name: 'Guardian Football', category: 'sports' },
   { url: 'https://www.skysports.com/rss/12040', name: 'Sky Sports Football', category: 'sports' },
   { url: 'https://www.espn.com/espn/rss/soccer/news', name: 'ESPN FC', category: 'sports' },
 
-  // ═══════════════════════════════════════════════════════════════
-  // GEOPOLITIK & INTERNATIONAL (10 Quellen)
-  // ═══════════════════════════════════════════════════════════════
+  // Geopolitik International
   { url: 'https://feeds.reuters.com/reuters/worldNews', name: 'Reuters World', category: 'geopolitics' },
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', category: 'geopolitics' },
   { url: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml', name: 'BBC Europe', category: 'geopolitics' },
@@ -77,11 +114,7 @@ export const WORKING_RSS_FEEDS: RSSFeed[] = [
   { url: 'https://kyivindependent.com/feed/', name: 'Kyiv Independent', category: 'geopolitics' },
   { url: 'https://meduza.io/rss/en/all', name: 'Meduza EN', category: 'geopolitics' },
 
-  // ═══════════════════════════════════════════════════════════════
-  // TECH & CRYPTO (6 Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { url: 'https://www.heise.de/rss/heise-atom.xml', name: 'Heise', category: 'tech' },
-  { url: 'https://rss.golem.de/rss.php?feed=RSS2.0', name: 'Golem', category: 'tech' },
+  // Tech & Crypto International
   { url: 'https://techcrunch.com/feed/', name: 'TechCrunch', category: 'tech' },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', name: 'CoinDesk', category: 'crypto' },
   { url: 'https://cointelegraph.com/rss', name: 'CoinTelegraph', category: 'crypto' },
@@ -410,6 +443,8 @@ export async function fetchRSSFeed(
 
 export interface FetchAllOptions {
   includeExperimental?: boolean;
+  includeInternational?: boolean;  // NEU: Internationale Feeds einbeziehen
+  germanOnly?: boolean;            // NEU: NUR deutsche Feeds (für "Deutsche News")
   maxConcurrent?: number;
   timeout?: number;
   categories?: string[];
@@ -418,6 +453,8 @@ export interface FetchAllOptions {
 export async function fetchAllRSSFeeds(options: FetchAllOptions = {}): Promise<BatchFetchResult> {
   const {
     includeExperimental = false,
+    includeInternational = false,
+    germanOnly = false,
     maxConcurrent = 10,
     timeout = 8000,
     categories,
@@ -426,9 +463,20 @@ export async function fetchAllRSSFeeds(options: FetchAllOptions = {}): Promise<B
   const startTime = Date.now();
 
   // Feeds zusammenstellen
-  let feeds = [...WORKING_RSS_FEEDS];
-  if (includeExperimental) {
-    feeds = [...feeds, ...EXPERIMENTAL_RSS_FEEDS];
+  let feeds: RSSFeed[] = [];
+
+  if (germanOnly) {
+    // NUR deutsche Quellen - für "Deutsche News" Bereich
+    feeds = [...WORKING_RSS_FEEDS];
+  } else {
+    // Standard: Deutsche + optionale Erweiterungen
+    feeds = [...WORKING_RSS_FEEDS];
+    if (includeInternational) {
+      feeds = [...feeds, ...INTERNATIONAL_RSS_FEEDS];
+    }
+    if (includeExperimental) {
+      feeds = [...feeds, ...EXPERIMENTAL_RSS_FEEDS];
+    }
   }
 
   // Optional: Nach Kategorie filtern
@@ -501,7 +549,7 @@ export async function fetchAllRSSFeeds(options: FetchAllOptions = {}): Promise<B
 // ═══════════════════════════════════════════════════════════════
 
 export function getFeedHealth(): FeedHealth[] {
-  const allFeeds = [...WORKING_RSS_FEEDS, ...EXPERIMENTAL_RSS_FEEDS];
+  const allFeeds = [...WORKING_RSS_FEEDS, ...INTERNATIONAL_RSS_FEEDS, ...EXPERIMENTAL_RSS_FEEDS];
 
   return allFeeds.map(feed => {
     const health = feedHealthMap.get(feed.url);
@@ -591,6 +639,7 @@ export function newsItemsToGermanSources(items: NewsItem[]): GermanSource[] {
 
 export default {
   WORKING_RSS_FEEDS,
+  INTERNATIONAL_RSS_FEEDS,
   EXPERIMENTAL_RSS_FEEDS,
   fetchRSSFeed,
   fetchAllRSSFeeds,

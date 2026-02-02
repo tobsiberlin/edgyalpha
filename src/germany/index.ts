@@ -13,6 +13,7 @@ import {
   WORKING_RSS_FEEDS,
 } from './rss.js';
 import { getDatabase, initDatabase, isDatabaseInitialized } from '../storage/db.js';
+import { runtimeState } from '../runtime/state.js';
 
 // ═══════════════════════════════════════════════════════════════
 // PERSISTENT SEEN NEWS HASHES (verhindert Push-Storm nach Restart)
@@ -577,15 +578,31 @@ class GermanySources extends EventEmitter {
 
   // Delta-Detection: Nur NEUE News erkennen und Events emittieren
   // Nutzt jetzt die robuste fetchAllRSSFeeds aus ./rss.ts
+  // NUR DEUTSCHE QUELLEN für Breaking News Detection!
   private async fetchRSSFeedsWithDelta(emitEvents: boolean): Promise<void> {
     const breakingNews: BreakingNewsEvent[] = [];
 
-    // Nutze die neue robuste RSS-Fetch-Logik mit Health-Tracking
-    const result = await fetchAllRSSFeeds({
-      includeExperimental: true, // Nur stabile Feeds fuer Event-Listener
-      maxConcurrent: 10,
-      timeout: 8000,
-    });
+    let result;
+    try {
+      // NUR DEUTSCHE QUELLEN für Breaking News Detection!
+      result = await fetchAllRSSFeeds({
+        germanOnly: true,  // NUR deutsche Quellen!
+        maxConcurrent: 10,
+        timeout: 8000,
+      });
+
+      // Pipeline Success tracken wenn mindestens ein Feed erfolgreich
+      if (result.successfulFeeds > 0) {
+        runtimeState.recordPipelineSuccess('rss');
+      } else if (result.totalFeeds > 0) {
+        runtimeState.recordPipelineError('rss', `0/${result.totalFeeds} Feeds erfolgreich`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`RSS Delta-Fetch Fehler: ${error.message}`);
+      runtimeState.recordPipelineError('rss', error.message);
+      return;
+    }
 
     // Konvertiere NewsItems zu GermanSource
     const allNews = newsItemsToGermanSources(result.items);
@@ -701,9 +718,15 @@ class GermanySources extends EventEmitter {
       const polls = await fetchDawumPolls();
       this.cachedPolls = polls.slice(0, 20);
       logger.debug(`Dawum: ${this.cachedPolls.length} Bundestag-Umfragen geladen`);
+
+      // Pipeline Success tracken
+      if (this.cachedPolls.length > 0) {
+        runtimeState.recordPipelineSuccess('dawum');
+      }
     } catch (err) {
       const error = err as Error;
       logger.error(`Dawum Fehler: ${error.message}`);
+      runtimeState.recordPipelineError('dawum', error.message);
     }
   }
 
@@ -754,22 +777,35 @@ class GermanySources extends EventEmitter {
   }
 
   async fetchRSSFeeds(): Promise<void> {
-    // Nutze die neue robuste RSS-Fetch-Logik
-    const result = await fetchAllRSSFeeds({
-      includeExperimental: true, // Nur stabile, kuratierte Feeds
-      maxConcurrent: 10,
-      timeout: 8000,
-    });
+    try {
+      // NUR DEUTSCHE QUELLEN für den Cache - keine internationalen!
+      const result = await fetchAllRSSFeeds({
+        germanOnly: true,  // NUR deutsche Quellen für "Deutsche News"!
+        maxConcurrent: 10,
+        timeout: 8000,
+      });
 
-    // Konvertiere NewsItems zu GermanSource Format
-    this.cachedNews = newsItemsToGermanSources(result.items);
+      // Konvertiere NewsItems zu GermanSource Format
+      this.cachedNews = newsItemsToGermanSources(result.items);
 
-    const healthSummary = getHealthSummary();
-    logger.debug(
-      `RSS: ${result.uniqueItems} Artikel geladen ` +
-      `(${result.successfulFeeds}/${result.totalFeeds} Feeds OK, ` +
-      `${healthSummary.avgSuccessRate}% Erfolgsrate)`
-    );
+      const healthSummary = getHealthSummary();
+      logger.debug(
+        `RSS (NUR DEUTSCH): ${result.uniqueItems} Artikel geladen ` +
+        `(${result.successfulFeeds}/${result.totalFeeds} Feeds OK, ` +
+        `${healthSummary.avgSuccessRate}% Erfolgsrate)`
+      );
+
+      // Pipeline Success tracken wenn mindestens ein Feed erfolgreich
+      if (result.successfulFeeds > 0) {
+        runtimeState.recordPipelineSuccess('rss');
+      } else if (result.totalFeeds > 0) {
+        runtimeState.recordPipelineError('rss', `0/${result.totalFeeds} Feeds erfolgreich`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`RSS Fehler: ${error.message}`);
+      runtimeState.recordPipelineError('rss', error.message);
+    }
   }
 
   async matchMarketsWithGermanData(

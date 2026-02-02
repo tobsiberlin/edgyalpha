@@ -132,7 +132,9 @@ export class TelegramAlertBot extends EventEmitter {
       this.setupScannerEvents();
 
       logger.info('Telegram Bot gestartet');
-      await this.sendWelcome();
+      // KEIN automatisches sendWelcome() mehr!
+      // Das Menü wird nur gesendet wenn User /start oder /menu eingibt.
+      // Verhindert Spam bei Prozess-Restarts.
     } catch (err) {
       const error = err as Error;
       logger.error(`Telegram Bot Fehler: ${error.message}`);
@@ -1178,17 +1180,17 @@ ${pollBars}\`\`\``;
     // Hole gecachte News
     let news = germanySources.getLatestNews();
 
-    // Falls Cache leer, direkt fetchen
+    // Falls Cache leer, direkt fetchen - NUR DEUTSCHE QUELLEN!
     if (news.length === 0) {
-      logger.info('[TELEGRAM] News cache leer - fetche direkt von RSS...');
+      logger.info('[TELEGRAM] News cache leer - fetche NUR DEUTSCHE QUELLEN...');
       try {
         const result = await fetchAllRSSFeeds({
-          includeExperimental: true,
+          germanOnly: true,  // NUR deutsche Quellen für "Deutsche News"!
           maxConcurrent: 15,
           timeout: 10000,
         });
         news = newsItemsToGermanSources(result.items);
-        logger.info(`[TELEGRAM] ${news.length} News direkt gefetcht`);
+        logger.info(`[TELEGRAM] ${news.length} deutsche News direkt gefetcht`);
       } catch (err) {
         logger.error(`[TELEGRAM] RSS-Fetch Fehler: ${(err as Error).message}`);
       }
@@ -3037,8 +3039,12 @@ ${detailLines}`;
         parse_mode: 'Markdown',
         disable_web_page_preview: true,
       });
+      // Pipeline Success: Telegram Nachricht erfolgreich gesendet
+      runtimeState.recordPipelineSuccess('telegram');
     } catch (err) {
-      logger.error(`Telegram Nachricht Fehler: ${(err as Error).message}`);
+      const error = err as Error;
+      logger.error(`Telegram Nachricht Fehler: ${error.message}`);
+      runtimeState.recordPipelineError('telegram', error.message);
     }
   }
 
