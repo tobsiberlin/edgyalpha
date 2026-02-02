@@ -10,6 +10,7 @@ import { Market } from '../types/index.js';
 import { fuzzyMatch, MatchResult, extractKeywords } from './matching.js';
 import { eventExists, getEventByHash } from '../storage/repositories/events.js';
 import logger from '../utils/logger.js';
+import { autoTrader, AutoTradeResult } from './autoTrader.js';
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -21,6 +22,7 @@ export interface TimeDelayConfig {
   minMatchConfidence: number;    // Min. Match-Confidence (default: 0.3)
   maxPriceMoveSinceNews: number; // Blocke wenn Markt schon > X% bewegt (default: 0.05)
   minSourceReliability: number;  // Oder hohe Reliability statt multi-source (default: 0.8)
+  autoTradeEnabled: boolean;     // Auto-Trade bei breaking_confirmed (default: false)
 }
 
 export const DEFAULT_TIME_DELAY_CONFIG: TimeDelayConfig = {
@@ -29,6 +31,7 @@ export const DEFAULT_TIME_DELAY_CONFIG: TimeDelayConfig = {
   minMatchConfidence: 0.3,
   maxPriceMoveSinceNews: 0.05,
   minSourceReliability: 0.8,
+  autoTradeEnabled: false,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -215,6 +218,30 @@ export class TimeDelayEngine {
         `| confidence=${confidence.toFixed(2)} | certainty=${certainty} ${certaintyEmoji}` +
         `| sources=${matchedEvents.length}`
       );
+
+      // ═══════════════════════════════════════════════════════════════
+      // AUTO-TRADE BEI BREAKING_CONFIRMED
+      // Speed ist essentiell - Zeitvorsprung nur wertvoll wenn wir schnell handeln!
+      // ═══════════════════════════════════════════════════════════════
+      if (certainty === 'breaking_confirmed' && this.config.autoTradeEnabled) {
+        logger.warn(`[AUTO-TRADE] BREAKING_CONFIRMED detected - prüfe Auto-Trade für ${market.question.substring(0, 40)}...`);
+
+        // MarketQuality aus Market-Daten erstellen
+        const marketQuality: MarketQuality = {
+          marketId: market.id,
+          liquidityScore: Math.min(1, (market.liquidity || 0) / 100000), // Normalisiert auf 0-1
+          spreadProxy: 0.02, // Default Spread
+          volume24h: market.volume24h || 0,
+          volatility: 0.1, // Default Volatility
+          tradeable: true,
+          reasons: [],
+        };
+
+        // Async Auto-Trade (nicht blockierend)
+        this.processAutoTrade(signal, marketQuality).catch(err => {
+          logger.error(`[AUTO-TRADE] Fehler: ${(err as Error).message}`);
+        });
+      }
     }
 
     // Nach Edge sortieren (beste zuerst)
@@ -223,6 +250,27 @@ export class TimeDelayEngine {
     logger.info(`TimeDelayEngine: ${signals.length} Signale generiert`);
 
     return signals;
+  }
+
+  /**
+   * Verarbeitet Auto-Trade für ein Signal
+   * WICHTIG: Geschwindigkeit ist kritisch!
+   */
+  private async processAutoTrade(signal: AlphaSignalV2, marketQuality: MarketQuality): Promise<AutoTradeResult | null> {
+    try {
+      const result = await autoTrader.processSignal(signal, marketQuality);
+
+      if (result.executed) {
+        logger.warn(`[AUTO-TRADE] ✅ ERFOLG: ${signal.question.substring(0, 40)}... | ${signal.direction.toUpperCase()} | Edge: ${(signal.predictedEdge * 100).toFixed(1)}%`);
+      } else {
+        logger.info(`[AUTO-TRADE] ❌ Nicht ausgeführt: ${result.reason}`);
+      }
+
+      return result;
+    } catch (err) {
+      logger.error(`[AUTO-TRADE] Exception: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /**

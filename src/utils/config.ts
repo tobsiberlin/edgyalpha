@@ -52,6 +52,11 @@ const envSchema = z.object({
   EXECUTION_MODE: z.enum(['paper', 'shadow', 'live']).default('paper'),
   SQLITE_PATH: z.string().default('./data/edgyalpha.db'),
   BACKTEST_MODE: z.string().default('false'),
+
+  // Auto-Trading bei Breaking News
+  AUTO_TRADE_ENABLED: z.string().default('false'),
+  AUTO_TRADE_MIN_EDGE: z.string().default('0.15'),  // 15% minimum Edge
+  AUTO_TRADE_MAX_SIZE: z.string().default('50'),    // Max 50 USDC pro Auto-Trade
 });
 
 const env = envSchema.parse(process.env);
@@ -112,6 +117,12 @@ export const config: Config = {
   executionMode: env.EXECUTION_MODE as ExecutionMode,
   sqlitePath: env.SQLITE_PATH,
   backtestMode: env.BACKTEST_MODE === 'true',
+  // Auto-Trading bei Breaking News
+  autoTrade: {
+    enabled: env.AUTO_TRADE_ENABLED === 'true',
+    minEdge: parseFloat(env.AUTO_TRADE_MIN_EDGE),
+    maxSize: parseFloat(env.AUTO_TRADE_MAX_SIZE),
+  },
 };
 
 export const PORT = parseInt(env.PORT, 10);

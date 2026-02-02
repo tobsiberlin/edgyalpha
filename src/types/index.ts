@@ -137,6 +137,12 @@ export interface Config {
   executionMode: ExecutionMode;
   sqlitePath: string;
   backtestMode: boolean;
+  // Auto-Trading bei Breaking News
+  autoTrade: {
+    enabled: boolean;
+    minEdge: number;  // z.B. 0.15 = 15%
+    maxSize: number;  // Max USDC pro Auto-Trade
+  };
 }
 
 export interface LogEntry {
