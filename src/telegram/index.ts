@@ -1089,7 +1089,7 @@ ${this.DIVIDER}
     for (const [party, value] of sortedParties) {
       const val = value as number;
       const bar = this.progressBar(val, 50, 10);
-      pollBars += `│  ${party.padEnd(6, ' ')} ${bar} ${String(val).padStart(2, ' ')}%  │\n`;
+      pollBars += `${party.padEnd(8)} ${bar} ${String(val).padStart(2)}%\n`;
     }
 
     const message = `${this.HEADER}
@@ -1098,13 +1098,11 @@ ${this.DIVIDER}
 
 ${this.DIVIDER}
 
+*${latestPoll.institute}*
+_${latestPoll.date}_
+
 \`\`\`
-┌─────────────────────────────────┐
-│  ${latestPoll.institute.substring(0, 20).padEnd(20, ' ')}            │
-│  ${latestPoll.date}                       │
-├─────────────────────────────────┤
-${pollBars}└─────────────────────────────────┘
-\`\`\``;
+${pollBars}\`\`\``;
 
     if (messageId) {
       await this.editMessage(chatId, messageId, message, this.getBackButton());
