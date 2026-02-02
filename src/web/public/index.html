@@ -4011,6 +4011,19 @@ setInterval(() => {
 //                        BROWSER NOTIFICATIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Lese Notification Settings aus den bestehenden Checkboxen im Settings-View
+function getNotificationSettings() {
+    return {
+        enabled: document.getElementById('settings-browser-notifications')?.checked ?? false,
+        highAlpha: document.getElementById('settings-notify-high-alpha')?.checked ?? true,
+        tradeExecuted: document.getElementById('settings-notify-trade')?.checked ?? true,
+        riskWarning: document.getElementById('settings-notify-killswitch')?.checked ?? true,
+        signal: document.getElementById('settings-notify-signal')?.checked ?? true,
+        dailyReset: document.getElementById('settings-notify-daily-reset')?.checked ?? false,
+    };
+}
+
+// Fallback fuer alte localStorage-basierte Settings
 const notificationSettings = {
     enabled: localStorage.getItem('notifications_enabled') === 'true',
     sound: localStorage.getItem('notifications_sound') !== 'false',
@@ -4043,16 +4056,27 @@ async function requestNotificationPermission() {
 }
 
 function showBrowserNotification(data) {
-    if (!notificationSettings.enabled || Notification.permission !== 'granted') return;
+    // Nutze bestehende Settings-Checkboxen oder Fallback
+    const settings = getNotificationSettings();
+    const masterEnabled = settings.enabled || notificationSettings.enabled;
+
+    if (!masterEnabled || Notification.permission !== 'granted') return;
+
+    // Mapping von Event-Typen zu Checkbox-IDs
     const typeMap = {
         'high_alpha': 'highAlpha',
-        'almanien_edge': 'almanienEdge',
+        'almanien_edge': 'signal',  // Almanien-Edge = neues Signal
         'trade_executed': 'tradeExecuted',
         'risk_warning': 'riskWarning',
-        'pipeline_error': 'pipelineError',
+        'pipeline_error': 'signal',  // Pipeline Fehler unter Signal
     };
     const settingKey = typeMap[data.type];
-    if (settingKey && !notificationSettings[settingKey]) return;
+
+    // Pruefe ob dieser Event-Typ aktiviert ist
+    if (settingKey) {
+        const isEnabled = settings[settingKey] ?? notificationSettings[settingKey] ?? true;
+        if (!isEnabled) return;
+    }
 
     const notification = new Notification(data.title, {
         body: data.body,
@@ -4080,73 +4104,27 @@ function showBrowserNotification(data) {
     }
 }
 
-function toggleNotifications() {
-    if (!notificationSettings.enabled) {
-        requestNotificationPermission().then(granted => {
-            if (granted) {
-                notificationSettings.enabled = true;
-                localStorage.setItem('notifications_enabled', 'true');
-                updateNotificationUI();
-                addLog('success', 'Notifications aktiviert');
+// Permission Request wenn Browser-Notifications Checkbox aktiviert wird
+function initBrowserNotificationsCheckbox() {
+    const checkbox = document.getElementById('settings-browser-notifications');
+    if (checkbox) {
+        checkbox.addEventListener('change', function() {
+            if (this.checked && Notification.permission !== 'granted') {
+                requestNotificationPermission().then(granted => {
+                    if (!granted) {
+                        this.checked = false;
+                        addLog('warn', 'Browser Notifications verweigert');
+                    } else {
+                        addLog('success', 'Browser Notifications aktiviert');
+                    }
+                });
             }
         });
-    } else {
-        notificationSettings.enabled = false;
-        localStorage.setItem('notifications_enabled', 'false');
-        updateNotificationUI();
-        addLog('info', 'Notifications deaktiviert');
     }
 }
 
-function toggleNotificationType(type) {
-    notificationSettings[type] = !notificationSettings[type];
-    localStorage.setItem('notify_' + type.replace(/([A-Z])/g, '_$1').toLowerCase(), notificationSettings[type]);
-    updateNotificationUI();
-}
-
-function toggleNotificationSound() {
-    notificationSettings.sound = !notificationSettings.sound;
-    localStorage.setItem('notifications_sound', notificationSettings.sound);
-    updateNotificationUI();
-}
-
-function updateNotificationUI() {
-    const masterToggle = document.getElementById('notify-master');
-    const soundToggle = document.getElementById('notify-sound');
-    if (masterToggle) {
-        masterToggle.classList.toggle('active', notificationSettings.enabled);
-        masterToggle.textContent = notificationSettings.enabled ? 'AN' : 'AUS';
-    }
-    if (soundToggle) {
-        soundToggle.classList.toggle('active', notificationSettings.sound);
-        soundToggle.textContent = notificationSettings.sound ? 'AN' : 'AUS';
-    }
-    ['highAlpha', 'almanienEdge', 'tradeExecuted', 'riskWarning', 'pipelineError'].forEach(type => {
-        const el = document.getElementById('notify-' + type.replace(/([A-Z])/g, '-$1').toLowerCase());
-        if (el) {
-            el.classList.toggle('active', notificationSettings[type]);
-            el.textContent = notificationSettings[type] ? 'AN' : 'AUS';
-        }
-    });
-    // Status-Anzeige
-    const supportEl = document.getElementById('notify-support');
-    const permissionEl = document.getElementById('notify-permission');
-    const wsEl = document.getElementById('notify-ws-status');
-    if (supportEl) {
-        supportEl.textContent = 'Notification' in window ? 'Ja' : 'Nein';
-        supportEl.className = 'data-value ' + ('Notification' in window ? 'positive' : 'negative');
-    }
-    if (permissionEl) {
-        const perm = 'Notification' in window ? Notification.permission : 'n/a';
-        permissionEl.textContent = perm === 'granted' ? 'Erteilt' : perm === 'denied' ? 'Verweigert' : 'Ausstehend';
-        permissionEl.className = 'data-value ' + (perm === 'granted' ? 'positive' : perm === 'denied' ? 'negative' : 'warning');
-    }
-    if (wsEl) {
-        const connected = socket && socket.connected;
-        wsEl.textContent = connected ? 'Verbunden' : 'Getrennt';
-        wsEl.className = 'data-value ' + (connected ? 'positive' : 'negative');
-    }
-}
+// Initialisiere Checkbox-Handler wenn Settings-View geladen wird
+setTimeout(initBrowserNotificationsCheckbox, 500);
 
 function testNotification() {
     showBrowserNotification({
