@@ -583,6 +583,80 @@ app.get('/api/audit', requireAuth, (req: Request, res: Response) => {
   }
 });
 
+// API: Equity Curve (kumuliertes PnL über Zeit)
+app.get('/api/stats/equity', requireAuth, (_req: Request, res: Response) => {
+  try {
+    // Hole alle Trade-Events aus dem Audit Log
+    const allLogs = getAuditLog(1000);
+    const tradeLogs = allLogs
+      .filter(log => log.eventType === 'trade' && log.pnlImpact !== undefined)
+      .reverse(); // Älteste zuerst
+
+    // Kumuliere PnL
+    let cumulativePnl = 0;
+    const equityPoints: { timestamp: number; pnl: number; cumulative: number }[] = [];
+
+    for (const log of tradeLogs) {
+      cumulativePnl += log.pnlImpact || 0;
+      equityPoints.push({
+        timestamp: Date.now(), // TODO: Echten Timestamp aus Log extrahieren
+        pnl: log.pnlImpact || 0,
+        cumulative: cumulativePnl,
+      });
+    }
+
+    // Aktueller Risk State
+    const dashboard = runtimeState.getRiskDashboard();
+
+    res.json({
+      equityCurve: equityPoints,
+      current: {
+        dailyPnL: dashboard.daily.pnl,
+        dailyTrades: dashboard.daily.trades,
+        dailyWins: dashboard.daily.wins,
+        dailyLosses: dashboard.daily.losses,
+        winRate: dashboard.daily.winRate,
+      },
+      totalTrades: tradeLogs.length,
+      totalPnL: cumulativePnl,
+    });
+  } catch (err) {
+    res.json({
+      equityCurve: [],
+      current: runtimeState.getRiskDashboard().daily,
+      totalTrades: 0,
+      totalPnL: 0,
+      error: (err as Error).message,
+    });
+  }
+});
+
+// API: Trading Stats (Win/Loss, Edge Capture)
+app.get('/api/stats/trading', requireAuth, (_req: Request, res: Response) => {
+  const dashboard = runtimeState.getRiskDashboard();
+
+  res.json({
+    daily: {
+      pnl: dashboard.daily.pnl,
+      trades: dashboard.daily.trades,
+      wins: dashboard.daily.wins,
+      losses: dashboard.daily.losses,
+      winRate: dashboard.daily.winRate,
+    },
+    positions: {
+      open: dashboard.positions.open,
+      max: dashboard.positions.max,
+      totalExposure: dashboard.positions.totalExposure,
+    },
+    limits: {
+      dailyLossLimit: dashboard.limits.dailyLossLimit,
+      dailyLossRemaining: dashboard.limits.dailyLossRemaining,
+    },
+    mode: dashboard.mode,
+    killSwitch: dashboard.killSwitch,
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 //                    BACKTEST API
 // ═══════════════════════════════════════════════════════════════

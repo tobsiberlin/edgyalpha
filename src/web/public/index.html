@@ -1238,6 +1238,20 @@ body {
                             </div>
                         </div>
                     </div>
+
+                    <div class="risk-card" style="grid-column: 1 / -1;">
+                        <div class="risk-card-header">EQUITY CURVE</div>
+                        <div id="equity-chart-container" style="height: 150px; background: var(--bg-input); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: var(--text-muted); font-size: 11px;">Keine Trades - Chart erscheint nach erstem Trade</span>
+                        </div>
+                    </div>
+
+                    <div class="risk-card" style="grid-column: 1 / -1;">
+                        <div class="risk-card-header">AUDIT LOG (LETZTE AKTIONEN)</div>
+                        <div id="audit-log-container" style="max-height: 150px; overflow-y: auto; font-size: 10px;">
+                            <div style="color: var(--text-muted); padding: 8px;">Lade Audit-Log...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2622,7 +2636,125 @@ window.addEventListener('resize', () => {
         const container = document.getElementById('chart-container');
         priceChart.resize(container.clientWidth, 180);
     }
+    if (equityChart) {
+        const container = document.getElementById('equity-chart-container');
+        equityChart.resize(container.clientWidth, 150);
+    }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        EQUITY CURVE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let equityChart = null;
+let equitySeries = null;
+
+async function loadEquityCurve() {
+    const container = document.getElementById('equity-chart-container');
+    if (!container) return;
+
+    try {
+        const data = await fetch('/api/stats/equity', { credentials: 'include' }).then(r => r.json());
+
+        // Wenn keine Trades, Platzhalter zeigen
+        if (!data.equityCurve || data.equityCurve.length === 0) {
+            container.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">Keine Trades - Chart erscheint nach erstem Trade</span>';
+            return;
+        }
+
+        // Chart erstellen wenn noch nicht existiert
+        if (!equityChart && typeof LightweightCharts !== 'undefined') {
+            container.innerHTML = '';
+            equityChart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 150,
+                layout: {
+                    background: { type: 'solid', color: '#080808' },
+                    textColor: '#888888',
+                },
+                grid: {
+                    vertLines: { color: '#1a1a1a' },
+                    horzLines: { color: '#1a1a1a' },
+                },
+                timeScale: {
+                    borderColor: '#222222',
+                    timeVisible: true,
+                },
+                rightPriceScale: {
+                    borderColor: '#222222',
+                },
+            });
+
+            equitySeries = equityChart.addAreaSeries({
+                topColor: 'rgba(0, 255, 136, 0.3)',
+                bottomColor: 'rgba(0, 255, 136, 0.02)',
+                lineColor: '#00ff88',
+                lineWidth: 2,
+            });
+        }
+
+        if (equitySeries && data.equityCurve.length > 0) {
+            // Konvertiere zu Chart-Format
+            const chartData = data.equityCurve.map((p, i) => ({
+                time: Math.floor(Date.now() / 1000) - (data.equityCurve.length - i) * 3600,
+                value: p.cumulative,
+            }));
+            equitySeries.setData(chartData);
+            equityChart.timeScale().fitContent();
+        }
+    } catch (err) {
+        console.error('Equity Curve Fehler:', err);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadAuditLog() {
+    const container = document.getElementById('audit-log-container');
+    if (!container) return;
+
+    try {
+        const data = await fetch('/api/audit?limit=20', { credentials: 'include' }).then(r => r.json());
+
+        if (!data.entries || data.entries.length === 0) {
+            container.innerHTML = '<div style="color: var(--text-muted); padding: 8px;">Keine Audit-Eintraege vorhanden</div>';
+            return;
+        }
+
+        const html = data.entries.map(entry => {
+            const typeColors = {
+                trade: 'var(--cyan-info)',
+                mode_change: 'var(--amber-watch)',
+                kill_switch: 'var(--red-risk)',
+                settings: 'var(--text-secondary)',
+                daily_reset: 'var(--green-dim)',
+            };
+            const color = typeColors[entry.eventType] || 'var(--text-muted)';
+
+            return `
+                <div style="padding: 4px 8px; border-bottom: 1px solid var(--border-dim);">
+                    <span style="color: ${color}; font-weight: 500;">[${entry.eventType.toUpperCase()}]</span>
+                    <span style="color: var(--text-secondary);">${entry.action}</span>
+                    ${entry.pnlImpact ? `<span style="color: ${entry.pnlImpact >= 0 ? 'var(--green-profit)' : 'var(--red-risk)'}; margin-left: 8px;">${entry.pnlImpact >= 0 ? '+' : ''}$${entry.pnlImpact.toFixed(2)}</span>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = '<div style="color: var(--red-risk); padding: 8px;">Fehler beim Laden</div>';
+    }
+}
+
+// Lade Equity Curve und Audit Log beim Start und alle 30 Sekunden
+loadEquityCurve();
+loadAuditLog();
+setInterval(() => {
+    loadEquityCurve();
+    loadAuditLog();
+}, 30000);
     </script>
 </body>
 </html>
