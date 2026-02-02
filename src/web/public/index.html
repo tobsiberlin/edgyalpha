@@ -1557,6 +1557,7 @@ body {
     </div>
 
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <script>
 // ═══════════════════════════════════════════════════════════════════════════════
 //                        EDGY ALPHA CONSOLE - CLIENT
@@ -1872,16 +1873,8 @@ function selectSignal(index) {
     document.getElementById('btn-trade-yes').disabled = false;
     document.getElementById('btn-trade-no').disabled = false;
 
-    // Chart placeholder
-    document.getElementById('chart-container').innerHTML = `
-        <div class="chart-placeholder" style="flex-direction: column; gap: 8px;">
-            <span>📈 ${s.market?.question?.substring(0, 40)}...</span>
-            <span style="font-size: 9px;">Chart integration coming soon</span>
-        </div>
-        <div class="chart-overlay">
-            <span class="chart-marker signal">◉ Signal</span>
-        </div>
-    `;
+    // Load price chart
+    loadPriceChart(s);
 }
 
 async function refreshSignals() {
@@ -2488,6 +2481,148 @@ setInterval(() => {
         loadPipelineHealth();
     }
 }, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        PRICE CHARTS (Lightweight-Charts)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let priceChart = null;
+let priceSeries = null;
+
+async function loadPriceChart(signal) {
+    const container = document.getElementById('chart-container');
+    const marketId = signal.market?.id;
+    const tokenId = signal.market?.outcomes?.[0]?.id;
+    const slug = signal.market?.slug;
+
+    // Show loading state
+    container.innerHTML = '<div class="chart-placeholder"><span style="color: var(--text-muted);">📊 Loading chart...</span></div>';
+
+    // Create chart
+    if (typeof LightweightCharts === 'undefined') {
+        container.innerHTML = `
+            <div class="chart-placeholder" style="flex-direction: column; gap: 8px;">
+                <span style="color: var(--amber-watch);">⚠️ Chart library not loaded</span>
+                ${slug ? `<a href="https://polymarket.com/event/${slug}" target="_blank" style="color: var(--cyan-info); font-size: 10px;">View on Polymarket →</a>` : ''}
+            </div>
+        `;
+        return;
+    }
+
+    // Clear previous chart
+    container.innerHTML = '';
+
+    try {
+        // Create chart instance
+        priceChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: 180,
+            layout: {
+                background: { type: 'solid', color: '#0a0a0a' },
+                textColor: '#888888',
+            },
+            grid: {
+                vertLines: { color: '#1a1a1a' },
+                horzLines: { color: '#1a1a1a' },
+            },
+            timeScale: {
+                borderColor: '#222222',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+            rightPriceScale: {
+                borderColor: '#222222',
+                scaleMargins: { top: 0.1, bottom: 0.1 },
+            },
+            crosshair: {
+                vertLine: { color: '#00ff88', width: 1, style: 2 },
+                horzLine: { color: '#00ff88', width: 1, style: 2 },
+            },
+        });
+
+        // Add area series for price
+        priceSeries = priceChart.addAreaSeries({
+            topColor: 'rgba(0, 255, 136, 0.3)',
+            bottomColor: 'rgba(0, 255, 136, 0.02)',
+            lineColor: '#00ff88',
+            lineWidth: 2,
+            priceFormat: { type: 'percent' },
+        });
+
+        // Try to load real price history
+        if (tokenId) {
+            const res = await fetch(`/api/polymarket/prices/${tokenId}`, { credentials: 'include' }).then(r => r.json());
+
+            if (res.points && res.points.length > 0) {
+                const chartData = res.points.map(p => ({
+                    time: Math.floor(p.timestamp / 1000),
+                    value: p.price * 100, // Convert to percentage
+                }));
+                priceSeries.setData(chartData);
+                priceChart.timeScale().fitContent();
+                addLog('info', `Chart: ${chartData.length} Datenpunkte geladen`);
+                return;
+            }
+        }
+
+        // Fallback: Generate synthetic data based on current price
+        const currentPrice = signal.market?.outcomes?.[0]?.price || 0.5;
+        const syntheticData = generateSyntheticPriceData(currentPrice);
+        priceSeries.setData(syntheticData);
+        priceChart.timeScale().fitContent();
+
+        // Add info overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: absolute; bottom: 8px; left: 8px; font-size: 9px; color: var(--text-muted); z-index: 10;';
+        overlay.innerHTML = slug
+            ? `<a href="https://polymarket.com/event/${slug}" target="_blank" style="color: var(--cyan-dim);">📈 View on Polymarket</a>`
+            : '📊 Simulated data';
+        container.style.position = 'relative';
+        container.appendChild(overlay);
+
+    } catch (err) {
+        container.innerHTML = `
+            <div class="chart-placeholder" style="flex-direction: column; gap: 8px;">
+                <span style="color: var(--red-risk);">Chart Error: ${err.message}</span>
+                ${slug ? `<a href="https://polymarket.com/event/${slug}" target="_blank" style="color: var(--cyan-info); font-size: 10px;">View on Polymarket →</a>` : ''}
+            </div>
+        `;
+    }
+}
+
+function generateSyntheticPriceData(currentPrice) {
+    const data = [];
+    const now = Math.floor(Date.now() / 1000);
+    const hoursBack = 168; // 7 days
+
+    let price = currentPrice * 100; // Start at current price (as percentage)
+
+    for (let i = hoursBack; i >= 0; i--) {
+        const time = now - i * 3600;
+
+        // Random walk toward current price
+        const targetDiff = (currentPrice * 100) - price;
+        const drift = targetDiff * 0.02; // Mean reversion
+        const noise = (Math.random() - 0.5) * 3; // Random noise
+
+        price = Math.max(1, Math.min(99, price + drift + noise));
+
+        data.push({ time, value: price });
+    }
+
+    // Ensure last point is current price
+    data[data.length - 1].value = currentPrice * 100;
+
+    return data;
+}
+
+// Resize chart on window resize
+window.addEventListener('resize', () => {
+    if (priceChart) {
+        const container = document.getElementById('chart-container');
+        priceChart.resize(container.clientWidth, 180);
+    }
+});
     </script>
 </body>
 </html>

@@ -7,6 +7,18 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [2.3.0] - 2026-02-02
+
+### Hinzugefügt
+- **Polymarket Price Charts**
+  - Lightweight-Charts (TradingView) Integration
+  - GET /api/polymarket/prices/:tokenId für historische Preise
+  - Echtzeit-Chart im Drilldown-Panel bei Signal-Auswahl
+  - Fallback: Synthetische Daten wenn API nicht verfügbar
+  - Link zu Polymarket für Details
+
+---
+
 ## [2.2.0] - 2026-02-02
 
 ### Hinzugefügt

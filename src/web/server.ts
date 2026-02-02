@@ -8,6 +8,9 @@ import logger from '../utils/logger.js';
 import { scanner } from '../scanner/index.js';
 import { germanySources } from '../germany/index.js';
 import { tradingClient } from '../api/trading.js';
+import { PolymarketClient } from '../api/polymarket.js';
+
+const polymarketClient = new PolymarketClient();
 import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode } from '../types/index.js';
 import { runtimeState, StateChangeEvent } from '../runtime/state.js';
@@ -215,6 +218,45 @@ app.get('/api/germany/news', requireAuth, (_req: Request, res: Response) => {
 
 app.get('/api/germany/bundestag', requireAuth, (_req: Request, res: Response) => {
   res.json(germanySources.getBundestagItems());
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    POLYMARKET API
+// ═══════════════════════════════════════════════════════════════
+
+// API: Market Details
+app.get('/api/polymarket/market/:marketId', requireAuth, async (req: Request, res: Response) => {
+  const { marketId } = req.params;
+  try {
+    const market = await polymarketClient.getMarketById(marketId);
+    if (!market) {
+      res.status(404).json({ error: 'Markt nicht gefunden' });
+      return;
+    }
+    res.json(market);
+  } catch (err) {
+    const error = err as Error;
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Price History für Charts
+app.get('/api/polymarket/prices/:tokenId', requireAuth, async (req: Request, res: Response) => {
+  const { tokenId } = req.params;
+  const fidelity = parseInt(String(req.query?.fidelity || '60'), 10);
+
+  try {
+    const history = await polymarketClient.getPriceHistory(tokenId, fidelity);
+    res.json({
+      tokenId,
+      fidelity,
+      points: history,
+      count: history.length,
+    });
+  } catch (err) {
+    const error = err as Error;
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

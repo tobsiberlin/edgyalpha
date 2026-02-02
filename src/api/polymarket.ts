@@ -25,6 +25,11 @@ export interface CLIMarket {
   spread: number;
 }
 
+export interface PriceHistoryPoint {
+  timestamp: number;
+  price: number;
+}
+
 export interface FilterTelemetry {
   stage1_active: number;
   stage2_volume: number;
@@ -99,6 +104,43 @@ export class PolymarketClient {
     ).catch((err) => {
       logger.error(`Markt ${marketId} nicht gefunden: ${err.message}`);
       return null;
+    });
+  }
+
+  /**
+   * Holt historische Preisdaten für einen Markt
+   * Verwendet die CLOB API Timeseries Endpoint
+   */
+  async getPriceHistory(tokenId: string, fidelity: number = 60): Promise<PriceHistoryPoint[]> {
+    return pRetry(
+      async () => {
+        // CLOB API für historische Preise
+        const response = await this.clobClient.get('/prices-history', {
+          params: {
+            market: tokenId,
+            fidelity, // Zeitauflösung in Minuten (60 = stündlich)
+          },
+        });
+
+        const data = response.data;
+        if (!data?.history || !Array.isArray(data.history)) {
+          return [];
+        }
+
+        return data.history.map((point: { t: number; p: string | number }) => ({
+          timestamp: point.t * 1000, // Unix timestamp zu Millisekunden
+          price: typeof point.p === 'string' ? parseFloat(point.p) : point.p,
+        }));
+      },
+      {
+        retries: 2,
+        onFailedAttempt: (error) => {
+          logger.warn(`Price History Fehler (Versuch ${error.attemptNumber}): ${error.message}`);
+        },
+      }
+    ).catch((err) => {
+      logger.debug(`Keine Price History für ${tokenId}: ${err.message}`);
+      return [];
     });
   }
 
