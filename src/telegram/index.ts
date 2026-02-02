@@ -1287,7 +1287,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
     if (!settingKey) return;
 
     // Toggle the value
-    (runtimeSettings as Record<string, boolean>)[settingKey] = !runtimeSettings[settingKey];
+    (runtimeSettings as unknown as Record<string, boolean>)[settingKey] = !runtimeSettings[settingKey];
 
     const newValue = runtimeSettings[settingKey];
     const moduleNames: Record<string, string> = {
@@ -1356,7 +1356,7 @@ _Tippe den neuen Wert ein:_`;
     }
 
     // Wert setzen
-    (runtimeSettings as Record<string, number>)[this.editingField] = numValue;
+    (runtimeSettings as unknown as Record<string, number>)[this.editingField] = numValue;
 
     // Runtime State auch updaten
     const updates: Record<string, number> = {};
