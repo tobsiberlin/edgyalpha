@@ -87,62 +87,396 @@ export interface BreakingNewsEvent {
 // RSS Feeds sind jetzt in ./rss.ts definiert (WORKING_RSS_FEEDS + EXPERIMENTAL_RSS_FEEDS)
 // Import: WORKING_RSS_FEEDS aus ./rss.js
 
-// Keywords für Markt-Matching (erweitert um EU/NATO/Geopolitik)
-// Basierend auf Spezifikation: 15-60 Min Informationsvorsprung nutzen
+// ═══════════════════════════════════════════════════════════════
+// MEGA-KEYWORDS FÜR MARKT-MATCHING
+// Massiv erweitert für maximale Alpha-Erkennung
+// ═══════════════════════════════════════════════════════════════
 const GERMANY_KEYWORDS = {
   politics: [
-    // Deutsche Politik
-    'bundestag', 'bundesregierung', 'kanzler', 'scholz', 'merz', 'habeck',
-    'lindner', 'baerbock', 'weidel', 'afd', 'cdu', 'csu', 'spd', 'grüne',
-    'fdp', 'linke', 'bsw', 'wahlkampf', 'koalition', 'ampel', 'opposition',
+    // ═══════════════════════════════════════════════════════════
+    // DEUTSCHE POLITIK
+    // ═══════════════════════════════════════════════════════════
+    'bundestag', 'bundesregierung', 'kanzler', 'kanzlerin', 'kanzleramt',
+    'scholz', 'merz', 'habeck', 'lindner', 'baerbock', 'weidel', 'chrupalla',
+    'wagenknecht', 'söder', 'laschet', 'merkel', 'steinmeier', 'faeser',
+    'afd', 'cdu', 'csu', 'spd', 'grüne', 'fdp', 'linke', 'bsw',
+    'wahlkampf', 'koalition', 'ampel', 'opposition', 'große koalition',
     'bundestagswahl', 'landtagswahl', 'europawahl', 'regierungskrise',
     'germany', 'german', 'deutschland', 'berlin', 'chancellor',
-    'kai wegner', 'giffey', 'abgeordnetenhaus', 'groko',
+    'kai wegner', 'giffey', 'abgeordnetenhaus', 'groko', 'jamaika',
     // Misstrauensvotum & Koalitionsbruch
     'misstrauensvotum', 'rücktritt', 'neuwahl', 'vertrauensfrage',
-    // EU & Europa
-    'european union', 'eu ', ' eu', 'brussels', 'von der leyen', 'ursula',
+    'koalitionsbruch', 'regierungskrise', 'kabinett', 'minister entlassen',
+
+    // ═══════════════════════════════════════════════════════════
+    // US POLITIK (Polymarket Hauptmarkt!)
+    // ═══════════════════════════════════════════════════════════
+    'trump', 'biden', 'harris', 'desantis', 'vivek', 'ramaswamy', 'haley',
+    'pence', 'pompeo', 'bannon', 'musk', 'rfk', 'kennedy', 'newsom',
+    'whitehouse', 'white house', 'oval office', 'congress', 'senate',
+    'house of representatives', 'supreme court', 'scotus',
+    'republican', 'democrat', 'gop', 'dnc', 'rnc', 'primary', 'caucus',
+    'electoral college', 'swing state', 'battleground',
+    'impeachment', 'indictment', 'arraignment', 'trial', 'verdict',
+    'classified documents', 'mar-a-lago', 'january 6', 'jan 6',
+
+    // ═══════════════════════════════════════════════════════════
+    // UK POLITIK
+    // ═══════════════════════════════════════════════════════════
+    'sunak', 'starmer', 'truss', 'boris johnson', 'rishi', 'keir',
+    'tory', 'tories', 'labour', 'lib dem', 'snp', 'westminster',
+    'parliament', 'downing street', 'prime minister', 'pm ',
+    'general election uk', 'by-election', 'brexit',
+
+    // ═══════════════════════════════════════════════════════════
+    // FRANKREICH
+    // ═══════════════════════════════════════════════════════════
+    'macron', 'le pen', 'marine le pen', 'melenchon', 'bardella',
+    'elysee', 'élysée', 'assemblée nationale', 'france election',
+    'french president', 'paris', 'rassemblement national',
+
+    // ═══════════════════════════════════════════════════════════
+    // NIEDERLANDE (Polymarket-Markt!)
+    // ═══════════════════════════════════════════════════════════
+    'netherlands', 'dutch', 'holland', 'amsterdam', 'den haag', 'the hague',
+    'wilders', 'geert wilders', 'pvv', 'schoof', 'dick schoof',
+    'timmermans', 'frans timmermans', 'yesilgöz', 'dilan yesilgöz',
+    'van der plas', 'bbb', 'vvd', 'dutch election', 'dutch government',
+
+    // ═══════════════════════════════════════════════════════════
+    // ITALIEN
+    // ═══════════════════════════════════════════════════════════
+    'italy', 'italian', 'meloni', 'giorgia meloni', 'salvini',
+    'berlusconi', 'rome', 'roma', 'fratelli d\'italia',
+
+    // ═══════════════════════════════════════════════════════════
+    // SPANIEN
+    // ═══════════════════════════════════════════════════════════
+    'spain', 'spanish', 'sanchez', 'pedro sanchez', 'vox party',
+    'pp spain', 'psoe', 'catalonia', 'madrid',
+
+    // ═══════════════════════════════════════════════════════════
+    // EU & EUROPA
+    // ═══════════════════════════════════════════════════════════
+    'european union', 'eu ', ' eu', 'brussels', 'brüssel',
+    'von der leyen', 'ursula', 'charles michel', 'roberta metsola',
     'european commission', 'european parliament', 'eurozone', 'lagarde',
-    // NATO & Geopolitik (betrifft Deutschland)
-    'nato', 'ukraine', 'russia', 'putin', 'zelensky', 'ceasefire',
-    'crimea', 'donbas', 'nordstream', 'sanctions', 'selenskyj',
-    'waffenstillstand', 'friedensverhandlungen', 'invasion',
+    'eu summit', 'eu council', 'article 50', 'schengen',
+
+    // ═══════════════════════════════════════════════════════════
+    // NATO & GEOPOLITIK
+    // ═══════════════════════════════════════════════════════════
+    'nato', 'ukraine', 'russia', 'putin', 'zelensky', 'zelenskyy', 'selenskyj',
+    'ceasefire', 'waffenstillstand', 'friedensverhandlungen',
+    'crimea', 'krim', 'donbas', 'donezk', 'luhansk', 'kherson', 'bakhmut',
+    'nordstream', 'nord stream', 'sanctions', 'sanktionen',
+    'invasion', 'offensive', 'counteroffensive', 'gegenoffensive',
+    'wagner', 'prigozhin', 'shoigu', 'gerasimov', 'medvedev',
+    'nuclear', 'nuklear', 'atomic', 'tactical nuke',
+
+    // ═══════════════════════════════════════════════════════════
+    // CHINA & ASIEN
+    // ═══════════════════════════════════════════════════════════
+    'xi jinping', 'china', 'beijing', 'peking', 'taiwan', 'taipei',
+    'ccp', 'communist party', 'south china sea', 'one china',
+    'kim jong un', 'north korea', 'pyongyang', 'icbm', 'missile test',
+
+    // ═══════════════════════════════════════════════════════════
+    // NAHER OSTEN
+    // ═══════════════════════════════════════════════════════════
+    'israel', 'gaza', 'hamas', 'hezbollah', 'netanyahu', 'bibi',
+    'iran', 'tehran', 'khamenei', 'raisi', 'saudi', 'mbs',
+    'abraham accords', 'two state', 'west bank', 'idf',
   ],
+
   economics: [
-    // Zentralbanken
-    'bundesbank', 'ezb', 'ecb', 'inflation', 'rezession', 'recession',
-    'zinsen', 'interest rate', 'rate hike', 'rate cut',
-    // Wirtschaftsdaten (Destatis)
-    'wirtschaft', 'export', 'import', 'arbeitslosigkeit', 'unemployment',
+    // ═══════════════════════════════════════════════════════════
+    // ZENTRALBANKEN
+    // ═══════════════════════════════════════════════════════════
+    'bundesbank', 'ezb', 'ecb', 'fed', 'federal reserve', 'fomc',
+    'powell', 'lagarde', 'yellen', 'bailey', 'bank of england', 'boe',
+    'bank of japan', 'boj', 'ueda', 'kuroda',
+    'inflation', 'deflation', 'rezession', 'recession', 'stagflation',
+    'zinsen', 'interest rate', 'rate hike', 'rate cut', 'pivot',
+    'quantitative easing', 'qe', 'qt', 'tightening', 'dovish', 'hawkish',
+    'basis points', 'bps', 'dot plot',
+
+    // ═══════════════════════════════════════════════════════════
+    // WIRTSCHAFTSDATEN
+    // ═══════════════════════════════════════════════════════════
+    'wirtschaft', 'economy', 'export', 'import', 'trade balance',
+    'arbeitslosigkeit', 'unemployment', 'jobs report', 'nonfarm payrolls',
     'ifo', 'zew', 'destatis', 'bip', 'gdp', 'vpi', 'verbraucherpreis',
-    // DAX Unternehmen
-    'dax', 'volkswagen', 'siemens', 'basf', 'deutsche bank', 'allianz',
-    'bmw', 'mercedes', 'porsche', 'sap', 'adidas', 'bayer',
-    // Energie (sehr wichtig für DE/EU)
+    'cpi', 'ppi', 'pce', 'core inflation', 'consumer price',
+    'retail sales', 'industrial production', 'pmi', 'ism',
+    'housing starts', 'building permits', 'consumer confidence',
+
+    // ═══════════════════════════════════════════════════════════
+    // BÖRSEN & INDIZES
+    // ═══════════════════════════════════════════════════════════
+    'dax', 'mdax', 'sdax', 'eurostoxx', 'stoxx',
+    's&p 500', 'sp500', 'nasdaq', 'dow jones', 'djia', 'russell',
+    'ftse', 'nikkei', 'hang seng', 'shanghai',
+    'bull market', 'bear market', 'correction', 'crash', 'rally',
+    'all-time high', 'ath', 'circuit breaker', 'volatility', 'vix',
+
+    // ═══════════════════════════════════════════════════════════
+    // DAX & GROSSE UNTERNEHMEN
+    // ═══════════════════════════════════════════════════════════
+    'volkswagen', 'vw', 'siemens', 'basf', 'deutsche bank', 'allianz',
+    'bmw', 'mercedes', 'daimler', 'porsche', 'sap', 'adidas', 'bayer',
+    'telekom', 'deutsche post', 'dhl', 'lufthansa', 'henkel', 'continental',
+    'infineon', 'deutsche börse', 'munich re', 'rwe', 'eon',
+
+    // ═══════════════════════════════════════════════════════════
+    // US TECH GIANTS (Markt-Mover)
+    // ═══════════════════════════════════════════════════════════
+    'apple', 'aapl', 'microsoft', 'msft', 'google', 'alphabet', 'googl',
+    'amazon', 'amzn', 'meta', 'facebook', 'nvidia', 'nvda', 'tesla', 'tsla',
+    'netflix', 'nflx', 'magnificent seven', 'mag7', 'faang',
+    'openai', 'chatgpt', 'gpt-4', 'gpt-5', 'anthropic', 'claude',
+    'earnings', 'quarterly results', 'guidance', 'revenue', 'eps',
+
+    // ═══════════════════════════════════════════════════════════
+    // ENERGIE & ROHSTOFFE
+    // ═══════════════════════════════════════════════════════════
     'gas prices', 'energy crisis', 'lng', 'oil prices', 'natural gas',
-    'pipeline', 'energy', 'strompreis',
+    'pipeline', 'energy', 'strompreis', 'opec', 'opec+',
+    'crude oil', 'brent', 'wti', 'barrel', 'oil production',
+    'gold', 'silver', 'copper', 'lithium', 'rare earth',
+    'solar', 'wind', 'renewable', 'nuclear power', 'hydrogen',
+
+    // ═══════════════════════════════════════════════════════════
+    // CRYPTO
+    // ═══════════════════════════════════════════════════════════
+    'bitcoin', 'btc', 'ethereum', 'eth', 'crypto', 'cryptocurrency',
+    'binance', 'coinbase', 'ftx', 'sbf', 'sec crypto', 'etf bitcoin',
+    'spot etf', 'blackrock bitcoin', 'halving', 'altcoin',
   ],
-  // NEU: Spezifische Markt-Keywords für direktes Matching
+
   markets: [
-    // Koalition/Regierung
+    // ═══════════════════════════════════════════════════════════
+    // REGIERUNGSKRISEN & WAHLEN
+    // ═══════════════════════════════════════════════════════════
     'coalition break', 'coalition collapse', 'government fall',
-    'chancellor out', 'prime minister resign',
-    // EZB Zinsen
+    'chancellor out', 'prime minister resign', 'pm resign',
+    'snap election', 'early election', 'vote of no confidence',
+    'cabinet reshuffle', 'minister fired', 'minister resign',
+    'landslide victory', 'upset victory', 'polling', 'poll shows',
+
+    // ═══════════════════════════════════════════════════════════
+    // ZENTRALBANK EVENTS
+    // ═══════════════════════════════════════════════════════════
     'ecb rate', 'ecb interest', 'european central bank',
-    // Geopolitik Events
-    'peace deal', 'peace agreement', 'troops withdraw', 'military',
-    'war end', 'conflict resolution',
+    'fed rate', 'fed decision', 'fomc meeting', 'fomc minutes',
+    'emergency rate', 'surprise cut', 'surprise hike',
+
+    // ═══════════════════════════════════════════════════════════
+    // GEOPOLITIK EVENTS
+    // ═══════════════════════════════════════════════════════════
+    'peace deal', 'peace agreement', 'peace talks', 'peace treaty',
+    'troops withdraw', 'military', 'war end', 'conflict resolution',
+    'ceasefire announced', 'hostage deal', 'prisoner exchange',
+    'territory captured', 'major offensive', 'breakthrough',
+    'assassination', 'coup', 'martial law', 'state of emergency',
+
+    // ═══════════════════════════════════════════════════════════
+    // BREAKING NEWS KEYWORDS
+    // ═══════════════════════════════════════════════════════════
+    'breaking', 'just in', 'developing', 'urgent', 'exclusive',
+    'confirmed', 'official', 'announces', 'announced',
+    'steps down', 'resigns', 'fired', 'sacked', 'ousted',
+    'dead', 'dies', 'killed', 'hospitalized', 'health concerns',
   ],
-  // Bundesliga/Sport (Trainerwechsel = Alpha!)
+
   sports: [
+    // ═══════════════════════════════════════════════════════════
+    // BUNDESLIGA CLUBS
+    // ═══════════════════════════════════════════════════════════
     'bundesliga', 'bayern', 'dortmund', 'bvb', 'leipzig', 'leverkusen',
-    'bayern munich', 'bayern münchen', 'fc bayern',
-    // Trainer
-    'trainer', 'coach', 'manager sacked', 'manager fired',
-    'trainerwechsel', 'entlassen', 'freigestellt',
-    'kompany', 'terzic', 'xabi alonso', 'rose',
-    // Champions League (relevant für DE-Clubs)
-    'champions league',
+    'bayern munich', 'bayern münchen', 'fc bayern', 'fcb',
+    'borussia dortmund', 'rb leipzig', 'bayer leverkusen', 'bayer 04',
+    'frankfurt', 'eintracht', 'wolfsburg', 'gladbach', 'mönchengladbach',
+    'stuttgart', 'vfb', 'union berlin', 'freiburg', 'hoffenheim',
+    'mainz', 'augsburg', 'werder bremen', 'köln', 'fc köln', 'bochum',
+    'heidenheim', 'darmstadt', 'schalke', 's04', 'hamburg', 'hsv',
+
+    // ═══════════════════════════════════════════════════════════
+    // PREMIER LEAGUE CLUBS
+    // ═══════════════════════════════════════════════════════════
+    'premier league', 'epl', 'english football',
+    'manchester united', 'man utd', 'man united', 'mufc', 'old trafford',
+    'manchester city', 'man city', 'mcfc', 'etihad',
+    'liverpool', 'lfc', 'anfield', 'arsenal', 'gunners', 'emirates',
+    'chelsea', 'cfc', 'stamford bridge', 'tottenham', 'spurs', 'thfc',
+    'newcastle', 'nufc', 'aston villa', 'avfc', 'west ham', 'whufc',
+    'brighton', 'brentford', 'fulham', 'crystal palace', 'wolves',
+    'everton', 'nottingham forest', 'bournemouth', 'burnley', 'luton',
+    'sheffield united',
+
+    // ═══════════════════════════════════════════════════════════
+    // LA LIGA CLUBS
+    // ═══════════════════════════════════════════════════════════
+    'la liga', 'spanish football', 'liga española',
+    'real madrid', 'madrid', 'bernabeu', 'barcelona', 'barca', 'barça',
+    'camp nou', 'atletico madrid', 'atleti', 'sevilla', 'real sociedad',
+    'villarreal', 'athletic bilbao', 'betis', 'valencia',
+
+    // ═══════════════════════════════════════════════════════════
+    // SERIE A CLUBS
+    // ═══════════════════════════════════════════════════════════
+    'serie a', 'italian football', 'calcio',
+    'juventus', 'juve', 'inter milan', 'inter', 'ac milan', 'milan',
+    'napoli', 'roma', 'as roma', 'lazio', 'atalanta', 'fiorentina',
+
+    // ═══════════════════════════════════════════════════════════
+    // LIGUE 1 CLUBS
+    // ═══════════════════════════════════════════════════════════
+    'ligue 1', 'french football',
+    'psg', 'paris saint-germain', 'paris sg', 'marseille', 'om',
+    'lyon', 'monaco', 'lille',
+
+    // ═══════════════════════════════════════════════════════════
+    // TRAINER (MEGA-LISTE!)
+    // ═══════════════════════════════════════════════════════════
+    // Deutsche Trainer
+    'nagelsmann', 'julian nagelsmann', 'flick', 'hansi flick',
+    'tuchel', 'thomas tuchel', 'klopp', 'jürgen klopp', 'jurgen klopp',
+    'rangnick', 'ralf rangnick', 'rose', 'marco rose', 'tedesco',
+    'streich', 'christian streich', 'hütter', 'adi hütter',
+    'glasner', 'oliver glasner', 'kovac', 'niko kovac',
+
+    // Internationale Top-Trainer
+    'guardiola', 'pep guardiola', 'ancelotti', 'carlo ancelotti',
+    'mourinho', 'jose mourinho', 'conte', 'antonio conte',
+    'allegri', 'max allegri', 'inzaghi', 'simone inzaghi',
+    'simeone', 'diego simeone', 'xavi', 'xavi hernandez',
+    'arteta', 'mikel arteta', 'slot', 'arne slot',
+    'postecoglou', 'ange postecoglou', 'emery', 'unai emery',
+    'ten hag', 'erik ten hag', 'de zerbi', 'roberto de zerbi',
+    'pochettino', 'mauricio pochettino', 'enrique', 'luis enrique',
+    'kompany', 'vincent kompany', 'terzic', 'edin terzic',
+    'xabi alonso', 'alonso',
+    'zidane', 'zinedine zidane', 'deschamps', 'didier deschamps',
+    'southgate', 'gareth southgate',
+
+    // ═══════════════════════════════════════════════════════════
+    // TRAINER-WECHSEL KEYWORDS (CRITICAL!)
+    // ═══════════════════════════════════════════════════════════
+    'trainer', 'coach', 'manager', 'head coach', 'cheftrainer',
+    'sacked', 'fired', 'dismissed', 'axed', 'let go', 'parted ways',
+    'entlassen', 'freigestellt', 'beurlaubt', 'trennung', 'rauswurf',
+    'trainerwechsel', 'coaching change', 'new manager', 'new coach',
+    'appoints', 'appointed', 'names', 'named', 'hires', 'hired',
+    'signs', 'signed', 'contract extension', 'verlängert',
+    'interim', 'caretaker', 'interimstrainer',
+    'leaves', 'leaving', 'departure', 'exit', 'quits', 'resigns',
+    'under pressure', 'job in danger', 'future uncertain',
+    'hot seat', 'next manager', 'replacement', 'successor',
+
+    // ═══════════════════════════════════════════════════════════
+    // STAR-SPIELER (Transfer-Alpha!)
+    // ═══════════════════════════════════════════════════════════
+    'mbappe', 'mbappé', 'kylian', 'haaland', 'erling haaland',
+    'bellingham', 'jude bellingham', 'vinicius', 'vini jr',
+    'musiala', 'jamal musiala', 'saka', 'bukayo saka',
+    'salah', 'mohamed salah', 'kane', 'harry kane',
+    'lewandowski', 'robert lewandowski', 'de bruyne', 'kevin de bruyne',
+    'bruno fernandes', 'rashford', 'foden', 'phil foden',
+    'palmer', 'cole palmer', 'rice', 'declan rice',
+    'wirtz', 'florian wirtz', 'xhaka', 'granit xhaka',
+    'gündogan', 'ilkay gündogan', 'kroos', 'toni kroos',
+    'müller', 'thomas müller', 'neuer', 'manuel neuer',
+    'ter stegen', 'rüdiger', 'antonio rüdiger',
+
+    // ═══════════════════════════════════════════════════════════
+    // WETTBEWERBE
+    // ═══════════════════════════════════════════════════════════
+    'champions league', 'ucl', 'europa league', 'uel',
+    'conference league', 'uecl', 'dfb pokal', 'dfb-pokal',
+    'fa cup', 'efl cup', 'carabao cup', 'copa del rey',
+    'coppa italia', 'coupe de france', 'supercup',
+    'world cup', 'wm', 'weltmeisterschaft', 'euro', 'em', 'europameisterschaft',
+    'nations league', 'friendly', 'länderspiel', 'qualifying', 'qualification',
+    'group stage', 'knockout', 'quarter-final', 'semi-final', 'final',
+
+    // ═══════════════════════════════════════════════════════════
+    // FIFA WORLD CUP 2026 (Polymarket-Märkte!)
+    // ═══════════════════════════════════════════════════════════
+    'world cup 2026', 'wm 2026', 'fifa 2026', 'usa mexico canada',
+    'world cup winner', 'world cup qualify', 'world cup qualification',
+    // Nationalmannschaften (Polymarket-Märkte)
+    'germany national', 'dfb team', 'die mannschaft', 'german team',
+    'france national', 'les bleus', 'french team', 'équipe de france',
+    'spain national', 'la roja', 'spanish team',
+    'italy national', 'azzurri', 'italian team', 'italia',
+    'england national', 'three lions', 'english team',
+    'netherlands national', 'oranje', 'dutch team',
+    'argentina national', 'albiceleste', 'argentine team',
+    'brazil national', 'seleção', 'selecao', 'brazilian team',
+    'portugal national', 'portuguese team',
+    'belgium national', 'red devils belgium', 'belgian team',
+    'ukraine national', 'ukrainian team',
+    'poland national', 'polish team', 'polska',
+    'sweden national', 'swedish team',
+    // National Team Coaches (WM-relevant)
+    'bundestrainer', 'nationaltrainer', 'national team coach',
+
+    // ═══════════════════════════════════════════════════════════
+    // US SPORTS (Polymarket-relevant!)
+    // ═══════════════════════════════════════════════════════════
+    'nfl', 'super bowl', 'superbowl', 'super bowl 2026', 'touchdown', 'quarterback',
+    'chiefs', 'eagles', 'cowboys', '49ers', 'ravens', 'lions', 'bills',
+    'patriots', 'seahawks', 'packers', 'steelers', 'broncos', 'raiders',
+    'dolphins', 'jets', 'giants', 'commanders', 'bears', 'vikings', 'saints',
+    'falcons', 'buccaneers', 'panthers', 'cardinals', 'rams', 'chargers',
+    'texans', 'colts', 'titans', 'jaguars', 'bengals', 'browns',
+    'mahomes', 'patrick mahomes', 'travis kelce', 'taylor swift',
+    'allen', 'josh allen', 'burrow', 'joe burrow', 'lamar jackson',
+    'hurts', 'jalen hurts', 'herbert', 'justin herbert',
+    // NFL Awards (Polymarket-Märkte!)
+    'nfl mvp', 'offensive player', 'defensive player', 'rookie of the year',
+    'coach of the year', 'comeback player',
+
+    // ═══════════════════════════════════════════════════════════
+    // NBA (Polymarket-Märkte!)
+    // ═══════════════════════════════════════════════════════════
+    'nba', 'nba finals', 'nba playoffs', 'nba mvp', 'all-star',
+    'lakers', 'celtics', 'warriors', 'bucks', 'nuggets', 'heat', 'suns',
+    'thunder', 'cavaliers', 'knicks', 'timberwolves', 'rockets', 'pacers',
+    'mavericks', 'clippers', 'spurs', 'nets', 'sixers', 'hawks', 'bulls',
+    'lebron', 'lebron james', 'curry', 'steph curry', 'giannis', 'jokic',
+    'tatum', 'jayson tatum', 'luka', 'luka doncic', 'embiid', 'joel embiid',
+    'gilgeous-alexander', 'sga', 'anthony edwards', 'ant-man',
+    // NBA Awards (Polymarket!)
+    'nba rookie', 'defensive player of the year', 'sixth man',
+
+    // ═══════════════════════════════════════════════════════════
+    // NHL (Polymarket Stanley Cup!)
+    // ═══════════════════════════════════════════════════════════
+    'nhl', 'stanley cup', 'stanley cup 2026', 'hockey',
+    'hurricanes', 'panthers', 'oilers', 'stars', 'avalanche', 'golden knights',
+    'lightning', 'kings', 'devils', 'jets', 'maple leafs', 'capitals',
+    'rangers', 'senators', 'wild', 'blues', 'canucks', 'islanders',
+    'flyers', 'blue jackets', 'flames', 'predators', 'red wings',
+    'ducks', 'canadiens', 'bruins', 'sabres', 'penguins', 'kraken', 'blackhawks',
+
+    // ═══════════════════════════════════════════════════════════
+    // MLB
+    // ═══════════════════════════════════════════════════════════
+    'mlb', 'world series', 'home run', 'yankees', 'dodgers', 'astros',
+    'mets', 'braves', 'phillies', 'padres', 'cubs', 'red sox',
+
+    // ═══════════════════════════════════════════════════════════
+    // WEITERE SPORT-EVENTS
+    // ═══════════════════════════════════════════════════════════
+    'olympics', 'olympia', 'olympic games', 'ioc', 'paris 2024',
+    'tennis', 'wimbledon', 'us open', 'australian open', 'french open',
+    'djokovic', 'alcaraz', 'sinner', 'medvedev', 'zverev',
+    'formula 1', 'f1', 'verstappen', 'hamilton', 'leclerc', 'norris',
+    'grand prix', 'qualifying', 'pole position', 'podium',
+    'boxing', 'ufc', 'mma', 'fury', 'usyk', 'joshua',
+    'golf', 'masters', 'pga', 'ryder cup',
   ],
 };
 

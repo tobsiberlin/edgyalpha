@@ -19,6 +19,17 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   - +35 Geopolitik (Ukraine-Spezial, Defense, EU, US-Medien)
   - +12 Tech/AI (OpenAI, VentureBeat AI, MIT Tech Review)
 
+- **MEGA-Keywords für Markt-Matching:** ~600+ Keywords für maximale Alpha-Erkennung
+  - **Politik:** DE, US 2028, UK, FR, NL, IT, ES, EU, NATO, China, Naher Osten
+  - **Wirtschaft:** Zentralbanken, Börsen, DAX, US Tech Giants, Energie, Crypto
+  - **Sport:**
+    - Bundesliga, Premier League, La Liga, Serie A, Ligue 1 (alle Clubs)
+    - 50+ Trainer-Namen (Nagelsmann, Klopp, Guardiola, etc.)
+    - FIFA WM 2026 Nationalteams & Qualifikation
+    - NFL (alle Teams + Awards), NBA (alle Teams + MVP), NHL (Stanley Cup)
+    - Formel 1, Tennis Grand Slams, UFC/Boxing, Golf
+  - **Markets:** Breaking News Keywords, Geopolitik-Events, Wahlen
+
 ---
 
 ## [3.0.1] - 2026-02-02
