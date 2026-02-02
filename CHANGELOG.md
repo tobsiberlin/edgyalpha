@@ -9,9 +9,16 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [3.0.1] - 2026-02-02
 
+### Hinzugefügt
+- **Module-Toggles in Telegram:** TIME_DELAY und MISPRICING einzeln aktivierbar/deaktivierbar
+  - Neue Toggle-Buttons in ⚙️ Settings
+  - "Nur Deutschland" Filter schaltbar
+  - Push-Notifications nur für TIME_DELAY (MISPRICING nur Digest)
+
 ### Geändert
 - **Branding:** "Almanien-Vorsprung" → "Alman Heimvorteil" (weniger boomer)
 - Telegram Bot, Web-Login, README aktualisiert
+- MISPRICING ist jetzt default AUS (fokus auf TIME_DELAY)
 
 ### Behoben
 - **DB-Init beim Startup:** `initDatabase()` wird jetzt automatisch beim App-Start aufgerufen

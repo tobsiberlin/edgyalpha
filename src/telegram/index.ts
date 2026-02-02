@@ -38,6 +38,10 @@ const runtimeSettings = {
   minEdge: 5,
   minAlpha: 15,
   minVolume: 5000,
+  // Module Toggles
+  timeDelayEnabled: true,    // TIME_DELAY Engine aktiv
+  mispricingEnabled: false,  // MISPRICING Engine (default: aus - nur Digest)
+  germanyOnly: true,         // Nur Deutschland-relevante Märkte
 };
 
 export class TelegramAlertBot extends EventEmitter {
@@ -768,6 +772,9 @@ ${this.DIVIDER}
           case 'digest':
             await this.handleDigestAction(params[0], chatId, query.message?.message_id);
             break;
+          case 'toggle':
+            await this.handleModuleToggle(params[0], chatId, query.message?.message_id);
+            break;
         }
       } catch (err) {
         const error = err as Error;
@@ -1201,14 +1208,38 @@ _Auto-Update alle 60 Sekunden_`;
   private async handleSettings(chatId: string, messageId?: number): Promise<void> {
     this.editingField = null; // Reset editing mode
 
+    // Module Status Emojis
+    const tdStatus = runtimeSettings.timeDelayEnabled ? '🟢' : '🔴';
+    const mpStatus = runtimeSettings.mispricingEnabled ? '🟢' : '🔴';
+    const deStatus = runtimeSettings.germanyOnly ? '🟢' : '🔴';
+
     const message = `${this.HEADER}
 
 ⚙️ *EINSTELLUNGEN*
 
-Tippe ✏️ um einen Wert zu ändern:`;
+${this.DIVIDER}
+
+*ALPHA MODULE:*
+${tdStatus} TIME\\_DELAY: ${runtimeSettings.timeDelayEnabled ? 'AKTIV' : 'AUS'}
+${mpStatus} MISPRICING: ${runtimeSettings.mispricingEnabled ? 'AKTIV' : 'AUS'}
+${deStatus} Nur Deutschland: ${runtimeSettings.germanyOnly ? 'JA' : 'NEIN'}
+
+${this.DIVIDER}
+
+_Tippe auf ein Modul zum Umschalten:_`;
 
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
+        // Module Toggles
+        [
+          { text: `${tdStatus} TIME_DELAY`, callback_data: 'toggle:timeDelay' },
+          { text: `${mpStatus} MISPRICING`, callback_data: 'toggle:mispricing' },
+        ],
+        [
+          { text: `${deStatus} 🇩🇪 Nur Deutschland`, callback_data: 'toggle:germanyOnly' },
+        ],
+        // Divider
+        [{ text: '── PARAMETER ──', callback_data: 'noop' }],
         [
           { text: `💵 Max Bet`, callback_data: 'noop' },
           { text: `$${runtimeSettings.maxBet}`, callback_data: 'noop' },
@@ -1243,6 +1274,32 @@ Tippe ✏️ um einen Wert zu ändern:`;
     } else {
       await this.sendMessageWithKeyboard(message, keyboard, chatId);
     }
+  }
+
+  private async handleModuleToggle(module: string, chatId: string, messageId?: number): Promise<void> {
+    const moduleMap: Record<string, keyof typeof runtimeSettings> = {
+      timeDelay: 'timeDelayEnabled',
+      mispricing: 'mispricingEnabled',
+      germanyOnly: 'germanyOnly',
+    };
+
+    const settingKey = moduleMap[module];
+    if (!settingKey) return;
+
+    // Toggle the value
+    (runtimeSettings as Record<string, boolean>)[settingKey] = !runtimeSettings[settingKey];
+
+    const newValue = runtimeSettings[settingKey];
+    const moduleNames: Record<string, string> = {
+      timeDelay: 'TIME_DELAY',
+      mispricing: 'MISPRICING',
+      germanyOnly: '🇩🇪 Nur Deutschland',
+    };
+
+    logger.info(`[TELEGRAM] Modul ${moduleNames[module]} → ${newValue ? 'AKTIVIERT' : 'DEAKTIVIERT'}`);
+
+    // Refresh settings menu
+    await this.handleSettings(chatId, messageId);
   }
 
   private async handleEdit(field: string, chatId: string, messageId?: number): Promise<void> {
@@ -2134,11 +2191,21 @@ ${riskGates}`;
 
     // TIME_DELAY Push Ready Event
     notificationService.on('push_ready', async (notification: PushReadyNotification) => {
+      // Prüfe ob TIME_DELAY Modul aktiviert ist
+      if (!runtimeSettings.timeDelayEnabled) {
+        logger.debug('[TELEGRAM] TIME_DELAY Push übersprungen - Modul deaktiviert');
+        return;
+      }
       await this.sendTimeDelayAlert(notification);
     });
 
     // Batched Notifications
     notificationService.on('push_batched', async (notifications: PushReadyNotification[]) => {
+      // Prüfe ob TIME_DELAY Modul aktiviert ist
+      if (!runtimeSettings.timeDelayEnabled) {
+        logger.debug('[TELEGRAM] TIME_DELAY Batch übersprungen - Modul deaktiviert');
+        return;
+      }
       await this.sendBatchedAlert(notifications);
     });
 
@@ -2151,6 +2218,10 @@ ${riskGates}`;
     // BREAKING NEWS → Candidate Queue (NICHT mehr direkt pushen!)
     // ═══════════════════════════════════════════════════════════════
     germanySources.on('breaking_news', async (news: BreakingNewsEvent) => {
+      // Prüfe ob TIME_DELAY Modul aktiviert ist (News sind Teil der TIME_DELAY Pipeline)
+      if (!runtimeSettings.timeDelayEnabled) {
+        return;
+      }
       // Statt direktem Push: Erstelle Candidate und warte auf Gate-Check
       const candidate = await notificationService.processBreakingNews(news);
       if (candidate) {
@@ -2164,6 +2235,10 @@ ${riskGates}`;
     // ALPHA SCANNER EVENTS (für MISPRICING - nur Digest, kein Breaking)
     // ═══════════════════════════════════════════════════════════════
     scanner.on('signal_found', async (signal: AlphaSignal) => {
+      // Prüfe ob MISPRICING Modul aktiviert ist
+      if (!runtimeSettings.mispricingEnabled) {
+        return;
+      }
       // MISPRICING Signals: Nur loggen, kein automatischer Push
       // Nutzer kann /digest verwenden
       if (signal.score > 0.7) {
