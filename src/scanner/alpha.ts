@@ -1,4 +1,4 @@
-import { Market, AlphaSignal, TradeRecommendation, GermanSource } from '../types/index.js';
+import { Market, AlphaSignal, TradeRecommendation, GermanSource, SignalReasoning } from '../types/index.js';
 import { config } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { v4 as uuid } from 'uuid';
@@ -706,6 +706,152 @@ export function createTradeRecommendation(
 }
 
 // ═══════════════════════════════════════════════════════════════
+//                    STRUKTURIERTES REASONING
+//          Erklärt dem User WARUM ein Signal interessant ist
+// ═══════════════════════════════════════════════════════════════
+
+function generateStructuredReasoning(
+  market: Market,
+  breakdown: AlphaCalculationResult['breakdown'] | undefined,
+  externalData?: {
+    germanSources?: Array<{ relevance: number; direction: 'YES' | 'NO' }>;
+    aiAnalysis?: { confidence: number; direction: 'YES' | 'NO' };
+    newsAlpha?: NewsAlphaData;
+  }
+): SignalReasoning {
+  const factors: SignalReasoning['factors'] = [];
+  const summaryParts: string[] = [];
+
+  // 1. Match-Score Faktor
+  if (breakdown?.matchScore && breakdown.matchScore > 0) {
+    const matchPct = Math.round(breakdown.matchScore * 100);
+    let explanation = '';
+    if (matchPct >= 70) {
+      explanation = 'Starke Übereinstimmung zwischen News und Markt';
+    } else if (matchPct >= 50) {
+      explanation = 'Gute Übereinstimmung mit relevanten News';
+    } else if (matchPct >= 30) {
+      explanation = 'Moderate Übereinstimmung gefunden';
+    } else {
+      explanation = 'Schwache Übereinstimmung, vorsichtig sein';
+    }
+    factors.push({
+      name: 'Match-Score',
+      value: breakdown.matchScore,
+      explanation,
+    });
+  }
+
+  // 2. Source-Score Faktor (Anzahl/Qualität der Quellen)
+  if (breakdown?.sourceScore && breakdown.sourceScore > 0) {
+    const newsCount = externalData?.newsAlpha?.matchCount || 0;
+    const deCount = externalData?.germanSources?.length || 0;
+    let explanation = '';
+
+    if (deCount > 0 && newsCount > 0) {
+      explanation = `${newsCount} News + ${deCount} deutsche Quelle(n) bestätigen`;
+    } else if (newsCount >= 3) {
+      explanation = `${newsCount} unabhängige Quellen berichten übereinstimmend`;
+    } else if (newsCount === 2) {
+      explanation = 'Zwei Quellen bestätigen die Information';
+    } else if (newsCount === 1) {
+      explanation = 'Eine Quelle - Verifizierung empfohlen';
+    } else if (deCount > 0) {
+      explanation = `${deCount} deutsche Quelle(n) mit Heimvorteil`;
+    }
+
+    if (explanation) {
+      factors.push({
+        name: 'Quellen',
+        value: breakdown.sourceScore,
+        explanation,
+      });
+    }
+  }
+
+  // 3. Timing-Score Faktor
+  if (breakdown?.timingScore && breakdown.timingScore > 0) {
+    const recentCount = externalData?.newsAlpha?.recentNews?.length || 0;
+    let explanation = '';
+
+    if (recentCount > 0) {
+      explanation = `${recentCount} News in den letzten 30 Min - Zeitvorsprung aktiv`;
+      summaryParts.push('Frische News');
+    } else if (breakdown.timingScore >= 0.5) {
+      explanation = 'Markt hat möglicherweise noch nicht reagiert';
+    } else {
+      explanation = 'News bereits älter - Zeitvorsprung begrenzt';
+    }
+
+    factors.push({
+      name: 'Timing',
+      value: breakdown.timingScore,
+      explanation,
+    });
+  }
+
+  // 4. Content/Sentiment Faktor
+  if (breakdown?.contentScore && breakdown.contentScore > 0) {
+    const sentiment = externalData?.newsAlpha?.sentimentScore || 0;
+    const impact = externalData?.newsAlpha?.impactScore || 0;
+    const isBreaking = externalData?.newsAlpha?.bestMatch?.isBreaking;
+
+    let explanation = '';
+    if (isBreaking) {
+      explanation = 'BREAKING NEWS - Hoher Impact erwartet';
+      summaryParts.push('Breaking News');
+    } else if (Math.abs(sentiment) >= 0.5) {
+      explanation = sentiment > 0
+        ? 'Stark positives Sentiment in den Nachrichten'
+        : 'Stark negatives Sentiment in den Nachrichten';
+    } else if (impact >= 0.5) {
+      explanation = 'Hohe Relevanz und Markt-Impact';
+    } else {
+      explanation = 'Moderater Nachrichteneffekt';
+    }
+
+    factors.push({
+      name: 'Sentiment',
+      value: Math.abs(sentiment),
+      explanation,
+    });
+  }
+
+  // 5. News Match (wenn vorhanden)
+  let newsMatch: SignalReasoning['newsMatch'];
+  if (externalData?.newsAlpha?.bestMatch) {
+    const match = externalData.newsAlpha.bestMatch;
+    newsMatch = {
+      title: match.title,
+      source: match.source,
+      confidence: match.relevance,
+    };
+    summaryParts.push(`"${match.title.substring(0, 50)}${match.title.length > 50 ? '...' : ''}"`);
+  }
+
+  // Summary generieren
+  let summary = '';
+  if (summaryParts.length > 0) {
+    summary = summaryParts.join(' - ');
+  } else if (factors.length > 0) {
+    // Fallback: Besten Faktor als Summary nutzen
+    const bestFactor = factors.reduce((a, b) => a.value > b.value ? a : b);
+    summary = bestFactor.explanation;
+  } else {
+    summary = `Signal für "${market.question.substring(0, 40)}..."`;
+  }
+
+  // Faktoren nach Wert sortieren (höchster zuerst)
+  factors.sort((a, b) => b.value - a.value);
+
+  return {
+    summary,
+    factors: factors.filter(f => f.value > 0.1), // Nur relevante Faktoren
+    newsMatch,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
 //                    ALPHA SIGNAL ERSTELLEN
 // ═══════════════════════════════════════════════════════════════
 
@@ -739,6 +885,15 @@ export function createAlphaSignal(
     ? ` [M:${(breakdown.matchScore * 100).toFixed(0)}% S:${(breakdown.sourceScore * 100).toFixed(0)}% T:${(breakdown.timingScore * 100).toFixed(0)}% C:${(breakdown.contentScore * 100).toFixed(0)}%]`
     : '');
 
+  // ═══════════════════════════════════════════════════════════════
+  // STRUKTURIERTES REASONING - erklärt WARUM das Signal interessant ist
+  // ═══════════════════════════════════════════════════════════════
+  const structuredReasoning: SignalReasoning = generateStructuredReasoning(
+    market,
+    breakdown,
+    externalData
+  );
+
   const signal: AlphaSignal = {
     id: uuid(),
     market,
@@ -747,6 +902,7 @@ export function createAlphaSignal(
     confidence, // Jetzt echte berechnete Confidence statt score
     direction,
     reasoning: detailedReasoning,
+    structuredReasoning, // NEU: Strukturiertes Reasoning
     sources: [],
     timestamp: new Date(),
     // NUR germanSource setzen wenn der MARKT Deutschland-relevant ist

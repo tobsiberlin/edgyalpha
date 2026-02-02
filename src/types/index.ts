@@ -37,6 +37,21 @@ export type MarketCategory =
   | 'geopolitics'
   | 'unknown';
 
+// Strukturiertes Reasoning für Signale - erklärt WARUM ein Signal interessant ist
+export interface SignalReasoning {
+  summary: string;  // z.B. "Dawum-Umfrage zeigt CDU bei 32%, Markt bei 28%"
+  factors: Array<{
+    name: string;       // z.B. "Poll-Delta", "Match-Score", "Sentiment"
+    value: number;      // Numerischer Wert (0-1 oder Prozent)
+    explanation: string; // z.B. "CDU liegt 4% über Markterwartung"
+  }>;
+  newsMatch?: {
+    title: string;
+    source: string;
+    confidence: number;
+  };
+}
+
 export interface AlphaSignal {
   id: string;
   market: Market;
@@ -45,6 +60,7 @@ export interface AlphaSignal {
   confidence: number; // 0-1 Konfidenz
   direction: 'YES' | 'NO';
   reasoning: string;
+  structuredReasoning?: SignalReasoning; // NEU: Strukturiertes Reasoning
   sources: string[];
   timestamp: Date;
   germanSource?: GermanSource;
