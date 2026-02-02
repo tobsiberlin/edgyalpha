@@ -13,6 +13,7 @@ import {
   WORKING_RSS_FEEDS,
 } from './rss.js';
 import { getDatabase, initDatabase, isDatabaseInitialized } from '../storage/db.js';
+import { timeAdvantageService } from '../alpha/timeAdvantageService.js';
 import { runtimeState } from '../runtime/state.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -641,6 +642,22 @@ class GermanySources extends EventEmitter {
               timeAdvantageSeconds,
             };
             breakingNews.push(breakingEvent);
+
+            // TIME ADVANTAGE TRACKING: Starte Tracking fuer diese News
+            const sentiment = this.determineSentiment(item);
+            timeAdvantageService.trackNews(
+              newsId,
+              item.data.source as string,
+              item.title,
+              item.url,
+              (item.data.category as string) || 'unknown',
+              keywords,
+              item.publishedAt,
+              detectedAt,
+              sentiment
+            ).catch(err => {
+              logger.debug(`[TIME_ADVANTAGE] Tracking Fehler: ${(err as Error).message}`);
+            });
           }
         }
       }
@@ -683,6 +700,43 @@ class GermanySources extends EventEmitter {
     ];
 
     return allKeywords.filter(kw => text.includes(kw.toLowerCase()));
+  }
+
+  /**
+   * Bestimmt das Sentiment einer News basierend auf Keywords
+   */
+  private determineSentiment(news: GermanSource): 'positive' | 'negative' | 'neutral' {
+    const text = `${news.title} ${(news.data.content as string) || ''}`.toLowerCase();
+
+    const positiveKeywords = [
+      'gewinnt', 'sieg', 'erfolg', 'steigt', 'wachstum', 'durchbruch', 'einigung',
+      'fortschritt', 'rekord', 'positiv', 'optimistisch', 'staerkt', 'verbessert',
+      'wins', 'victory', 'success', 'rises', 'growth', 'breakthrough', 'agreement',
+      'progress', 'record', 'positive', 'optimistic', 'bullish', 'rally',
+    ];
+
+    const negativeKeywords = [
+      'verliert', 'niederlage', 'scheitert', 'faellt', 'krise', 'absturz', 'einbruch',
+      'rueckgang', 'negativ', 'pessimistisch', 'schwaecht', 'verschlechtert', 'warnung',
+      'loses', 'defeat', 'fails', 'falls', 'crisis', 'crash', 'collapse', 'decline',
+      'negative', 'pessimistic', 'weaker', 'warning', 'bearish', 'selloff',
+      'entlassen', 'gefeuert', 'ruecktritt', 'fired', 'sacked', 'resigns',
+    ];
+
+    let positiveCount = 0;
+    let negativeCount = 0;
+
+    for (const kw of positiveKeywords) {
+      if (text.includes(kw)) positiveCount++;
+    }
+
+    for (const kw of negativeKeywords) {
+      if (text.includes(kw)) negativeCount++;
+    }
+
+    if (positiveCount > negativeCount) return 'positive';
+    if (negativeCount > positiveCount) return 'negative';
+    return 'neutral';
   }
 
   // Original fetchAll - jetzt auch Event-Listener starten
