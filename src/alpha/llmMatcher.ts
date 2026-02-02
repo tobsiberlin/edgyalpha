@@ -5,12 +5,29 @@
  * 1. Ist die News relevant für den Markt?
  * 2. Wenn ja: YES oder NO kaufen?
  * 3. Confidence Level
+ *
+ * Kosten-Tracking:
+ * - Claude 3.5 Haiku: $0.80/1M Input, $4.00/1M Output
+ * - Tägliches Budget konfigurierbar (default: €2.50)
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger.js';
+import { config } from '../utils/config.js';
 import type { Market } from '../types/index.js';
 import type { SourceEvent } from './types.js';
+
+// ═══════════════════════════════════════════════════════════════
+// PRICING (Claude 3.5 Haiku - Stand 2026)
+// ═══════════════════════════════════════════════════════════════
+
+const HAIKU_PRICING = {
+  inputPer1M: 0.80,   // $0.80 pro 1M Input Tokens
+  outputPer1M: 4.00,  // $4.00 pro 1M Output Tokens
+};
+
+// EUR/USD Kurs (grob)
+const EUR_USD_RATE = 1.08;
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -37,6 +54,27 @@ export interface LLMMatcherStats {
   lastCallAt: Date | null;
 }
 
+export interface LLMCostStats {
+  // Heute
+  todayInputTokens: number;
+  todayOutputTokens: number;
+  todayCostUsd: number;
+  todayCostEur: number;
+  todayCalls: number;
+  // Gesamt (seit Start)
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  totalCostEur: number;
+  // Budget
+  dailyBudgetEur: number;
+  budgetUsedPercent: number;
+  budgetExhausted: boolean;
+  // Zeitstempel
+  dayStartedAt: Date;
+  lastCallAt: Date | null;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // LLM MATCHER CLASS
 // ═══════════════════════════════════════════════════════════════
@@ -55,8 +93,18 @@ export class LLMMatcher {
   };
   private latencies: number[] = [];
 
+  // Kosten-Tracking
+  private todayInputTokens: number = 0;
+  private todayOutputTokens: number = 0;
+  private todayCalls: number = 0;
+  private totalInputTokens: number = 0;
+  private totalOutputTokens: number = 0;
+  private dayStartedAt: Date = new Date();
+  private budgetExhausted: boolean = false;
+
   constructor() {
     this.initialize();
+    this.scheduleDailyReset();
   }
 
   private initialize(): void {
@@ -71,19 +119,99 @@ export class LLMMatcher {
     try {
       this.client = new Anthropic({ apiKey });
       this.enabled = true;
-      logger.info('[LLM_MATCHER] Initialisiert mit Claude Haiku');
+      const budget = config.llm?.dailyBudgetEur ?? 2.50;
+      logger.info(`[LLM_MATCHER] Initialisiert mit Claude Haiku (Budget: €${budget.toFixed(2)}/Tag)`);
     } catch (error) {
       logger.error('[LLM_MATCHER] Initialisierung fehlgeschlagen:', error);
       this.enabled = false;
     }
   }
 
+  private scheduleDailyReset(): void {
+    // Reset um Mitternacht UTC
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+    setTimeout(() => {
+      this.resetDailyStats();
+      // Dann jeden Tag um Mitternacht
+      setInterval(() => this.resetDailyStats(), 24 * 60 * 60 * 1000);
+    }, msUntilMidnight);
+
+    logger.info(`[LLM_MATCHER] Daily Reset geplant in ${Math.round(msUntilMidnight / 60000)} Minuten`);
+  }
+
+  private resetDailyStats(): void {
+    const costStats = this.getCostStats();
+    logger.info(
+      `[LLM_MATCHER] === TÄGLICHER RESET === ` +
+      `Calls: ${this.todayCalls}, Kosten: €${costStats.todayCostEur.toFixed(4)}`
+    );
+
+    this.todayInputTokens = 0;
+    this.todayOutputTokens = 0;
+    this.todayCalls = 0;
+    this.dayStartedAt = new Date();
+    this.budgetExhausted = false;
+  }
+
+  private calculateCostUsd(inputTokens: number, outputTokens: number): number {
+    return (inputTokens / 1_000_000) * HAIKU_PRICING.inputPer1M +
+           (outputTokens / 1_000_000) * HAIKU_PRICING.outputPer1M;
+  }
+
+  private checkBudget(): boolean {
+    const budget = config.llm?.dailyBudgetEur ?? 2.50;
+    const todayCostEur = this.calculateCostUsd(this.todayInputTokens, this.todayOutputTokens) / EUR_USD_RATE;
+
+    if (todayCostEur >= budget) {
+      if (!this.budgetExhausted) {
+        this.budgetExhausted = true;
+        logger.warn(`[LLM_MATCHER] 🚨 BUDGET ERSCHÖPFT! €${todayCostEur.toFixed(2)} / €${budget.toFixed(2)}`);
+      }
+      return false;
+    }
+    return true;
+  }
+
   isEnabled(): boolean {
-    return this.enabled;
+    return this.enabled && !this.budgetExhausted;
+  }
+
+  isBudgetExhausted(): boolean {
+    return this.budgetExhausted;
   }
 
   getStats(): LLMMatcherStats {
     return { ...this.stats };
+  }
+
+  getCostStats(): LLMCostStats {
+    const budget = config.llm?.dailyBudgetEur ?? 2.50;
+    const todayCostUsd = this.calculateCostUsd(this.todayInputTokens, this.todayOutputTokens);
+    const todayCostEur = todayCostUsd / EUR_USD_RATE;
+    const totalCostUsd = this.calculateCostUsd(this.totalInputTokens, this.totalOutputTokens);
+    const totalCostEur = totalCostUsd / EUR_USD_RATE;
+
+    return {
+      todayInputTokens: this.todayInputTokens,
+      todayOutputTokens: this.todayOutputTokens,
+      todayCostUsd,
+      todayCostEur,
+      todayCalls: this.todayCalls,
+      totalInputTokens: this.totalInputTokens,
+      totalOutputTokens: this.totalOutputTokens,
+      totalCostUsd,
+      totalCostEur,
+      dailyBudgetEur: budget,
+      budgetUsedPercent: (todayCostEur / budget) * 100,
+      budgetExhausted: this.budgetExhausted,
+      dayStartedAt: this.dayStartedAt,
+      lastCallAt: this.stats.lastCallAt,
+    };
   }
 
   /**
@@ -101,6 +229,11 @@ export class LLMMatcher {
     const startTime = Date.now();
     this.stats.totalCalls++;
 
+    // Budget-Check vor API-Call
+    if (!this.checkBudget()) {
+      return this.createNullResult(market);
+    }
+
     try {
       const prompt = this.buildMatchPrompt(news, market);
 
@@ -110,10 +243,28 @@ export class LLMMatcher {
         messages: [{ role: 'user', content: prompt }],
       });
 
+      // Token-Tracking
+      const inputTokens = response.usage?.input_tokens ?? 0;
+      const outputTokens = response.usage?.output_tokens ?? 0;
+      this.todayInputTokens += inputTokens;
+      this.todayOutputTokens += outputTokens;
+      this.totalInputTokens += inputTokens;
+      this.totalOutputTokens += outputTokens;
+      this.todayCalls++;
+
       const latency = Date.now() - startTime;
       this.recordLatency(latency);
       this.stats.successfulCalls++;
       this.stats.lastCallAt = new Date();
+
+      // Log Kosten periodisch
+      if (this.todayCalls % 10 === 0) {
+        const costStats = this.getCostStats();
+        logger.info(
+          `[LLM_MATCHER] Kosten heute: €${costStats.todayCostEur.toFixed(4)} ` +
+          `(${costStats.budgetUsedPercent.toFixed(1)}% Budget, ${this.todayCalls} Calls)`
+        );
+      }
 
       // Parse response
       const text = response.content[0].type === 'text'

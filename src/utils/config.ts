@@ -69,6 +69,9 @@ const envSchema = z.object({
 
   // Quick-Buy Button Beträge (USDC)
   QUICK_BUY_AMOUNTS: z.string().default('5,10,25,50'),
+
+  // LLM Budget (täglich)
+  LLM_DAILY_BUDGET_EUR: z.string().default('2.50'),  // Max €2.50/Tag für Claude API
 });
 
 const env = envSchema.parse(process.env);
@@ -142,6 +145,10 @@ export const config: Config = {
   // Quick-Buy Button Beträge
   quickBuy: {
     amounts: env.QUICK_BUY_AMOUNTS.split(',').map(a => parseFloat(a.trim())).filter(a => !isNaN(a) && a > 0),
+  },
+  // LLM Budget
+  llm: {
+    dailyBudgetEur: parseFloat(env.LLM_DAILY_BUDGET_EUR),
   },
 };
 

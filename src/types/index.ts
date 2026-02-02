@@ -165,6 +165,10 @@ export interface Config {
   quickBuy: {
     amounts: number[];  // z.B. [5, 10, 25, 50] USDC
   };
+  // LLM Budget
+  llm: {
+    dailyBudgetEur: number;  // z.B. 2.50 = €2.50/Tag
+  };
 }
 
 export interface LogEntry {
