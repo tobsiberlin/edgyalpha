@@ -90,42 +90,138 @@ export const WORKING_RSS_FEEDS: RSSFeed[] = [
 
 // Experimentelle Feeds - weniger zuverlässig, optional aktivierbar
 export const EXPERIMENTAL_RSS_FEEDS: RSSFeed[] = [
-  // Regionale deutsche Medien
+  // ═══════════════════════════════════════════════════════════════
+  // DEUTSCHE POLITIK - ERWEITERT (15 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.tagesschau.de/ausland/index~rss2.xml', name: 'Tagesschau Ausland', category: 'politics' },
+  { url: 'https://www.spiegel.de/politik/ausland/index.rss', name: 'Spiegel Ausland', category: 'politics' },
+  { url: 'https://newsfeed.zeit.de/politik/deutschland/index', name: 'Zeit Deutschland', category: 'politics' },
+  { url: 'https://www.faz.net/rss/aktuell/politik/inland/', name: 'FAZ Inland', category: 'politics' },
+  { url: 'https://www.welt.de/feeds/section/politik/deutschland.rss', name: 'Welt Deutschland', category: 'politics' },
+  { url: 'https://rss.focus.de/politik/', name: 'Focus Politik', category: 'politics' },
+  { url: 'https://www.stern.de/feed/standard/politik/', name: 'Stern Politik', category: 'politics' },
+  { url: 'https://www.bild.de/rss-feeds/rss-16725492,feed=politik.bild.html', name: 'Bild Politik', category: 'politics' },
+  { url: 'https://www.bundestag.de/rss-feeds', name: 'Bundestag', category: 'politics' },
   { url: 'https://www.rbb24.de/politik/feed.xml', name: 'rbb24 Berlin', category: 'politics' },
-  { url: 'https://www1.wdr.de/nachrichten/index~rss.feed', name: 'WDR NRW', category: 'politics' },
+  { url: 'https://www.br.de/nachrichten/bayern,QcP6dfq/feed.rss', name: 'BR24 Bayern', category: 'politics' },
   { url: 'https://www.ndr.de/nachrichten/hamburg/index-rss.xml', name: 'NDR Hamburg', category: 'politics' },
+  { url: 'https://www1.wdr.de/nachrichten/index~rss.feed', name: 'WDR NRW', category: 'politics' },
+  { url: 'https://www.swr.de/swraktuell/baden-wuerttemberg/index~_feed-atom.xml', name: 'SWR BW', category: 'politics' },
   { url: 'https://www.mdr.de/nachrichten/sachsen/index-rss.xml', name: 'MDR Sachsen', category: 'politics' },
+  { url: 'https://www.hessenschau.de/index~_feed-rss-hessenschau.xml', name: 'HR Hessen', category: 'politics' },
 
-  // Weitere Wirtschaftsquellen
+  // ═══════════════════════════════════════════════════════════════
+  // WIRTSCHAFT & FINANZEN - ERWEITERT (16 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.handelsblatt.com/contentexport/feed/finanzen/', name: 'Handelsblatt Finanzen', category: 'economics' },
+  { url: 'https://www.handelsblatt.com/contentexport/feed/unternehmen/', name: 'Handelsblatt Unternehmen', category: 'economics' },
+  { url: 'https://www.faz.net/rss/aktuell/wirtschaft/unternehmen/', name: 'FAZ Unternehmen', category: 'economics' },
   { url: 'https://www.wiwo.de/rss/wiwo-news.rss', name: 'Wirtschaftswoche', category: 'economics' },
   { url: 'https://www.capital.de/rss/index.rss', name: 'Capital', category: 'economics' },
+  { url: 'https://www.finanzen.net/rss/news', name: 'finanzen.net', category: 'economics' },
+  { url: 'https://www.boerse-online.de/rss/news', name: 'Börse Online', category: 'economics' },
+  { url: 'https://www.deraktionaer.de/rss/news.xml', name: 'Der Aktionär', category: 'economics' },
+  { url: 'https://www.finanztreff.de/rss/news', name: 'Finanztreff', category: 'economics' },
+  { url: 'https://feeds.bloomberg.com/bview/news.rss', name: 'Bloomberg Europe', category: 'economics' },
+  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', name: 'CNBC', category: 'economics' },
+  { url: 'https://www.cnbc.com/id/19794221/device/rss/rss.html', name: 'CNBC Europe', category: 'economics' },
+  { url: 'https://www.ft.com/rss/home', name: 'Financial Times', category: 'economics' },
+  { url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', name: 'Wall Street Journal', category: 'economics' },
+  { url: 'https://finance.yahoo.com/rss/', name: 'Yahoo Finance', category: 'economics' },
   { url: 'https://seekingalpha.com/market_currents.xml', name: 'Seeking Alpha', category: 'economics' },
+  { url: 'https://www.bundesbank.de/SiteGlobals/Functions/RSS/DE/rssfeed.html', name: 'Bundesbank', category: 'economics' },
 
-  // US Politik
-  { url: 'https://www.politico.com/rss/politicopicks.xml', name: 'Politico US', category: 'politics' },
-  { url: 'https://thehill.com/feed/', name: 'The Hill', category: 'politics' },
-  { url: 'https://feeds.npr.org/1014/rss.xml', name: 'NPR Politics', category: 'politics' },
+  // ═══════════════════════════════════════════════════════════════
+  // SPORT - MASSIVE ERWEITERUNG (30 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.kicker.de/rss/bundesliga', name: 'Kicker Bundesliga', category: 'sports' },
+  { url: 'https://www.kicker.de/rss/2-bundesliga', name: 'Kicker 2. Liga', category: 'sports' },
+  { url: 'https://www.kicker.de/rss/champions-league', name: 'Kicker Champions League', category: 'sports' },
+  { url: 'https://www.sport1.de/rss/fussball', name: 'Sport1', category: 'sports' },
+  { url: 'https://www.sport1.de/rss/fussball/bundesliga', name: 'Sport1 Bundesliga', category: 'sports' },
+  { url: 'https://www.sportschau.de/fussball/index~rss.xml', name: 'Sportschau Fussball', category: 'sports' },
+  { url: 'https://www.spox.com/rss/fussball-news.xml', name: 'Spox Fussball', category: 'sports' },
+  { url: 'https://www.transfermarkt.de/rss/news', name: 'Transfermarkt', category: 'sports' },
+  { url: 'https://www.goal.com/de/feeds/news', name: 'Goal DE', category: 'sports' },
+  { url: 'https://www.goal.com/en/feeds/news', name: 'Goal EN', category: 'sports' },
+  { url: 'https://www.fourfourtwo.com/feeds/all', name: 'FourFourTwo', category: 'sports' },
+  { url: 'https://theathletic.com/rss-feed/', name: 'The Athletic', category: 'sports' },
+  { url: 'https://www.tz.de/sport/fc-bayern/rssfeed.rss', name: 'FC Bayern News', category: 'sports' },
+  { url: 'https://www.ruhrnachrichten.de/sport/bvb/rssfeed.rss', name: 'BVB News', category: 'sports' },
+  { url: 'https://www.lvz.de/Sport/Fussball/RB-Leipzig/rssfeed.rss', name: 'RB Leipzig News', category: 'sports' },
+  { url: 'https://www.kicker.de/bayer-04-leverkusen/news/rss', name: 'Bayer Leverkusen', category: 'sports' },
+  { url: 'https://www.kicker.de/fc-schalke-04/news/rss', name: 'Schalke 04', category: 'sports' },
+  { url: 'https://www.skysports.com/rss/12691', name: 'Premier League', category: 'sports' },
+  { url: 'https://www.skysports.com/rss/12821', name: 'La Liga', category: 'sports' },
+  { url: 'https://www.skysports.com/rss/12827', name: 'Serie A', category: 'sports' },
+  { url: 'https://www.skysports.com/rss/12833', name: 'Ligue 1', category: 'sports' },
+  { url: 'https://www.espn.com/espn/rss/nfl/news', name: 'ESPN NFL', category: 'sports' },
+  { url: 'https://www.espn.com/espn/rss/nba/news', name: 'ESPN NBA', category: 'sports' },
+  { url: 'https://bleacherreport.com/articles/feed', name: 'Bleacher Report', category: 'sports' },
 
-  // Ukraine/Russland spezial
+  // ═══════════════════════════════════════════════════════════════
+  // GEOPOLITIK - MASSIVE ERWEITERUNG (35 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://feeds.reuters.com/reuters/UKWorldNews', name: 'Reuters Europe', category: 'geopolitics' },
+  { url: 'https://feeds.reuters.com/Reuters/PoliticsNews', name: 'Reuters Politics', category: 'geopolitics' },
+  { url: 'https://rsshub.app/apnews/topics/world-news', name: 'AP News', category: 'geopolitics' },
+  { url: 'https://www.afp.com/en/rss-feeds', name: 'AFP', category: 'geopolitics' },
+  { url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', name: 'BBC US', category: 'geopolitics' },
+  { url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml', name: 'BBC Asia', category: 'geopolitics' },
+  { url: 'https://www.theguardian.com/world/europe-news/rss', name: 'Guardian Europe', category: 'geopolitics' },
+  { url: 'https://www.theguardian.com/us-news/rss', name: 'Guardian US', category: 'geopolitics' },
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Europe.xml', name: 'NYT Europe', category: 'geopolitics' },
+  { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post', category: 'geopolitics' },
+  { url: 'https://www.aljazeera.com/europe/rss.xml', name: 'Al Jazeera Europe', category: 'geopolitics' },
+  { url: 'https://rss.dw.com/xml/rss-en-eu', name: 'DW Europe', category: 'geopolitics' },
+  { url: 'https://www.euronews.com/rss', name: 'Euronews', category: 'geopolitics' },
+  { url: 'https://euobserver.com/rss.xml', name: 'EU Observer', category: 'geopolitics' },
+  { url: 'https://www.france24.com/en/rss', name: 'France24', category: 'geopolitics' },
+  { url: 'https://www.thelocal.de/feed/', name: 'The Local DE', category: 'geopolitics' },
+  { url: 'https://www.thelocal.com/feed/', name: 'The Local EU', category: 'geopolitics' },
   { url: 'https://www.pravda.com.ua/eng/rss/', name: 'Ukraine Pravda EN', category: 'geopolitics' },
+  { url: 'https://www.pravda.com.ua/rss/', name: 'Ukraine Pravda UA', category: 'geopolitics' },
+  { url: 'https://www.rferl.org/api/zrqiteuuir', name: 'RFERL Ukraine', category: 'geopolitics' },
+  { url: 'https://www.rferl.org/api/zbitrmquvo', name: 'RFERL Russia', category: 'geopolitics' },
   { url: 'https://www.themoscowtimes.com/rss/news', name: 'Moscow Times', category: 'geopolitics' },
   { url: 'https://www.ukrinform.net/rss/block-lastnews', name: 'Ukrinform', category: 'geopolitics' },
+  { url: 'https://www.unian.net/rss/', name: 'UNIAN', category: 'geopolitics' },
   { url: 'https://www.understandingwar.org/feed', name: 'ISW', category: 'geopolitics' },
   { url: 'https://warontherocks.com/feed/', name: 'War on the Rocks', category: 'geopolitics' },
+  { url: 'https://www.defenseone.com/rss/', name: 'Defense One', category: 'geopolitics' },
+  { url: 'https://www.defensenews.com/arc/outboundfeeds/rss/', name: 'Defense News', category: 'geopolitics' },
+  { url: 'https://www.janes.com/feeds/news', name: 'Janes', category: 'geopolitics' },
 
-  // Sport - Club-spezifisch
-  { url: 'https://www.kicker.de/rss/bundesliga', name: 'Kicker Bundesliga', category: 'sports' },
-  { url: 'https://www.kicker.de/rss/champions-league', name: 'Kicker CL', category: 'sports' },
-  { url: 'https://www.sport1.de/rss/fussball', name: 'Sport1', category: 'sports' },
+  // ═══════════════════════════════════════════════════════════════
+  // US POLITIK (10 Quellen)
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.politico.com/rss/politicopicks.xml', name: 'Politico', category: 'politics' },
+  { url: 'https://thehill.com/feed/', name: 'The Hill', category: 'politics' },
+  { url: 'https://api.axios.com/feed/', name: 'Axios', category: 'politics' },
+  { url: 'http://rss.cnn.com/rss/cnn_allpolitics.rss', name: 'CNN Politics', category: 'politics' },
+  { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', name: 'Fox News Politics', category: 'politics' },
+  { url: 'https://feeds.npr.org/1014/rss.xml', name: 'NPR Politics', category: 'politics' },
+  { url: 'https://fivethirtyeight.com/features/feed/', name: 'FiveThirtyEight', category: 'politics' },
+  { url: 'https://www.realclearpolitics.com/index.xml', name: 'RealClearPolitics', category: 'politics' },
 
-  // Tech erweitert
+  // ═══════════════════════════════════════════════════════════════
+  // TECH - ERWEITERT (12 Quellen)
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://t3n.de/rss.xml', name: 't3n', category: 'tech' },
   { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge', category: 'tech' },
   { url: 'https://www.wired.com/feed/rss', name: 'Wired', category: 'tech' },
   { url: 'https://feeds.arstechnica.com/arstechnica/index', name: 'Ars Technica', category: 'tech' },
+  { url: 'https://www.engadget.com/rss.xml', name: 'Engadget', category: 'tech' },
+  { url: 'https://www.technologyreview.com/feed/', name: 'MIT Tech Review', category: 'tech' },
   { url: 'https://news.ycombinator.com/rss', name: 'Hacker News', category: 'tech' },
+  { url: 'https://feeds.reuters.com/reuters/technologyNews', name: 'Reuters Tech', category: 'tech' },
+  { url: 'https://openai.com/blog/rss/', name: 'OpenAI Blog', category: 'tech' },
+  { url: 'https://artificialintelligence-news.com/feed/', name: 'AI News', category: 'tech' },
+  { url: 'https://venturebeat.com/category/ai/feed/', name: 'VentureBeat AI', category: 'tech' },
 
-  // Crypto erweitert
+  // ═══════════════════════════════════════════════════════════════
+  // CRYPTO - ERWEITERT (6 Quellen)
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://www.theblockcrypto.com/rss.xml', name: 'The Block', category: 'crypto' },
   { url: 'https://bitcoinmagazine.com/feed', name: 'Bitcoin Magazine', category: 'crypto' },
   { url: 'https://cryptoslate.com/feed/', name: 'CryptoSlate', category: 'crypto' },

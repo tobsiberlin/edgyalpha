@@ -248,7 +248,7 @@ class GermanySources extends EventEmitter {
 
     // Nutze die neue robuste RSS-Fetch-Logik mit Health-Tracking
     const result = await fetchAllRSSFeeds({
-      includeExperimental: false, // Nur stabile Feeds fuer Event-Listener
+      includeExperimental: true, // Nur stabile Feeds fuer Event-Listener
       maxConcurrent: 10,
       timeout: 8000,
     });
@@ -422,7 +422,7 @@ class GermanySources extends EventEmitter {
   async fetchRSSFeeds(): Promise<void> {
     // Nutze die neue robuste RSS-Fetch-Logik
     const result = await fetchAllRSSFeeds({
-      includeExperimental: false, // Nur stabile, kuratierte Feeds
+      includeExperimental: true, // Nur stabile, kuratierte Feeds
       maxConcurrent: 10,
       timeout: 8000,
     });

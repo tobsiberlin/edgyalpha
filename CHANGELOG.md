@@ -7,6 +7,20 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.2] - 2026-02-02
+
+### Hinzugefügt
+- **RSS-Feeds Wiederherstellung:** Fehlende Feeds aus ursprünglicher "ULTRA-MASSIVE" Liste zurückgeholt
+  - Vorher: 80 Feeds (40 Working + 40 Experimental)
+  - Jetzt: **156 Feeds** (40 Working + 116 Experimental)
+  - +15 Deutsche Politik (Regionale ARD-Sender, Bild, Stern, Focus)
+  - +16 Wirtschaft (Handelsblatt Finanzen/Unternehmen, CNBC, WSJ, FT, Bundesbank)
+  - +30 Sport (Bundesliga-Clubs, Premier League, La Liga, NFL, NBA)
+  - +35 Geopolitik (Ukraine-Spezial, Defense, EU, US-Medien)
+  - +12 Tech/AI (OpenAI, VentureBeat AI, MIT Tech Review)
+
+---
+
 ## [3.0.1] - 2026-02-02
 
 ### Hinzugefügt
