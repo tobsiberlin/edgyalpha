@@ -42,6 +42,12 @@ test-results/
 # PM2
 .pm2/
 
+# Database (NIEMALS committen!)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/.scanner.lock
+
 # Misc
 *.tgz
 *.tar.gz
