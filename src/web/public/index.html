@@ -116,11 +116,16 @@ body {
 
 .console-app {
     display: grid;
-    grid-template-columns: 180px 1fr 320px;
+    grid-template-columns: 180px 1fr;
     grid-template-rows: 36px 1fr 28px;
     height: 100vh;
     gap: 1px;
     background: var(--border-dim);
+}
+
+/* Mit Drilldown-Panel (3 Spalten) */
+.console-app.show-drilldown {
+    grid-template-columns: 180px 1fr 320px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -608,15 +613,44 @@ body {
 
 .drilldown-panel {
     background: var(--bg-panel);
-    display: flex;
+    display: none;
     flex-direction: column;
     border-left: 1px solid var(--border-dim);
     overflow-y: auto;
 }
 
+/* Drilldown nur auf Signals-Seite anzeigen */
+.console-app.show-drilldown .drilldown-panel {
+    display: flex;
+}
+
+/* Close Button für Drilldown */
+.drilldown-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    background: var(--bg-terminal);
+    border: 1px solid var(--border-mid);
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.drilldown-close:hover {
+    border-color: var(--red-dim);
+    color: var(--red-risk);
+}
+
 .drilldown-header {
     padding: var(--sp-md);
     border-bottom: 1px solid var(--border-dim);
+    position: relative;
 }
 
 .drilldown-title {
@@ -1044,7 +1078,8 @@ body {
 }
 
 @media (max-width: 900px) {
-    .console-app {
+    .console-app,
+    .console-app.show-drilldown {
         grid-template-columns: 1fr;
         grid-template-rows: 36px 1fr auto 28px;
     }
@@ -1053,7 +1088,8 @@ body {
         display: none;
     }
 
-    .drilldown-panel {
+    .drilldown-panel,
+    .console-app.show-drilldown .drilldown-panel {
         display: none;
     }
 }
@@ -1181,6 +1217,10 @@ body {
                 <div class="nav-item" data-view="console" onclick="showView('console')">
                     <span class="nav-icon">▸</span>
                     <span>CONSOLE</span>
+                </div>
+                <div class="nav-item" data-view="settings" onclick="showView('settings')">
+                    <span class="nav-icon">⚙</span>
+                    <span>SETTINGS</span>
                 </div>
             </div>
         </nav>
@@ -1323,17 +1363,34 @@ body {
             <div class="viewport-content" id="view-almanien">
                 <div class="viewport-header">
                     <div class="viewport-title">ALMANIEN INTELLIGENCE</div>
+                    <div class="viewport-actions">
+                        <div class="metric">
+                            <span class="metric-label">MATCHES</span>
+                            <span class="metric-value positive" id="almanien-match-count">0</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">NEWS</span>
+                            <span class="metric-value" id="almanien-news-count">0</span>
+                        </div>
+                        <button class="btn" onclick="loadAlmanienMatches()" style="font-size: 10px;">REFRESH</button>
+                    </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; overflow-y: auto;">
+                <div style="padding: 16px; overflow-y: auto; height: calc(100% - 44px);">
+                    <!-- Matches Panel (Hauptbereich) -->
+                    <div class="panel" style="margin-bottom: 16px;">
+                        <div class="panel-header">NEWS-MARKT MATCHES</div>
+                        <div class="panel-body" id="almanien-matches" style="padding: 0;">
+                            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                <div style="font-size: 24px; margin-bottom: 12px;">Lade Matches...</div>
+                                <div style="font-size: 10px;">Deutsche News werden mit Polymarket-Maerkten abgeglichen</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Umfragen Panel (klein) -->
                     <div class="panel">
                         <div class="panel-header">SONNTAGSFRAGE (DAWUM)</div>
                         <div class="panel-body" id="polls-data">
-                            <span style="color: var(--text-muted);">Lade...</span>
-                        </div>
-                    </div>
-                    <div class="panel">
-                        <div class="panel-header">DEUTSCHE NEWS</div>
-                        <div class="panel-body" id="news-data" style="max-height: 300px; overflow-y: auto;">
                             <span style="color: var(--text-muted);">Lade...</span>
                         </div>
                     </div>
@@ -1691,8 +1748,9 @@ body {
              ═══════════════════════════════════════════════════════════════════ -->
         <aside class="drilldown-panel" id="drilldown-panel">
             <div class="drilldown-header">
+                <button class="drilldown-close" onclick="closeDrilldown()" title="Schliessen">×</button>
                 <div class="drilldown-title" id="drilldown-title">SELECT SIGNAL</div>
-                <div class="drilldown-subtitle" id="drilldown-subtitle">Click a signal to view details</div>
+                <div class="drilldown-subtitle" id="drilldown-subtitle">Waehle ein Signal fuer Details</div>
             </div>
 
             <div class="chart-container" id="chart-container">
@@ -1814,6 +1872,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     loadInitialData();
     bootSequence();
+    // Initial Drilldown-Panel fuer Signals-Seite aktivieren
+    document.querySelector('.console-app').classList.add('show-drilldown');
 });
 
 function bootSequence() {
@@ -2044,6 +2104,60 @@ function showView(viewId) {
     // Update content
     document.querySelectorAll('.viewport-content').forEach(content => {
         content.classList.toggle('active', content.id === 'view-' + viewId);
+    });
+
+    // Drilldown-Panel nur auf der Signals-Seite anzeigen
+    const consoleApp = document.querySelector('.console-app');
+    if (viewId === 'signals') {
+        consoleApp.classList.add('show-drilldown');
+    } else {
+        consoleApp.classList.remove('show-drilldown');
+        // Reset Drilldown-Zustand beim Verlassen
+        resetDrilldown();
+    }
+}
+
+// Drilldown schliessen und zuruecksetzen
+function closeDrilldown() {
+    const consoleApp = document.querySelector('.console-app');
+    consoleApp.classList.remove('show-drilldown');
+    resetDrilldown();
+}
+
+// Drilldown-Panel zuruecksetzen
+function resetDrilldown() {
+    selectedSignal = null;
+
+    // Chart entfernen falls vorhanden
+    if (typeof priceChart !== 'undefined' && priceChart) {
+        try {
+            priceChart.remove();
+        } catch (e) {}
+        priceChart = null;
+    }
+
+    // Chart-Container zuruecksetzen
+    const chartContainer = document.getElementById('chart-container');
+    if (chartContainer) {
+        chartContainer.innerHTML = '<div class="chart-placeholder"><span>Waehle ein Signal fuer Chart</span></div>';
+    }
+
+    // Drilldown-Felder zuruecksetzen
+    document.getElementById('drilldown-title').textContent = 'SELECT SIGNAL';
+    document.getElementById('drilldown-subtitle').textContent = 'Waehle ein Signal fuer Details';
+    document.getElementById('dd-direction').textContent = '--';
+    document.getElementById('dd-direction').className = 'data-value';
+    document.getElementById('dd-edge').textContent = '--';
+    document.getElementById('dd-confidence').textContent = '--';
+    document.getElementById('dd-size').textContent = '--';
+
+    // Trade-Buttons deaktivieren
+    document.getElementById('btn-trade-yes').disabled = true;
+    document.getElementById('btn-trade-no').disabled = true;
+
+    // Signal-Selektion aufheben
+    document.querySelectorAll('.signal-item').forEach(el => {
+        el.classList.remove('selected');
     });
 }
 
@@ -3283,7 +3397,14 @@ async function loadPriceChart(signal) {
         return;
     }
 
-    // Clear previous chart
+    // Clear previous chart properly
+    if (priceChart) {
+        try {
+            priceChart.remove();
+        } catch (e) {}
+        priceChart = null;
+        priceSeries = null;
+    }
     container.innerHTML = '';
 
     try {

@@ -30,6 +30,20 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   - Vorher: Positions vergessen → Over-Exposure möglich
   - Jetzt: Alles persistiert in `risk_state` Tabelle
 
+- **UI: Rechte Sidebar nur auf Signals-Seite:**
+  - Drilldown-Panel mit "SELECT SIGNAL" erscheint nicht mehr auf Risk/Almanien-Seiten
+  - X-Button zum Schliessen des Drilldown-Panels hinzugefuegt
+  - Sauberes Layout ohne Trading-UI auf Dashboard-Seiten
+
+- **Chart-Overlay Bug behoben:**
+  - Chart wird bei Seitenwechsel korrekt entfernt (nicht mehr "klebend")
+  - `priceChart.remove()` wird aufgerufen bevor neuer Chart erstellt wird
+  - Drilldown-Reset beim Verlassen der Signals-Seite
+
+### Geändert
+- Grid-Layout dynamisch: 2 Spalten ohne Drilldown, 3 Spalten mit Drilldown
+- Deutsche UI-Texte in Drilldown-Placeholder
+
 ---
 
 ## [3.0.3] - 2026-02-02
