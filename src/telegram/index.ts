@@ -7,6 +7,16 @@ import { tradingClient } from '../api/trading.js';
 import { germanySources, BreakingNewsEvent } from '../germany/index.js';
 import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { EventEmitter } from 'events';
+import {
+  AlphaSignalV2,
+  Decision,
+  CombinedSignal,
+  formatTopFeatures,
+  formatRiskGates,
+  formatRiskGatesDetailed,
+  getPolymarketUrl,
+  buildTelegramAlert,
+} from '../alpha/index.js';
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
@@ -1129,6 +1139,176 @@ ${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}
 *Bock? Ein Klick und das Ding läuft.*`;
 
     await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signal.id));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                   ALPHA SIGNAL V2 - NEUES FORMAT
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Sende Alpha Signal V2 mit Decision - Neues erweitertes Format
+   * Unterstuetzt sowohl AlphaSignalV2 als auch CombinedSignal
+   */
+  async sendAlphaSignalV2(
+    signal: AlphaSignalV2 | CombinedSignal,
+    decision: Decision,
+    executionMode: 'paper' | 'shadow' | 'live' = 'paper'
+  ): Promise<void> {
+    // Bestimme ob Combined Signal
+    const isCombined = 'sourceSignals' in signal;
+
+    // Mode Emoji und Label
+    const modeEmoji: Record<string, string> = {
+      paper: '📝',
+      shadow: '👻',
+      live: '🚀',
+    };
+
+    const modeLabel = executionMode.toUpperCase();
+
+    // Alpha-Type Display
+    let alphaTypeDisplay: string;
+    if (isCombined) {
+      const combined = signal as CombinedSignal;
+      const sources: string[] = [];
+      if (combined.sourceSignals.timeDelay) sources.push('TimeDelay');
+      if (combined.sourceSignals.mispricing) sources.push('Mispricing');
+      alphaTypeDisplay = `Meta (${sources.join(' + ')})`;
+    } else {
+      alphaTypeDisplay = signal.alphaType === 'timeDelay' ? 'Time Delay' : 'Mispricing';
+    }
+
+    // Top Features
+    const topFeatures = formatTopFeatures(signal);
+
+    // Risk Gates
+    const riskGatesSummary = formatRiskGates(decision.riskChecks);
+    const riskGatesDetailed = formatRiskGatesDetailed(decision.riskChecks);
+
+    // Polymarket URL (mit slug falls vorhanden)
+    const polymarketUrl = getPolymarketUrl(signal.marketId);
+
+    // Size Display
+    const sizeDisplay = decision.sizeUsdc !== null ? `$${decision.sizeUsdc.toFixed(2)}` : 'N/A';
+
+    // Question (gekuerzt)
+    const questionDisplay = signal.question.length > 50
+      ? signal.question.substring(0, 47) + '...'
+      : signal.question;
+
+    // Message zusammenbauen
+    const message = `${this.HEADER}
+
+${modeEmoji[executionMode]} *[${modeLabel}] SIGNAL*
+
+${this.DIVIDER}
+
+*${questionDisplay}*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  📊 SIGNAL-DETAILS              │
+├─────────────────────────────────┤
+│  Alpha-Type: ${alphaTypeDisplay.padEnd(17)}│
+│  Direction:  ${signal.direction.toUpperCase().padEnd(17)}│
+│  Size:       ${sizeDisplay.padEnd(17)}│
+│  Edge:       ${((signal.predictedEdge * 100).toFixed(1) + '%').padEnd(17)}│
+│  Confidence: ${((signal.confidence * 100).toFixed(0) + '%').padEnd(17)}│
+└─────────────────────────────────┘
+\`\`\`
+
+${this.DIVIDER}
+
+🔍 *Treiber:*
+\`\`\`
+  1. ${topFeatures[0] || 'N/A'}
+  2. ${topFeatures[1] || 'N/A'}
+  3. ${topFeatures[2] || 'N/A'}
+\`\`\`
+
+${this.DIVIDER}
+
+✅ *Risk-Gates:* ${riskGatesSummary}
+\`\`\`
+${riskGatesDetailed.join('\n')}
+\`\`\`
+
+🔗 [Polymarket öffnen](${polymarketUrl})`;
+
+    // Keyboard fuer V2 Signal
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '🚀 JA TRADEN', callback_data: `tradev2:yes:${signal.signalId}` },
+          { text: '💀 NEIN TRADEN', callback_data: `tradev2:no:${signal.signalId}` },
+        ],
+        [
+          { text: '👀 Nur beobachten', callback_data: `watchv2:${signal.signalId}` },
+          { text: '⏭️ Skip', callback_data: `skipv2:${signal.signalId}` },
+        ],
+        [
+          { text: '◀️ Zurück zum Menü', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    // Rejection-Warnung falls vorhanden
+    let finalMessage = message;
+    if (decision.rationale.rejectionReasons && decision.rationale.rejectionReasons.length > 0) {
+      const rejectionText = decision.rationale.rejectionReasons
+        .map(r => `  ⚠️ ${r}`)
+        .join('\n');
+      finalMessage += `\n\n*Einschränkungen:*\n${rejectionText}`;
+    }
+
+    await this.sendMessageWithKeyboard(finalMessage, keyboard);
+
+    // Logge das Signal
+    logger.info(`[TELEGRAM] Alpha Signal V2 gesendet: ${signal.signalId.slice(0, 8)}...`, {
+      alphaType: signal.alphaType,
+      direction: signal.direction,
+      edge: signal.predictedEdge,
+      action: decision.action,
+      mode: executionMode,
+    });
+  }
+
+  /**
+   * Sende kompakten V2 Alert (fuer Batch-Signale)
+   */
+  async sendAlphaSignalV2Compact(
+    signal: AlphaSignalV2 | CombinedSignal,
+    decision: Decision,
+    executionMode: 'paper' | 'shadow' | 'live' = 'paper'
+  ): Promise<void> {
+    const modeEmoji: Record<string, string> = {
+      paper: '📝',
+      shadow: '👻',
+      live: '🚀',
+    };
+
+    // Kompaktes Format
+    const edge = (signal.predictedEdge * 100).toFixed(1);
+    const conf = (signal.confidence * 100).toFixed(0);
+    const size = decision.sizeUsdc !== null ? `$${decision.sizeUsdc.toFixed(0)}` : '-';
+    const riskGates = formatRiskGates(decision.riskChecks);
+
+    const message = `${modeEmoji[executionMode]} *${signal.direction.toUpperCase()}* | Edge: ${edge}% | Conf: ${conf}% | ${size}
+${signal.question.substring(0, 60)}${signal.question.length > 60 ? '...' : ''}
+${riskGates}`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '👁️ Details', callback_data: `detailsv2:${signal.signalId}` },
+          { text: '🚀 Trade', callback_data: `tradev2:${signal.direction}:${signal.signalId}` },
+        ],
+      ],
+    };
+
+    await this.sendMessageWithKeyboard(message, keyboard);
   }
 
   // ═══════════════════════════════════════════════════════════════

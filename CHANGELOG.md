@@ -35,6 +35,14 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Meta-Combiner: Online Logistic Regression, Walk-Forward Learning, Feature-Koeffizienten, Erklärbare Top-Features
 - Neue DB-Tabelle: meta_combiner_state für persistente Weights
 
+**Phase 4 - Execution & Risk (ERLEDIGT):**
+- Risk-Gates Modul: Daily-Loss, Max-Positions, Per-Market-Cap, Liquidity, Spread, Kill-Switch
+- Sizing Modul: Quarter-Kelly mit Caps, Slippage-Modell, Liquidity-Adjustments
+- Gestufte Execution: paper (Default), shadow (Quotes+Simulation), live (mit Credential-Check)
+- Harte Verweigerung: LiveModeNoCredentialsError wenn Wallet fehlt
+- Telemetry Modul: formatSignalForDisplay, formatRiskGates, buildTelegramAlert
+- Telegram V2: Neues Alert-Format mit Alpha-Type, Top-Features, Risk-Gates Summary
+
 ### Geplant (noch nicht implementiert)
 - SQLite Storage-Layer mit `better-sqlite3`
 - Feature-Flags: `ALPHA_ENGINE` (timeDelay|mispricing|meta), `EXECUTION_MODE` (paper|shadow|live)
