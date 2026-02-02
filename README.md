@@ -98,6 +98,74 @@
 
 ---
 
+## Alpha Engines V2 (NEU!)
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│               ALPHA ENGINES V2 - ZWEI STRIKT GETRENNTE ENGINES        │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  TIME_DELAY ENGINE                                           │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Informations-Timing: DE/EU-Quellen vs. Marktreaktion        │     │
+│   │  • Fuzzy-Matching (Levenshtein)                              │     │
+│   │  • Multi-Source Confirmation (≥2 Quellen)                    │     │
+│   │  • Sentiment & Impact Score                                  │     │
+│   │  • Blockt wenn Markt bereits bewegt                          │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  MISPRICING ENGINE                                           │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Value-/Struktur-Alpha OHNE Zeitvorsprung                    │     │
+│   │  • Transparente P_true Schätzung (keine Blackbox)            │     │
+│   │  • Poll-Delta (Dawum vs. Markt)                              │     │
+│   │  • Mean-Reversion bei Extremen                               │     │
+│   │  • Market-Quality Gates (Spread, Liquidity)                  │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  META-COMBINER (ML)                                          │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  Online Logistic Regression + Walk-Forward Learning          │     │
+│   │  • Kombiniert beide Engines                                  │     │
+│   │  • Erklärbare Top-Features                                   │     │
+│   │  • Persistente Weights in SQLite                             │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│   ┌─────────────────────────────────────────────────────────────┐     │
+│   │  EXECUTION (paper | shadow | live)                           │     │
+│   │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │     │
+│   │  • Risk-Gates: Daily-Loss, Max-Positions, Kill-Switch        │     │
+│   │  • Quarter-Kelly Sizing mit Liquidity-Anpassung              │     │
+│   │  • Slippage-Modell kalibriert aus echten Trades              │     │
+│   └─────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### CLI-Tools
+
+```bash
+npm run markets -- --minVolume 10000 --limit 50    # Polymarket Märkte
+npm run rss -- --health                             # RSS Feed Health
+npm run dawum                                       # Aktuelle Umfragen
+npm run import:polydata -- --all                    # Historische Daten
+npm run backtest -- --engine meta --from 2024-01-01 # Backtesting
+```
+
+### Feature-Flags
+
+```env
+ALPHA_ENGINE=meta              # timeDelay | mispricing | meta
+EXECUTION_MODE=paper           # paper | shadow | live
+SQLITE_PATH=./data/edgyalpha.db
+BACKTEST_MODE=false
+```
+
+---
+
 ## Tech Stack
 
 ```
@@ -309,27 +377,51 @@ RSS_FEEDS_ENABLED=true
 ```
 edgyalpha/
 ├── src/
+│   ├── alpha/            # Alpha Engines V2 (NEU!)
+│   │   ├── types.ts      # AlphaSignalV2, Features, Decision
+│   │   ├── timeDelayEngine.ts   # TIME_DELAY Engine
+│   │   ├── mispricingEngine.ts  # MISPRICING Engine
+│   │   ├── metaCombiner.ts      # Meta-Combiner (ML)
+│   │   ├── matching.ts   # Fuzzy-Matching
+│   │   ├── riskGates.ts  # Risk-Management
+│   │   ├── sizing.ts     # Kelly-Sizing
+│   │   └── telemetry.ts  # Observability
+│   ├── storage/          # SQLite Storage (NEU!)
+│   │   ├── db.ts         # Database Singleton
+│   │   ├── schema.sql    # 8 Tabellen
+│   │   └── repositories/ # Typsichere CRUD
+│   ├── backtest/         # Backtesting (NEU!)
+│   │   ├── simulator.ts  # Trade-Simulation
+│   │   ├── metrics.ts    # PnL, Sharpe, Drawdown
+│   │   ├── calibration.ts # Brier-Score
+│   │   └── report.ts     # Markdown/JSON Output
+│   ├── data/polydata/    # poly_data Import (NEU!)
 │   ├── api/              # API-Clients
 │   │   ├── polymarket.ts # Gamma + CLOB API
-│   │   └── trading.ts    # Trading Engine (Polygon/USDC)
+│   │   └── trading.ts    # Gestufte Execution
 │   ├── germany/          # Almanien-Modul
-│   │   └── index.ts      # Dawum, Bundestag, 188+ RSS, Event-Listener
-│   ├── scanner/          # Alpha-Scanner
-│   │   ├── index.ts      # Scanner-Logik
-│   │   └── alpha.ts      # Alpha Generator v2.0 + Kelly
-│   ├── ticker/           # Live News Ticker (NEU!)
-│   │   └── index.ts      # Dauerfeuer-Modus, Matching
-│   ├── telegram/         # Telegram Bot
-│   │   └── index.ts      # Bot + Live Ticker
+│   │   ├── index.ts      # Koordination
+│   │   ├── rss.ts        # 40 kuratierte Feeds
+│   │   └── dawum.ts      # Wahlumfragen
+│   ├── scanner/          # Legacy Scanner
+│   ├── ticker/           # Live News Ticker
+│   ├── telegram/         # Telegram Bot V2
 │   ├── web/              # Express + Frontend
-│   │   ├── server.ts     # REST API + WebSocket
-│   │   └── public/       # Terminal-UI + Live Ticker Tab
 │   ├── types/            # TypeScript Types
-│   ├── utils/            # Config, Logger
-│   └── index.ts          # Entry Point
+│   └── utils/            # Config, Logger
+├── scripts/              # CLI-Tools (NEU!)
+│   ├── markets.ts        # npm run markets
+│   ├── rss.ts            # npm run rss
+│   ├── dawum.ts          # npm run dawum
+│   ├── import-polydata.ts # npm run import:polydata
+│   └── backtest.ts       # npm run backtest
+├── tasks/                # Task-Management
+│   ├── todo.md           # Alle Tasks erledigt ✅
+│   └── lessons.md        # Workflow-Regeln
 ├── tests/                # Vitest Tests
-├── .github/workflows/    # CI/CD
-├── ecosystem.config.js   # PM2 Config
+├── src/__tests__/        # Unit Tests (102 Tests)
+├── PLAN.md               # Implementierungsplan
+├── CHANGELOG.md          # Versionshistorie
 └── package.json
 ```
 

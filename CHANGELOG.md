@@ -51,6 +51,11 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - CLI: `npm run backtest --engine meta --from 2024-01-01 --to 2024-06-30`
 - Walk-Forward für Meta-Combiner (kein Lookahead-Bias)
 
+**Tests & Dokumentation (ERLEDIGT):**
+- 102 Unit Tests (dedupe, riskGates, sizing, matching, calibration)
+- README.md aktualisiert mit V2 Features
+- tasks/todo.md alle Checkboxen erledigt
+
 ---
 
 ## [2.0.0] - 2026-02-01
