@@ -20,6 +20,7 @@ import { getStats } from '../storage/repositories/historical.js';
 import { initDatabase } from '../storage/db.js';
 import { getSystemHealthDashboard } from '../storage/repositories/pipelineHealth.js';
 import { getAuditLog } from '../storage/repositories/riskState.js';
+import { getSignalsByMarket } from '../storage/repositories/signals.js';
 
 // Backtest State
 interface BacktestState {
@@ -255,6 +256,27 @@ app.get('/api/polymarket/prices/:tokenId', requireAuth, async (req: Request, res
       points: history,
       count: history.length,
     });
+  } catch (err) {
+    const error = err as Error;
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Signals für einen Markt (für Chart-Marker)
+app.get('/api/signals/market/:marketId', requireAuth, (req: Request, res: Response) => {
+  const { marketId } = req.params;
+  try {
+    const signals = getSignalsByMarket(marketId);
+    // Nur die relevanten Felder für Marker zurückgeben
+    const markers = signals.map(s => ({
+      signalId: s.signalId,
+      alphaType: s.alphaType,
+      direction: s.direction,
+      predictedEdge: s.predictedEdge,
+      confidence: s.confidence,
+      createdAt: s.createdAt,
+    }));
+    res.json({ marketId, signals: markers });
   } catch (err) {
     const error = err as Error;
     res.status(500).json({ error: error.message });

@@ -65,3 +65,57 @@ export {
   getStats,
 } from './historical.js';
 export type { HistoricalStats } from './historical.js';
+
+// News Candidates Repository
+export {
+  createCandidate,
+  setMatchResult,
+  setGateResults,
+  markAsPushed,
+  rejectCandidate,
+  queueForPush,
+  getCandidatesForPush,
+  getCandidatesForMatching,
+  getCandidateById,
+  getCandidateByHash,
+  getRecentCandidates,
+  getCandidateStats,
+  expireOldCandidates,
+  cleanupOldCandidates,
+} from './newsCandidates.js';
+export type {
+  NewsCandidate,
+  CandidateStatus,
+  CandidateStats,
+  GateResult,
+  GateResults,
+  CreateCandidateInput,
+} from './newsCandidates.js';
+
+// Pipeline Health Repository
+export {
+  recordPipelineSuccess,
+  recordPipelineError,
+  getAllPipelineStatus,
+  getPipelineStatus,
+  isPipelineStale,
+  recordDataFreshness,
+  getDataFreshness,
+  isDataStale,
+  getSystemHealthDashboard,
+} from './pipelineHealth.js';
+export type {
+  PipelineStatus,
+  DataFreshness,
+  SystemHealthDashboard,
+} from './pipelineHealth.js';
+
+// Risk State Repository
+export {
+  loadRiskState,
+  saveRiskState,
+  resetDailyInDb,
+  writeAuditLog,
+  getAuditLog,
+} from './riskState.js';
+export type { PersistedRiskState, AuditLogEntry } from './riskState.js';

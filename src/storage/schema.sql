@@ -223,3 +223,75 @@ CREATE TABLE IF NOT EXISTS data_freshness (
 );
 CREATE INDEX IF NOT EXISTS idx_freshness_type ON data_freshness(source_type);
 CREATE INDEX IF NOT EXISTS idx_freshness_as_of ON data_freshness(as_of);
+
+-- news_candidates (Entkopplung News → Push)
+-- News werden hier gesammelt und erst nach Gate-Check gepusht
+CREATE TABLE IF NOT EXISTS news_candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dedupe_hash TEXT UNIQUE NOT NULL,        -- Hash für Deduplizierung
+  source_id TEXT NOT NULL,                 -- RSS Feed ID
+  source_name TEXT NOT NULL,               -- z.B. "Tagesschau", "Reuters"
+  title TEXT NOT NULL,
+  url TEXT,
+  content TEXT,
+  published_at TEXT NOT NULL,              -- Originalzeit der News
+  ingested_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  categories TEXT,                         -- JSON Array: ["politics", "economy"]
+  keywords TEXT,                           -- JSON Array: Erkannte Keywords
+  time_advantage_seconds INTEGER,          -- Zeitvorsprung in Sekunden
+  status TEXT NOT NULL DEFAULT 'new',      -- new|matching|matched|rejected|expired|pushed
+  rejection_reason TEXT,                   -- Wenn rejected: Grund
+  -- Matching-Ergebnisse
+  matched_market_id TEXT,
+  matched_market_question TEXT,
+  match_confidence REAL,
+  match_method TEXT,                       -- 'keyword'|'semantic'|'hybrid'
+  -- Gate-Check Ergebnisse
+  gate_results TEXT,                       -- JSON: {gate_name: {passed: bool, value: X, threshold: Y}}
+  gates_passed INTEGER DEFAULT 0,          -- 1 wenn alle Gates grün
+  -- Push-Status
+  push_queued_at TEXT,
+  push_sent_at TEXT,
+  push_message_id TEXT,                    -- Telegram Message ID
+  -- TTL
+  expires_at TEXT,                         -- Nach X Stunden automatisch expired
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_candidates_status ON news_candidates(status);
+CREATE INDEX IF NOT EXISTS idx_candidates_published ON news_candidates(published_at);
+CREATE INDEX IF NOT EXISTS idx_candidates_market ON news_candidates(matched_market_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_expires ON news_candidates(expires_at);
+
+-- notification_state (Rate Limiter Persistence)
+CREATE TABLE IF NOT EXISTS notification_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),   -- Singleton
+  last_push_at TEXT,                       -- Letzter Push-Zeitpunkt
+  pushes_today INTEGER NOT NULL DEFAULT 0, -- Pushes heute
+  pushes_today_date TEXT,                  -- Datum für Daily Reset
+  quiet_hours_queue TEXT DEFAULT '[]',     -- JSON: Geparkete Notifications während Quiet Hours
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- notification_settings (Push-Einstellungen pro User/Chat)
+CREATE TABLE IF NOT EXISTS notification_settings (
+  chat_id TEXT PRIMARY KEY,                -- Telegram Chat ID
+  push_mode TEXT NOT NULL DEFAULT 'TIME_DELAY_ONLY',  -- OFF|TIME_DELAY_ONLY|SYSTEM_ONLY|DIGEST_ONLY|FULL
+  quiet_hours_enabled INTEGER NOT NULL DEFAULT 1,
+  quiet_hours_start TEXT DEFAULT '23:00',  -- Format HH:MM
+  quiet_hours_end TEXT DEFAULT '07:00',
+  timezone TEXT DEFAULT 'Europe/Berlin',
+  -- Thresholds
+  min_match_confidence REAL DEFAULT 0.75,
+  min_edge REAL DEFAULT 0.03,
+  min_volume REAL DEFAULT 50000,
+  -- Category Toggles (1=enabled, 0=disabled)
+  category_politics INTEGER DEFAULT 1,
+  category_economy INTEGER DEFAULT 1,
+  category_sports INTEGER DEFAULT 0,
+  category_geopolitics INTEGER DEFAULT 1,
+  category_crypto INTEGER DEFAULT 0,
+  -- Rate Limits
+  cooldown_minutes INTEGER DEFAULT 15,
+  max_per_day INTEGER DEFAULT 8,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);

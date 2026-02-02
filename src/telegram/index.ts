@@ -18,6 +18,13 @@ import {
   buildTelegramAlert,
 } from '../alpha/index.js';
 import { runtimeState } from '../runtime/state.js';
+import { notificationService, PushReadyNotification } from '../notifications/notificationService.js';
+import {
+  canPush,
+  getNotificationSettings,
+  updateNotificationSettings,
+  PushMode,
+} from '../notifications/rateLimiter.js';
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
@@ -399,6 +406,176 @@ ${dashboard.positions.open === 0 ? '_Keine offenen Positionen._' : '_Details kom
       await this.sendMessage(message, chatId);
     });
 
+    // ═══════════════════════════════════════════════════════════════
+    // NOTIFICATION SETTINGS COMMANDS
+    // ═══════════════════════════════════════════════════════════════
+
+    // /settings - Zeigt aktuelle Notification-Einstellungen
+    this.bot.onText(/\/settings/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+      const settings = getNotificationSettings(chatId);
+
+      const modeEmoji: Record<string, string> = {
+        OFF: '🔇',
+        TIME_DELAY_ONLY: '⚡',
+        SYSTEM_ONLY: '🔔',
+        DIGEST_ONLY: '📋',
+        FULL: '📢',
+      };
+
+      const message = `${this.HEADER}
+
+⚙️ *NOTIFICATION SETTINGS*
+
+${this.DIVIDER}
+
+*Push-Modus:* ${modeEmoji[settings.pushMode] || '❓'} ${settings.pushMode}
+*Quiet Hours:* ${settings.quietHoursEnabled ? `✅ ${settings.quietHoursStart}-${settings.quietHoursEnd}` : '❌ Aus'}
+*Timezone:* ${settings.timezone}
+
+${this.DIVIDER}
+
+*Thresholds:*
+• Min Match Confidence: ${(settings.minMatchConfidence * 100).toFixed(0)}%
+• Min Edge: ${(settings.minEdge * 100).toFixed(0)}%
+• Min Volume: $${(settings.minVolume / 1000).toFixed(0)}k
+
+*Rate Limits:*
+• Cooldown: ${settings.cooldownMinutes} min
+• Max/Tag: ${settings.maxPerDay}
+
+${this.DIVIDER}
+
+*Kategorien:*
+• Politik: ${settings.categoryPolitics ? '✅' : '❌'}
+• Wirtschaft: ${settings.categoryEconomy ? '✅' : '❌'}
+• Sport: ${settings.categorySports ? '✅' : '❌'}
+• Geopolitik: ${settings.categoryGeopolitics ? '✅' : '❌'}
+• Crypto: ${settings.categoryCrypto ? '✅' : '❌'}`;
+
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [
+            { text: '⚡ TIME_DELAY', callback_data: 'settings:push:TIME_DELAY_ONLY' },
+            { text: '🔔 SYSTEM', callback_data: 'settings:push:SYSTEM_ONLY' },
+          ],
+          [
+            { text: '📋 DIGEST', callback_data: 'settings:push:DIGEST_ONLY' },
+            { text: '📢 FULL', callback_data: 'settings:push:FULL' },
+          ],
+          [
+            { text: '🔇 OFF', callback_data: 'settings:push:OFF' },
+          ],
+          [
+            { text: settings.quietHoursEnabled ? '🌙 Quiet Hours: AN' : '☀️ Quiet Hours: AUS', callback_data: 'settings:quiet:toggle' },
+          ],
+          [
+            { text: '🔙 Menü', callback_data: 'action:menu' },
+          ],
+        ],
+      }, chatId);
+    });
+
+    // /push [mode] - Ändert Push-Modus
+    this.bot.onText(/\/push(?:\s+(OFF|TIME_DELAY_ONLY|SYSTEM_ONLY|DIGEST_ONLY|FULL))?/i, async (msg, match) => {
+      const chatId = msg.chat.id.toString();
+      const newMode = match?.[1]?.toUpperCase() as PushMode | undefined;
+
+      if (!newMode) {
+        // Zeige aktuelle Einstellung und Optionen
+        const settings = getNotificationSettings(chatId);
+        await this.sendMessageWithKeyboard(
+          `Aktueller Push-Modus: *${settings.pushMode}*\n\nWähle einen neuen Modus:`,
+          {
+            inline_keyboard: [
+              [
+                { text: '⚡ TIME_DELAY_ONLY', callback_data: 'settings:push:TIME_DELAY_ONLY' },
+              ],
+              [
+                { text: '🔔 SYSTEM_ONLY', callback_data: 'settings:push:SYSTEM_ONLY' },
+              ],
+              [
+                { text: '📋 DIGEST_ONLY', callback_data: 'settings:push:DIGEST_ONLY' },
+              ],
+              [
+                { text: '📢 FULL (Test)', callback_data: 'settings:push:FULL' },
+              ],
+              [
+                { text: '🔇 OFF', callback_data: 'settings:push:OFF' },
+              ],
+            ],
+          },
+          chatId
+        );
+        return;
+      }
+
+      updateNotificationSettings(chatId, { pushMode: newMode });
+      await this.sendMessage(`✅ Push-Modus geändert auf: *${newMode}*`, chatId);
+    });
+
+    // /quiet [on|off] - Toggle Quiet Hours
+    this.bot.onText(/\/quiet(?:\s+(on|off))?/i, async (msg, match) => {
+      const chatId = msg.chat.id.toString();
+      const settings = getNotificationSettings(chatId);
+
+      let newState: boolean;
+      if (match?.[1]) {
+        newState = match[1].toLowerCase() === 'on';
+      } else {
+        // Toggle
+        newState = !settings.quietHoursEnabled;
+      }
+
+      updateNotificationSettings(chatId, { quietHoursEnabled: newState });
+      await this.sendMessage(
+        newState
+          ? `🌙 Quiet Hours *aktiviert* (${settings.quietHoursStart}-${settings.quietHoursEnd} ${settings.timezone})`
+          : `☀️ Quiet Hours *deaktiviert*`,
+        chatId
+      );
+    });
+
+    // /digest - Zeigt MISPRICING Digest
+    this.bot.onText(/\/digest/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+
+      // Hole aktuelle Kandidaten-Stats
+      const stats = notificationService.getStats();
+
+      let message = `${this.HEADER}
+
+📋 *SIGNAL DIGEST*
+
+${this.DIVIDER}
+
+*Kandidaten heute:*
+• Neu: ${stats.byStatus.new}
+• Gematcht: ${stats.byStatus.matched}
+• Gepusht: ${stats.pushedToday}
+• Rejected: ${stats.rejectedToday}
+• Expired: ${stats.byStatus.expired}
+
+${this.DIVIDER}`;
+
+      // Hier könnten wir aktive Signals hinzufügen
+      message += `
+
+_Nutze /settings um Push-Benachrichtigungen zu konfigurieren._`;
+
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [
+            { text: '🔄 Refresh', callback_data: 'digest:refresh' },
+          ],
+          [
+            { text: '⚙️ Settings', callback_data: 'action:settings' },
+            { text: '🔙 Menü', callback_data: 'action:menu' },
+          ],
+        ],
+      }, chatId);
+    });
+
     // /help - Kommando-Übersicht
     this.bot.onText(/\/help/, async (msg) => {
       const chatId = msg.chat.id.toString();
@@ -424,6 +601,13 @@ ${this.DIVIDER}
 │  /positions    - Offene Pos.    │
 │  /status       - System Status  │
 │  /signals      - Aktive Signale │
+├─────────────────────────────────┤
+│  NOTIFICATIONS                  │
+├─────────────────────────────────┤
+│  /settings     - Push Settings  │
+│  /push [mode]  - Push-Modus     │
+│  /quiet [on/off] - Quiet Hours  │
+│  /digest       - Signal Digest  │
 ├─────────────────────────────────┤
 │  SCANNER                        │
 ├─────────────────────────────────┤
@@ -511,6 +695,12 @@ ${this.DIVIDER}
             break;
           case 'killswitch':
             await this.handleKillSwitchAction(params[0], chatId, query.message?.message_id);
+            break;
+          case 'settings':
+            await this.handleNotificationSettings(params[0], params[1], chatId, query.message?.message_id);
+            break;
+          case 'digest':
+            await this.handleDigestAction(params[0], chatId, query.message?.message_id);
             break;
         }
       } catch (err) {
@@ -1303,6 +1493,111 @@ Tägliche Statistiken wurden zurückgesetzt.`;
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //              NOTIFICATION SETTINGS HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleNotificationSettings(
+    setting: string,
+    value: string,
+    chatId: string,
+    messageId?: number
+  ): Promise<void> {
+    const settings = getNotificationSettings(chatId);
+
+    if (setting === 'push') {
+      // Push-Modus ändern
+      const newMode = value as PushMode;
+      updateNotificationSettings(chatId, { pushMode: newMode });
+
+      const modeEmoji: Record<string, string> = {
+        OFF: '🔇',
+        TIME_DELAY_ONLY: '⚡',
+        SYSTEM_ONLY: '🔔',
+        DIGEST_ONLY: '📋',
+        FULL: '📢',
+      };
+
+      const message = `${this.HEADER}
+
+✅ *Push-Modus geändert*
+
+${modeEmoji[newMode] || '❓'} *${newMode}*
+
+_Änderung sofort aktiv._`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, {
+          inline_keyboard: [
+            [{ text: '⚙️ Zurück zu Settings', callback_data: 'action:settings' }],
+            [{ text: '🔙 Menü', callback_data: 'action:menu' }],
+          ],
+        });
+      }
+    } else if (setting === 'quiet') {
+      if (value === 'toggle') {
+        // Quiet Hours togglen
+        const newState = !settings.quietHoursEnabled;
+        updateNotificationSettings(chatId, { quietHoursEnabled: newState });
+
+        const message = `${this.HEADER}
+
+${newState ? '🌙' : '☀️'} *Quiet Hours ${newState ? 'aktiviert' : 'deaktiviert'}*
+
+${newState
+    ? `Keine Pushes zwischen ${settings.quietHoursStart}-${settings.quietHoursEnd} (${settings.timezone})`
+    : 'Pushes können jederzeit gesendet werden.'
+}`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, message, {
+            inline_keyboard: [
+              [{ text: '⚙️ Zurück zu Settings', callback_data: 'action:settings' }],
+              [{ text: '🔙 Menü', callback_data: 'action:menu' }],
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  private async handleDigestAction(action: string, chatId: string, messageId?: number): Promise<void> {
+    if (action === 'refresh') {
+      // Refresh Digest
+      const stats = notificationService.getStats();
+
+      const message = `${this.HEADER}
+
+📋 *SIGNAL DIGEST* (aktualisiert)
+
+${this.DIVIDER}
+
+*Kandidaten heute:*
+• Neu: ${stats.byStatus.new}
+• Gematcht: ${stats.byStatus.matched}
+• Gepusht: ${stats.pushedToday}
+• Rejected: ${stats.rejectedToday}
+• Expired: ${stats.byStatus.expired}
+• Pending Batch: ${stats.pendingBatch}
+
+${this.DIVIDER}
+
+_Stand: ${new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin' })}_`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, {
+          inline_keyboard: [
+            [{ text: '🔄 Refresh', callback_data: 'digest:refresh' }],
+            [
+              { text: '⚙️ Settings', callback_data: 'action:settings' },
+              { text: '🔙 Menü', callback_data: 'action:menu' },
+            ],
+          ],
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //                      TRADE HANDLERS
   // ═══════════════════════════════════════════════════════════════
 
@@ -1761,22 +2056,54 @@ ${riskGates}`;
   // ═══════════════════════════════════════════════════════════════
 
   private setupScannerEvents(): void {
-    // Alpha Scanner Events
-    scanner.on('signal_found', async (signal: AlphaSignal) => {
-      if (signal.score > 0.6) {
-        await this.sendBreakingSignal(signal);
+    // ═══════════════════════════════════════════════════════════════
+    // NOTIFICATION SERVICE EVENTS (neue Push-Pipeline)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Initialisiere Notification Service
+    notificationService.init(this.chatId);
+    notificationService.start();
+
+    // TIME_DELAY Push Ready Event
+    notificationService.on('push_ready', async (notification: PushReadyNotification) => {
+      await this.sendTimeDelayAlert(notification);
+    });
+
+    // Batched Notifications
+    notificationService.on('push_batched', async (notifications: PushReadyNotification[]) => {
+      await this.sendBatchedAlert(notifications);
+    });
+
+    // System Alerts (Kill-Switch, Pipeline Down, etc.)
+    notificationService.on('system_alert', async (alert: { type: string; message: string; details?: Record<string, unknown>; asOf: Date }) => {
+      await this.sendSystemAlert(alert.type, alert.message, alert.details, alert.asOf);
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // BREAKING NEWS → Candidate Queue (NICHT mehr direkt pushen!)
+    // ═══════════════════════════════════════════════════════════════
+    germanySources.on('breaking_news', async (news: BreakingNewsEvent) => {
+      // Statt direktem Push: Erstelle Candidate und warte auf Gate-Check
+      const candidate = await notificationService.processBreakingNews(news);
+      if (candidate) {
+        logger.info(`[TELEGRAM] News-Candidate erstellt: #${candidate.id}`);
+        // Matching wird vom Ticker/TIME_DELAY Engine gemacht
+        // Push erfolgt nur wenn alle Gates grün sind
       }
     });
 
     // ═══════════════════════════════════════════════════════════════
-    // ALMAN SCANNER EVENT-LISTENER
-    // Reagiert auf Breaking News mit Zeitvorsprung
+    // ALPHA SCANNER EVENTS (für MISPRICING - nur Digest, kein Breaking)
     // ═══════════════════════════════════════════════════════════════
-    germanySources.on('breaking_news', async (news: BreakingNewsEvent) => {
-      await this.sendBreakingNewsAlert(news);
+    scanner.on('signal_found', async (signal: AlphaSignal) => {
+      // MISPRICING Signals: Nur loggen, kein automatischer Push
+      // Nutzer kann /digest verwenden
+      if (signal.score > 0.7) {
+        logger.info(`[TELEGRAM] MISPRICING Signal erkannt (Score: ${signal.score.toFixed(2)}) - kein Auto-Push`);
+      }
     });
 
-    logger.info('Scanner Events registriert (Alpha + Alman)');
+    logger.info('[TELEGRAM] Scanner Events registriert (Rate-Limited Push Pipeline)');
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1829,6 +2156,200 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
 
     // Automatisch nach passenden Märkten suchen
     this.emit('news_alert', news);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //             TIME_DELAY ALERT (Neues Standardformat)
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendTimeDelayAlert(notification: PushReadyNotification): Promise<void> {
+    const { candidate, market, whyNow, asOf } = notification;
+
+    // Format as_of Zeit
+    const asOfStr = asOf.toLocaleString('de-DE', {
+      timeZone: 'Europe/Berlin',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Market URL
+    const marketUrl = market.marketId
+      ? `https://polymarket.com/event/${market.marketId}`
+      : '';
+
+    const message = `
+⚡ *TIME\\_DELAY – TRADEABLE* ⚡
+
+${this.DIVIDER}
+
+📊 *Markt:*
+\`\`\`
+${market.question.substring(0, 100)}${market.question.length > 100 ? '...' : ''}
+\`\`\`
+
+${this.DIVIDER}
+
+🕐 *as\\_of:* ${asOfStr}
+📰 *Quelle:* ${candidate.sourceName}
+💰 *Volume:* $${(market.totalVolume / 1000).toFixed(0)}k
+📈 *Preis:* ${(market.currentPrice * 100).toFixed(1)}%
+
+${this.DIVIDER}
+
+🎯 *Why now?*
+${whyNow.map(r => `• ${r}`).join('\n')}
+
+${candidate.url ? `🔗 [Quelle](${candidate.url})` : ''}
+${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
+
+    await this.sendMessageWithKeyboard(message, {
+      inline_keyboard: [
+        [
+          { text: '👀 Watch', callback_data: `watch:${market.marketId}` },
+          { text: '🧪 Paper', callback_data: `trade:paper:${candidate.id}` },
+        ],
+        [
+          { text: '🕶️ Shadow', callback_data: `trade:shadow:${candidate.id}` },
+          { text: '🚀 Live', callback_data: `trade:live:${candidate.id}` },
+        ],
+        [
+          { text: '📈 Chart', callback_data: `chart:${market.marketId}` },
+          { text: '🧾 Details', callback_data: `details:${candidate.id}` },
+        ],
+      ],
+    });
+
+    logger.info(`[TELEGRAM] TIME_DELAY Alert gesendet: ${candidate.title.substring(0, 40)}...`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                    BATCHED ALERTS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendBatchedAlert(notifications: PushReadyNotification[]): Promise<void> {
+    if (notifications.length === 0) return;
+
+    const primary = notifications[0];
+    const additional = notifications.slice(1);
+
+    // Format as_of Zeit
+    const asOfStr = primary.asOf.toLocaleString('de-DE', {
+      timeZone: 'Europe/Berlin',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    let message = `
+⚡ *TIME\\_DELAY – TRADEABLE* ⚡
+
+${this.DIVIDER}
+
+📊 *Top-Signal:*
+\`\`\`
+${primary.market.question.substring(0, 80)}...
+\`\`\`
+
+🕐 *as\\_of:* ${asOfStr}
+📰 *Quelle:* ${primary.candidate.sourceName}
+
+🎯 *Why now?*
+${primary.whyNow.slice(0, 2).map(r => `• ${r}`).join('\n')}`;
+
+    if (additional.length > 0) {
+      message += `
+
+${this.DIVIDER}
+
+📋 *+${additional.length} weitere Signals:*
+${additional.slice(0, 3).map(n => `• ${n.candidate.title.substring(0, 50)}...`).join('\n')}`;
+    }
+
+    await this.sendMessageWithKeyboard(message, {
+      inline_keyboard: [
+        [
+          { text: '📋 Alle anzeigen', callback_data: 'digest:all' },
+          { text: '📊 Top-Signal', callback_data: `details:${primary.candidate.id}` },
+        ],
+      ],
+    });
+
+    logger.info(`[TELEGRAM] Batched Alert: ${notifications.length} Notifications`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                    SYSTEM ALERTS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendSystemAlert(
+    type: string,
+    message: string,
+    details?: Record<string, unknown>,
+    asOf?: Date
+  ): Promise<void> {
+    const typeEmoji: Record<string, string> = {
+      kill_switch: '🛑',
+      pipeline_down: '🔴',
+      pipeline_stale: '🟡',
+      trade_executed: '✅',
+      trade_failed: '❌',
+      mode_change: '🔄',
+      error: '⚠️',
+    };
+
+    const emoji = typeEmoji[type] || '📢';
+    const asOfStr = asOf
+      ? asOf.toLocaleString('de-DE', {
+          timeZone: 'Europe/Berlin',
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+
+    let alertMessage = `
+${emoji} *SYSTEM ALERT* ${emoji}
+
+${this.DIVIDER}
+
+*Status:* ${type.replace(/_/g, ' ').toUpperCase()}
+*Zeit:* ${asOfStr}
+
+${message}`;
+
+    if (details && Object.keys(details).length > 0) {
+      const detailLines = Object.entries(details)
+        .slice(0, 5)
+        .map(([k, v]) => `• ${k}: ${v}`)
+        .join('\n');
+      alertMessage += `
+
+${this.DIVIDER}
+
+*Details:*
+${detailLines}`;
+    }
+
+    const buttons: InlineKeyboardButton[][] = [];
+
+    if (type === 'kill_switch') {
+      buttons.push([{ text: '🔓 Kill-Switch deaktivieren', callback_data: 'action:resume' }]);
+    } else if (type.includes('pipeline')) {
+      buttons.push([
+        { text: '🔄 Retry', callback_data: 'action:retry_pipeline' },
+        { text: '🔇 1h ignorieren', callback_data: 'action:silence:1h' },
+      ]);
+    }
+
+    buttons.push([{ text: '📊 Dashboard', callback_data: 'action:dashboard' }]);
+
+    await this.sendMessageWithKeyboard(alertMessage, { inline_keyboard: buttons });
+
+    logger.info(`[TELEGRAM] System Alert: ${type} - ${message}`);
   }
 
   // ═══════════════════════════════════════════════════════════════

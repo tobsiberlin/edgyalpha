@@ -2503,6 +2503,41 @@ setInterval(() => {
 let priceChart = null;
 let priceSeries = null;
 
+// Load signal markers for the chart
+async function loadSignalMarkers(marketId) {
+    if (!priceSeries || !marketId) return;
+
+    try {
+        const res = await fetch(`/api/signals/market/${marketId}`, { credentials: 'include' }).then(r => r.json());
+
+        if (!res.signals || res.signals.length === 0) return;
+
+        // Convert signals to Lightweight-Charts marker format
+        const markers = res.signals.map(s => {
+            const time = Math.floor(new Date(s.createdAt).getTime() / 1000);
+            const isUp = s.direction === 'BUY' || s.direction === 'YES';
+            const isMispricing = s.alphaType === 'MISPRICING';
+            const edgePct = (s.predictedEdge * 100).toFixed(1);
+
+            return {
+                time,
+                position: isUp ? 'belowBar' : 'aboveBar',
+                color: isMispricing ? '#00d4ff' : '#ff9900',
+                shape: isUp ? 'arrowUp' : 'arrowDown',
+                text: `${s.alphaType.substring(0, 3)} ${edgePct}%`,
+            };
+        });
+
+        // Sort markers by time (Lightweight-Charts requirement)
+        markers.sort((a, b) => a.time - b.time);
+
+        priceSeries.setMarkers(markers);
+        addLog('info', `Chart: ${markers.length} Signal-Marker geladen`);
+    } catch (err) {
+        console.warn('Marker laden fehlgeschlagen:', err);
+    }
+}
+
 async function loadPriceChart(signal) {
     const container = document.getElementById('chart-container');
     const marketId = signal.market?.id;
@@ -2563,6 +2598,8 @@ async function loadPriceChart(signal) {
             priceFormat: { type: 'percent' },
         });
 
+        let dataLoaded = false;
+
         // Try to load real price history
         if (tokenId) {
             const res = await fetch(`/api/polymarket/prices/${tokenId}`, { credentials: 'include' }).then(r => r.json());
@@ -2573,26 +2610,33 @@ async function loadPriceChart(signal) {
                     value: p.price * 100, // Convert to percentage
                 }));
                 priceSeries.setData(chartData);
-                priceChart.timeScale().fitContent();
                 addLog('info', `Chart: ${chartData.length} Datenpunkte geladen`);
-                return;
+                dataLoaded = true;
             }
         }
 
         // Fallback: Generate synthetic data based on current price
-        const currentPrice = signal.market?.outcomes?.[0]?.price || 0.5;
-        const syntheticData = generateSyntheticPriceData(currentPrice);
-        priceSeries.setData(syntheticData);
-        priceChart.timeScale().fitContent();
+        if (!dataLoaded) {
+            const currentPrice = signal.market?.outcomes?.[0]?.price || 0.5;
+            const syntheticData = generateSyntheticPriceData(currentPrice);
+            priceSeries.setData(syntheticData);
 
-        // Add info overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position: absolute; bottom: 8px; left: 8px; font-size: 9px; color: var(--text-muted); z-index: 10;';
-        overlay.innerHTML = slug
-            ? `<a href="https://polymarket.com/event/${slug}" target="_blank" style="color: var(--cyan-dim);">📈 View on Polymarket</a>`
-            : '📊 Simulated data';
-        container.style.position = 'relative';
-        container.appendChild(overlay);
+            // Add info overlay for synthetic data
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position: absolute; bottom: 8px; left: 8px; font-size: 9px; color: var(--text-muted); z-index: 10;';
+            overlay.innerHTML = slug
+                ? `<a href="https://polymarket.com/event/${slug}" target="_blank" style="color: var(--cyan-dim);">📈 View on Polymarket</a>`
+                : '📊 Simulated data';
+            container.style.position = 'relative';
+            container.appendChild(overlay);
+        }
+
+        // Load and display signal markers
+        if (marketId) {
+            await loadSignalMarkers(marketId);
+        }
+
+        priceChart.timeScale().fitContent();
 
     } catch (err) {
         container.innerHTML = `

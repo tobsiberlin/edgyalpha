@@ -28,6 +28,7 @@ export interface BreakingNewsEvent {
   keywords: string[];
   publishedAt: Date;
   detectedAt: Date;
+  timeAdvantageSeconds?: number;  // Zeitvorsprung in Sekunden
 }
 
 // RSS Feeds sind jetzt in ./rss.ts definiert (WORKING_RSS_FEEDS + EXPERIMENTAL_RSS_FEEDS)
@@ -202,6 +203,8 @@ class GermanySources extends EventEmitter {
         if (emitEvents) {
           const keywords = this.extractKeywords(item);
           if (keywords.length > 0) {
+            const detectedAt = new Date();
+            const timeAdvantageSeconds = Math.max(0, Math.floor((detectedAt.getTime() - item.publishedAt.getTime()) / 1000));
             const breakingEvent: BreakingNewsEvent = {
               id: newsId,
               source: item.data.source as string,
@@ -211,7 +214,8 @@ class GermanySources extends EventEmitter {
               category: (item.data.category as string) || 'unknown',
               keywords,
               publishedAt: item.publishedAt,
-              detectedAt: new Date(),
+              detectedAt,
+              timeAdvantageSeconds,
             };
             breakingNews.push(breakingEvent);
           }

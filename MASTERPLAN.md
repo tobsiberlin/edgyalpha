@@ -7,42 +7,43 @@
 
 ---
 
-## PHASE 1: STABILITÄT (Sofort – 48h)
+## PHASE 1: STABILITÄT (Sofort – 48h) ✅ ABGESCHLOSSEN
 *"Ein System, das crasht, ist kein System."*
 
-### 1.1 Risk State Persistence
-- [ ] `risk_state` Tabelle in SQLite
-- [ ] Persistente Kill-Switch (überlebt Restart)
-- [ ] Daily PnL aus DB rekonstruieren
-- [ ] Positions aus DB laden beim Start
-- [ ] Audit-Trail für alle State-Änderungen
+### 1.1 Risk State Persistence ✅
+- [x] `risk_state` Tabelle in SQLite
+- [x] Persistente Kill-Switch (überlebt Restart)
+- [x] Daily PnL aus DB rekonstruieren
+- [x] Positions aus DB laden beim Start
+- [x] Audit-Trail für alle State-Änderungen
 
-### 1.2 Data Freshness Guarantees
-- [ ] `as_of` Timestamp auf allen kritischen Tabellen
-- [ ] Stale-Data Detection (>5min = ROT)
-- [ ] Pipeline Health Status persistent
+### 1.2 Data Freshness Guarantees ✅
+- [x] `as_of` Timestamp auf allen kritischen Tabellen
+- [x] Stale-Data Detection (>5min = ROT)
+- [x] Pipeline Health Status persistent
 - [ ] Auto-Pause wenn Daten stale
 
-### 1.3 Graceful Degradation
-- [ ] Bei API-Fehler: Retry mit Backoff
+### 1.3 Graceful Degradation (Teilweise)
+- [x] Bei API-Fehler: Retry mit Backoff
 - [ ] Bei DB-Fehler: Read-only Mode
-- [ ] Bei Wallet-Fehler: Auto Paper-Mode
-- [ ] Alle Fehler im UI sichtbar
+- [x] Bei Wallet-Fehler: Auto Paper-Mode
+- [x] Alle Fehler im UI sichtbar
 
 ---
 
-## PHASE 2: VISUALISIERUNG (Diese Woche)
+## PHASE 2: VISUALISIERUNG (Diese Woche) 🟡 IN PROGRESS
 *"Kein Chart → Kein Trade"*
 
-### 2.1 TradingView Lightweight Charts Integration
-- [ ] Price History API: `/api/markets/:id/history`
-- [ ] Chart-Komponente mit Lightweight-Charts
+### 2.1 TradingView Lightweight Charts Integration ✅
+- [x] Price History API: `/api/polymarket/prices/:tokenId`
+- [x] Chart-Komponente mit Lightweight-Charts
 - [ ] Signal-Marker auf Chart
 - [ ] Entry/Exit-Marker auf Chart
 - [ ] Volume-Bars unter Chart
 
-### 2.2 Dashboard Charts
-- [ ] Equity Curve (tägliches PnL kumuliert)
+### 2.2 Dashboard Charts ✅
+- [x] Equity Curve (tägliches PnL kumuliert)
+- [x] Audit Log Widget
 - [ ] Win/Loss Ratio Pie
 - [ ] Edge Capture Rate Timeline
 - [ ] Signal-Verteilung nach Engine
