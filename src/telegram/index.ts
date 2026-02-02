@@ -255,6 +255,196 @@ ${this.DIVIDER}
       await this.handleSignals(msg.chat.id.toString());
     });
 
+    // /kill - Kill-Switch aktivieren
+    this.bot.onText(/\/kill(?:\s+(.+))?/, async (msg, match) => {
+      const chatId = msg.chat.id.toString();
+      const reason = match?.[1] || 'Manuell via Telegram /kill Command';
+      runtimeState.activateKillSwitch(reason, 'telegram');
+
+      const message = `${this.HEADER}
+
+🔴 *KILL-SWITCH AKTIVIERT*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ⚠️ TRADING GESTOPPT            │
+├─────────────────────────────────┤
+│  Grund: ${reason.substring(0, 22).padEnd(22)}│
+│  Zeit:  ${new Date().toLocaleTimeString('de-DE').padEnd(22)}│
+└─────────────────────────────────┘
+\`\`\`
+
+_Alle Trades wurden gestoppt._
+_Nutze /resume um fortzufahren._`;
+
+      await this.sendMessage(message, chatId);
+    });
+
+    // /resume - Kill-Switch deaktivieren
+    this.bot.onText(/\/resume/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+
+      if (!runtimeState.isKillSwitchActive()) {
+        await this.sendMessage('ℹ️ Kill-Switch ist nicht aktiv.', chatId);
+        return;
+      }
+
+      runtimeState.deactivateKillSwitch('telegram');
+
+      const message = `${this.HEADER}
+
+🟢 *KILL-SWITCH DEAKTIVIERT*
+
+${this.DIVIDER}
+
+Trading wieder möglich.
+Nutze /status um den aktuellen Zustand zu prüfen.`;
+
+      await this.sendMessage(message, chatId);
+    });
+
+    // /mode [paper|shadow|live] - Mode wechseln
+    this.bot.onText(/\/mode(?:\s+(paper|shadow|live))?/, async (msg, match) => {
+      const chatId = msg.chat.id.toString();
+      const requestedMode = match?.[1] as ExecutionMode | undefined;
+
+      if (!requestedMode) {
+        // Zeige Mode-Auswahl
+        await this.handleModeSelect(chatId);
+        return;
+      }
+
+      const result = runtimeState.setExecutionMode(requestedMode, 'telegram');
+
+      if (result.success) {
+        const modeEmoji: Record<string, string> = {
+          paper: '📝',
+          shadow: '👻',
+          live: '🚀',
+        };
+
+        const message = `${this.HEADER}
+
+${modeEmoji[requestedMode]} *MODE: ${requestedMode.toUpperCase()}*
+
+${this.DIVIDER}
+
+${result.message}
+
+${requestedMode === 'live' ? '⚠️ *ACHTUNG: LIVE MODE!*\nEchte Trades werden ausgeführt!' : ''}`;
+
+        await this.sendMessage(message, chatId);
+      } else {
+        await this.sendMessage(`❌ Mode-Wechsel fehlgeschlagen:\n${result.message}`, chatId);
+      }
+    });
+
+    // /pnl - Tägliches PnL anzeigen
+    this.bot.onText(/\/pnl/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+      const dashboard = runtimeState.getRiskDashboard();
+
+      const pnlEmoji = dashboard.daily.pnl >= 0 ? '🟢' : '🔴';
+      const pnlSign = dashboard.daily.pnl >= 0 ? '+' : '';
+      const winRateBar = this.progressBar(dashboard.daily.winRate, 100, 10);
+
+      const message = `${this.HEADER}
+
+💰 *TAGES-PnL*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  PERFORMANCE HEUTE              │
+├─────────────────────────────────┤
+│  PnL:       ${pnlEmoji} ${pnlSign}$${dashboard.daily.pnl.toFixed(2).padStart(8)}       │
+│  Trades:    ${String(dashboard.daily.trades).padStart(4)}                 │
+│  Wins:      ${String(dashboard.daily.wins).padStart(4)}                 │
+│  Losses:    ${String(dashboard.daily.losses).padStart(4)}                 │
+│  Win-Rate:  ${winRateBar}     │
+├─────────────────────────────────┤
+│  Loss Limit: $${dashboard.limits.dailyLossRemaining.toFixed(0).padStart(4)}/$${dashboard.limits.dailyLossLimit.toFixed(0).padStart(4)}   │
+│  Exposure:   $${dashboard.positions.totalExposure.toFixed(2).padStart(8)}        │
+└─────────────────────────────────┘
+\`\`\`
+
+${dashboard.canTrade.allowed ? '✅ Trading erlaubt' : `⚠️ ${dashboard.canTrade.reason}`}`;
+
+      await this.sendMessage(message, chatId);
+    });
+
+    // /positions - Offene Positionen (Placeholder)
+    this.bot.onText(/\/positions/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+      const dashboard = runtimeState.getRiskDashboard();
+
+      const message = `${this.HEADER}
+
+📊 *OFFENE POSITIONEN*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  Positionen: ${String(dashboard.positions.open).padStart(2)}/${String(dashboard.positions.max).padStart(2)}             │
+│  Exposure:   $${dashboard.positions.totalExposure.toFixed(2).padStart(8)}        │
+└─────────────────────────────────┘
+\`\`\`
+
+${dashboard.positions.open === 0 ? '_Keine offenen Positionen._' : '_Details kommen in nächstem Update._'}`;
+
+      await this.sendMessage(message, chatId);
+    });
+
+    // /help - Kommando-Übersicht
+    this.bot.onText(/\/help/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+
+      const message = `${this.HEADER}
+
+📖 *KOMMANDOS*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  TRADING CONTROLS               │
+├─────────────────────────────────┤
+│  /kill [grund] - Stop All       │
+│  /resume       - Resume Trading │
+│  /mode [m]     - paper/shadow/  │
+│                  live           │
+├─────────────────────────────────┤
+│  MONITORING                     │
+├─────────────────────────────────┤
+│  /pnl          - Tages-PnL      │
+│  /positions    - Offene Pos.    │
+│  /status       - System Status  │
+│  /signals      - Aktive Signale │
+├─────────────────────────────────┤
+│  SCANNER                        │
+├─────────────────────────────────┤
+│  /scan         - Scan starten   │
+│  /wallet       - Wallet Balance │
+├─────────────────────────────────┤
+│  ALMANIEN                       │
+├─────────────────────────────────┤
+│  /polls        - Wahlumfragen   │
+│  /news         - Deutsche News  │
+├─────────────────────────────────┤
+│  SONSTIGES                      │
+├─────────────────────────────────┤
+│  /menu         - Hauptmenü      │
+│  /help         - Diese Hilfe    │
+└─────────────────────────────────┘
+\`\`\``;
+
+      await this.sendMessage(message, chatId);
+    });
+
     // Text-Input für Einstellungen
     this.bot.on('message', async (msg) => {
       // Ignoriere Commands
