@@ -7,6 +7,74 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.6] - 2026-02-02
+
+### Behoben
+- **KRITISCH: Alpha-Berechnung überarbeitet** (`src/scanner/alpha.ts`)
+  - Problem: Alle Signale zeigten +30.0% Edge und 87-95% Confidence (quasi hardcoded)
+  - Lösung: Komplett neue `calculateAlphaScore()` Funktion mit echten, variierenden Werten
+
+### Geändert
+- **Neue Alpha-Score Berechnung mit 6 gewichteten Faktoren:**
+  1. Match-Qualität (25%): Wie gut passt die News zum Markt?
+  2. Quellen-Anzahl (15%): Mehrere Quellen = höhere Sicherheit
+  3. Quellen-Qualität (10%): Breaking News Indikatoren
+  4. News-Frische (20%): Frische News = höherer Zeitvorsprung
+  5. Zeitvorsprung (10%): Hat der Markt schon reagiert?
+  6. Sentiment/Impact (20%): Stärke und Richtung der News
+
+- **Echte Edge-Berechnung:**
+  - Formel: `BaseEdge * MatchMultiplier * TimingMultiplier`
+  - Range: 0% - 25% (realistisches Maximum statt 30%)
+  - Minimum 2% Edge wenn gute Daten vorhanden
+
+- **Echte Confidence-Berechnung:**
+  - Basiert auf: Multi-Source (35%), Match-Qualität (30%), Frische (20%), Sentiment (15%)
+  - Single-Source Penalty: -30%
+  - Alte News Penalty: -20%
+  - Range: 10% - 95%
+
+- **Detailliertes Reasoning:**
+  - Zeigt jetzt Breakdown: `[M:65% S:70% T:80% C:45%]`
+  - Erklärt jeden Faktor der zum Score beiträgt
+
+### Hinzugefügt
+- `AlphaCalculationResult` Interface mit `breakdown` Objekt für Transparenz
+- Logging der einzelnen Score-Komponenten für Debugging
+
+---
+
+## [3.0.5] - 2026-02-02
+
+### Behoben
+- **KRITISCH: Telegram Bot Spam behoben** (`src/telegram/index.ts`)
+  - Automatisches `sendWelcome()` beim Bot-Start entfernt
+  - Vorher: Bei jedem Prozess-Restart wurde das Hauptmenü gesendet
+  - Jetzt: Menü wird NUR gesendet wenn User /start oder /menu eingibt
+  - Bot sendet jetzt nur noch echte Alerts (TIME_DELAY, SAFE_BET, etc.)
+
+- **KRITISCH: Deutsche News Bereich zeigte englische Quellen!**
+  - Problem: "Deutsche News" im Telegram Bot zeigte CNN, Bloomberg, MarketWatch, Guardian, BBC, etc.
+  - Diese englischen Quellen bieten KEINEN Zeitvorsprung für deutsche Nutzer!
+
+- **Lösung: Strikte Trennung deutsche vs. internationale Feeds**
+  - `WORKING_RSS_FEEDS` enthält jetzt NUR 34 echte deutsche Quellen:
+    - Politik: Tagesschau, Spiegel, FAZ, Zeit, Welt, n-tv, DW Deutsch, Bundesregierung
+    - Wirtschaft: Handelsblatt, Manager Magazin, Wirtschaftswoche, Capital
+    - Sport: Kicker, Sportschau, Sport1, Spox, Transfermarkt
+    - Tech: Heise, Golem, t3n, Chip
+    - Ausland: Tagesschau Ausland, Spiegel Ausland, FAZ Ausland, Zeit Ausland
+  - Neue Liste `INTERNATIONAL_RSS_FEEDS` (22 Quellen) für optionales Alpha-Matching
+  - Neuer Parameter `germanOnly: true` in `fetchAllRSSFeeds()` für strikte Filterung
+  - Telegram `/news` und der Event-Listener nutzen jetzt NUR deutsche Quellen
+
+### Geändert
+- `src/germany/rss.ts`: Feed-Listen komplett überarbeitet
+- `src/germany/index.ts`: `fetchRSSFeeds()` und `fetchRSSFeedsWithDelta()` nutzen `germanOnly: true`
+- `src/telegram/index.ts`: `handleNews()` nutzt `germanOnly: true`
+
+---
+
 ## [3.0.4] - 2026-02-02
 
 ### Hinzugefügt

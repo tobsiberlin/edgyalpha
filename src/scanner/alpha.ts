@@ -270,8 +270,38 @@ function isBreakingNews(text: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//                    ALPHA SCORE BERECHNUNG
+//                    ALPHA SCORE BERECHNUNG V2
+//          Echte, variierende Werte mit nachvollziehbarem Reasoning
 // ═══════════════════════════════════════════════════════════════
+
+// Gewichtungen fuer die verschiedenen Faktoren
+const WEIGHTS = {
+  // Match-Qualitaet (wie gut passt News zu Markt)
+  matchRelevance: 0.25,
+  // Quellen-Faktoren
+  sourceCount: 0.15,
+  sourceQuality: 0.10,
+  // Timing-Faktoren
+  newsFreshness: 0.20,
+  timeAdvantage: 0.10,
+  // Inhalt-Faktoren
+  sentimentStrength: 0.10,
+  impactScore: 0.10,
+};
+
+export interface AlphaCalculationResult {
+  score: number;       // 0-1 Gesamtscore
+  edge: number;        // 0-0.25 erwarteter Vorteil
+  confidence: number;  // 0-1 Wie sicher sind wir?
+  direction: 'YES' | 'NO';
+  reasoning: string;
+  breakdown: {
+    matchScore: number;
+    sourceScore: number;
+    timingScore: number;
+    contentScore: number;
+  };
+}
 
 export function calculateAlphaScore(
   market: Market,
@@ -280,164 +310,306 @@ export function calculateAlphaScore(
     aiAnalysis?: { confidence: number; direction: 'YES' | 'NO' };
     newsAlpha?: NewsAlphaData;
   }
-): { score: number; edge: number; direction: 'YES' | 'NO'; reasoning: string } {
-  let score = 0;
-  let direction: 'YES' | 'NO' = 'YES';
+): AlphaCalculationResult {
   const reasons: string[] = [];
+  let direction: 'YES' | 'NO' = 'YES';
 
   const yesOutcome = market.outcomes.find(
     (o) => o.name.toLowerCase() === 'yes'
   );
   const noOutcome = market.outcomes.find((o) => o.name.toLowerCase() === 'no');
+  const yesPrice = yesOutcome?.price ?? 0.5;
+  const noPrice = noOutcome?.price ?? 0.5;
 
   // ═══════════════════════════════════════════════════════════════
-  // 1. MARKT-BASIERTE ANALYSE (Grundlage)
+  // 1. MATCH-QUALITAET (Wie gut passt News zum Markt?)
   // ═══════════════════════════════════════════════════════════════
+  let matchScore = 0;
+  let bestMatchRelevance = 0;
 
-  // Volume Analysis
-  const volumeScore = Math.min(market.volume24h / 500000, 1) * 0.1;
-  score += volumeScore;
-  if (volumeScore > 0.05) {
-    reasons.push(`Vol: $${(market.volume24h / 1000).toFixed(0)}k`);
-  }
+  if (externalData?.newsAlpha?.bestMatch) {
+    bestMatchRelevance = externalData.newsAlpha.bestMatch.relevance;
+    matchScore = bestMatchRelevance;
 
-  // Mispricing Detection
-  if (yesOutcome && noOutcome) {
-    const yesPrice = yesOutcome.price;
-    const noPrice = noOutcome.price;
-    const totalPrice = yesPrice + noPrice;
+    const matchPct = (bestMatchRelevance * 100).toFixed(0);
+    reasons.push(`Match: ${matchPct}%`);
 
-    if (Math.abs(totalPrice - 1) > 0.02) {
-      const mispricingScore = Math.abs(totalPrice - 1) * 2;
-      score += Math.min(mispricingScore, 0.15);
-      reasons.push(`Mispricing: ${((totalPrice - 1) * 100).toFixed(1)}%`);
+    if (bestMatchRelevance < 0.4) {
+      reasons.push('(schwaches Matching)');
+    } else if (bestMatchRelevance >= 0.7) {
+      reasons.push('(starkes Matching)');
     }
-
-    // Extreme Preise
-    if (yesPrice < 0.1 || yesPrice > 0.9) {
-      score += 0.08;
-      direction = yesPrice < 0.1 ? 'NO' : 'YES';
-      reasons.push(`Extrem: ${(yesPrice * 100).toFixed(0)}%`);
-    }
-  }
-
-  // Zeitfaktor
-  const endDate = new Date(market.endDate);
-  const now = new Date();
-  const daysUntilEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-
-  if (daysUntilEnd > 0 && daysUntilEnd < 7) {
-    score += 0.1;
-    reasons.push(`${daysUntilEnd.toFixed(0)}d left`);
+  } else if (externalData?.germanSources && externalData.germanSources.length > 0) {
+    // DE-Quellen als Fallback
+    const avgRelevance = externalData.germanSources.reduce((sum, s) => sum + s.relevance, 0) /
+                         externalData.germanSources.length;
+    matchScore = avgRelevance;
+    bestMatchRelevance = avgRelevance;
+    reasons.push(`DE-Match: ${(avgRelevance * 100).toFixed(0)}%`);
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 2. NEWS-BASIERTE ALPHA (POWER BOOST!)
+  // 2. QUELLEN-QUALITAET (Anzahl und Glaubwuerdigkeit)
   // ═══════════════════════════════════════════════════════════════
+  let sourceScore = 0;
+  let sourceCountFactor = 0;
+  let sourceQualityFactor = 0;
 
   if (externalData?.newsAlpha) {
     const na = externalData.newsAlpha;
 
-    if (na.matchCount > 0) {
-      // Basis News-Score
-      const newsBaseScore = Math.min(na.matchCount * 0.08, 0.25);
-      score += newsBaseScore;
+    // Anzahl der Quellen (mehr = besser, aber mit abnehmendem Ertrag)
+    // 1 Quelle = 0.3, 2 = 0.5, 3 = 0.7, 4+ = 0.85+
+    sourceCountFactor = Math.min(1, Math.log2(na.matchCount + 1) / 2.5);
 
-      // Impact-Boost (Breaking News etc.)
-      const impactBoost = na.impactScore * 0.2;
-      score += impactBoost;
+    // Qualitaet basierend auf Best Match Source
+    if (na.bestMatch) {
+      // Breaking News von bekannter Quelle = hohe Qualitaet
+      sourceQualityFactor = na.bestMatch.isBreaking ? 0.9 : 0.6;
+    }
 
-      // Aktuelle News Boost (< 30 Min = GOLD!)
-      if (na.recentNews.length > 0) {
-        const recencyBoost = Math.min(na.recentNews.length * 0.1, 0.25);
-        score += recencyBoost;
-        reasons.push(`🔥 ${na.recentNews.length} FRESH NEWS!`);
-      }
+    sourceScore = (sourceCountFactor * WEIGHTS.sourceCount +
+                   sourceQualityFactor * WEIGHTS.sourceQuality) /
+                  (WEIGHTS.sourceCount + WEIGHTS.sourceQuality);
 
-      // Sentiment beeinflusst Direction
-      if (na.sentimentScore > 0.2) {
-        direction = 'YES';
-        score += 0.05;
-      } else if (na.sentimentScore < -0.2) {
-        direction = 'NO';
-        score += 0.05;
-      }
-
-      // Best Match Info
-      if (na.bestMatch) {
-        const matchStr = `${na.bestMatch.source}: ${(na.bestMatch.relevance * 100).toFixed(0)}%`;
-        reasons.push(matchStr);
-
-        if (na.bestMatch.isBreaking) {
-          score += 0.15;
-          reasons.push('⚡BREAKING');
-        }
-      }
-
-      logger.debug(
-        `News-Alpha: ${na.matchCount} matches, sentiment=${na.sentimentScore.toFixed(2)}, impact=${na.impactScore.toFixed(2)}`
-      );
+    if (na.matchCount >= 3) {
+      reasons.push(`${na.matchCount} Quellen bestaetigen`);
+    } else if (na.matchCount === 2) {
+      reasons.push(`2 Quellen`);
+    } else if (na.matchCount === 1) {
+      reasons.push(`1 Quelle`);
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════
-  // 3. DEUTSCHE QUELLEN (ALMAN EDGE)
-  // ═══════════════════════════════════════════════════════════════
 
   if (externalData?.germanSources && externalData.germanSources.length > 0) {
-    const avgRelevance =
-      externalData.germanSources.reduce((sum, s) => sum + s.relevance, 0) /
-      externalData.germanSources.length;
+    const deCount = externalData.germanSources.length;
+    // Deutsche Quellen haben Bonus wegen Heimvorteil
+    const deFactor = Math.min(1, Math.log2(deCount + 1) / 2) * 1.2;
+    sourceScore = Math.max(sourceScore, Math.min(1, deFactor));
+    reasons.push(`DE: ${deCount}x`);
+  }
 
-    const deScore = avgRelevance * 0.4;
-    score += deScore;
-    reasons.push(`🇩🇪 ${externalData.germanSources.length}x DE`);
+  // ═══════════════════════════════════════════════════════════════
+  // 3. TIMING (Frische der News + Zeitvorsprung)
+  // ═══════════════════════════════════════════════════════════════
+  let timingScore = 0;
+  let freshnessFactor = 0;
+  let timeAdvantageFactor = 0;
 
-    // Direction von DE-Quellen
-    const yesVotes = externalData.germanSources.filter(
-      (s) => s.direction === 'YES'
-    ).length;
-    const noVotes = externalData.germanSources.filter(
-      (s) => s.direction === 'NO'
-    ).length;
-    if (yesVotes !== noVotes) {
-      direction = yesVotes > noVotes ? 'YES' : 'NO';
+  if (externalData?.newsAlpha) {
+    const na = externalData.newsAlpha;
+
+    // Frische: News < 10 Min = 1.0, < 30 Min = 0.7, < 60 Min = 0.4, > 60 Min = 0.2
+    if (na.recentNews.length > 0) {
+      freshnessFactor = 1.0;
+      const freshCount = na.recentNews.length;
+      reasons.push(`${freshCount} News < 30 Min`);
+    } else if (na.news.length > 0) {
+      // Berechne durchschnittliches Alter
+      const now = Date.now();
+      const ages = na.news.map(n => (now - n.publishedAt.getTime()) / (60 * 1000));
+      const avgAgeMinutes = ages.reduce((a, b) => a + b, 0) / ages.length;
+
+      if (avgAgeMinutes <= 30) {
+        freshnessFactor = 0.7;
+      } else if (avgAgeMinutes <= 60) {
+        freshnessFactor = 0.4;
+        reasons.push(`News ~${avgAgeMinutes.toFixed(0)} Min alt`);
+      } else {
+        freshnessFactor = 0.2;
+        reasons.push(`News ${avgAgeMinutes.toFixed(0)} Min alt (veraltet)`);
+      }
+    }
+
+    // Zeitvorsprung gegenueber Marktreaktion
+    // Wenn Markt noch nicht reagiert hat, haben wir Vorsprung
+    const priceStillNeutral = Math.abs(yesPrice - 0.5) < 0.1;
+    if (freshnessFactor > 0.5 && priceStillNeutral) {
+      timeAdvantageFactor = 0.8;
+      reasons.push('Markt noch nicht reagiert');
+    } else if (freshnessFactor > 0.5) {
+      timeAdvantageFactor = 0.4;
+    }
+
+    timingScore = (freshnessFactor * WEIGHTS.newsFreshness +
+                   timeAdvantageFactor * WEIGHTS.timeAdvantage) /
+                  (WEIGHTS.newsFreshness + WEIGHTS.timeAdvantage);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 4. INHALT (Sentiment + Impact)
+  // ═══════════════════════════════════════════════════════════════
+  let contentScore = 0;
+  let sentimentFactor = 0;
+  let impactFactor = 0;
+
+  if (externalData?.newsAlpha) {
+    const na = externalData.newsAlpha;
+
+    // Sentiment-Staerke (absoluter Wert)
+    const absSentiment = Math.abs(na.sentimentScore);
+    sentimentFactor = absSentiment; // 0-1 direkt verwendbar
+
+    // Direction aus Sentiment ableiten
+    if (na.sentimentScore > 0.15) {
+      direction = 'YES';
+      if (absSentiment >= 0.5) {
+        reasons.push('stark positiv');
+      } else if (absSentiment >= 0.3) {
+        reasons.push('positiv');
+      }
+    } else if (na.sentimentScore < -0.15) {
+      direction = 'NO';
+      if (absSentiment >= 0.5) {
+        reasons.push('stark negativ');
+      } else if (absSentiment >= 0.3) {
+        reasons.push('negativ');
+      }
+    } else {
+      reasons.push('neutral');
+    }
+
+    // Impact-Score (Breaking News, etc.)
+    impactFactor = na.impactScore;
+
+    if (na.bestMatch?.isBreaking) {
+      impactFactor = Math.max(impactFactor, 0.9);
+      reasons.push('BREAKING');
+    } else if (impactFactor >= 0.5) {
+      reasons.push('hoher Impact');
+    }
+
+    contentScore = (sentimentFactor * WEIGHTS.sentimentStrength +
+                    impactFactor * WEIGHTS.impactScore) /
+                   (WEIGHTS.sentimentStrength + WEIGHTS.impactScore);
+  }
+
+  // Deutsche Quellen Direction
+  if (externalData?.germanSources && externalData.germanSources.length > 0) {
+    const yesVotes = externalData.germanSources.filter(s => s.direction === 'YES').length;
+    const noVotes = externalData.germanSources.filter(s => s.direction === 'NO').length;
+    if (yesVotes > noVotes) {
+      direction = 'YES';
+    } else if (noVotes > yesVotes) {
+      direction = 'NO';
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // 4. KI-ANALYSE (Falls vorhanden)
-  // ═══════════════════════════════════════════════════════════════
-
+  // AI-Analyse ueberschreibt alles
   if (externalData?.aiAnalysis) {
-    score += externalData.aiAnalysis.confidence * 0.2;
     direction = externalData.aiAnalysis.direction;
-    reasons.push(`AI: ${(externalData.aiAnalysis.confidence * 100).toFixed(0)}%`);
+    const aiConf = externalData.aiAnalysis.confidence;
+    reasons.push(`AI: ${(aiConf * 100).toFixed(0)}%`);
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 5. EDGE BERECHNUNG
+  // 5. MARKT-FAKTOREN (Mispricing, Volumen, Zeit)
+  // ═══════════════════════════════════════════════════════════════
+  let marketBonus = 0;
+
+  // Mispricing Detection
+  const totalPrice = yesPrice + noPrice;
+  if (Math.abs(totalPrice - 1) > 0.02) {
+    const mispricing = Math.abs(totalPrice - 1);
+    marketBonus += mispricing * 0.5;
+    reasons.push(`Mispricing: ${(mispricing * 100).toFixed(1)}%`);
+  }
+
+  // Volumen (mehr Volumen = mehr Vertrauen in Preise, aber auch mehr Liquiditaet)
+  const volumeNormalized = Math.min(market.volume24h / 100000, 1);
+  if (volumeNormalized >= 0.5) {
+    reasons.push(`Vol: $${(market.volume24h / 1000).toFixed(0)}k`);
+  }
+
+  // Zeit bis Ende (nahe Deadline = hoeherer Druck)
+  const endDate = new Date(market.endDate);
+  const now = new Date();
+  const daysUntilEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysUntilEnd > 0 && daysUntilEnd < 7) {
+    marketBonus += 0.1;
+    reasons.push(`${daysUntilEnd.toFixed(0)}d verbleibend`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 6. FINALE BERECHNUNG
   // ═══════════════════════════════════════════════════════════════
 
-  const currentPrice =
-    direction === 'YES' ? yesOutcome?.price || 0.5 : noOutcome?.price || 0.5;
-  const impliedProb = currentPrice;
+  // Gewichteter Gesamtscore
+  const rawScore = (
+    matchScore * WEIGHTS.matchRelevance +
+    sourceScore * (WEIGHTS.sourceCount + WEIGHTS.sourceQuality) +
+    timingScore * (WEIGHTS.newsFreshness + WEIGHTS.timeAdvantage) +
+    contentScore * (WEIGHTS.sentimentStrength + WEIGHTS.impactScore)
+  );
 
-  // Score → Probability Boost
-  const probabilityBoost = score * 0.25;
-  const estimatedProb = Math.min(Math.max(impliedProb + probabilityBoost, 0.05), 0.95);
+  // Score normalisieren und Markt-Bonus hinzufuegen
+  let score = Math.min(1, rawScore + marketBonus);
 
-  let edge = (estimatedProb - impliedProb) / Math.max(impliedProb, 0.1);
-  edge = Math.min(Math.max(edge, 0), 0.30); // Max 30% Edge
+  // Edge-Berechnung: Basierend auf Score und Match-Qualitaet
+  // Edge = wie viel besser wir den wahren Preis schaetzen
+  // Formel: Edge = BaseEdge * MatchQualitaet * TimingFaktor
+  const baseEdge = score * 0.15; // Max 15% Base Edge aus Score
+  const matchMultiplier = 0.5 + bestMatchRelevance * 0.5; // 0.5-1.0
+  const timingMultiplier = 0.6 + timingScore * 0.4; // 0.6-1.0
 
-  // Score normalisieren
-  const normalizedScore = Math.min(Math.max(score, 0), 1);
+  let edge = baseEdge * matchMultiplier * timingMultiplier;
+
+  // Minimum-Edge wenn wir gute Daten haben
+  if (matchScore >= 0.5 && sourceScore >= 0.3) {
+    edge = Math.max(edge, 0.02); // Mindestens 2%
+  }
+
+  // Maximum-Edge begrenzen (25% ist realistisches Maximum)
+  edge = Math.min(edge, 0.25);
+
+  // Confidence-Berechnung: Wie sicher sind wir in unserer Schaetzung?
+  // Hohe Confidence bei: Multi-Source + Starkes Match + Frische News
+  let confidence = (
+    sourceCountFactor * 0.35 +      // Mehrere Quellen = sicherer
+    bestMatchRelevance * 0.30 +     // Besseres Match = sicherer
+    freshnessFactor * 0.20 +        // Frische News = sicherer
+    Math.abs(externalData?.newsAlpha?.sentimentScore ?? 0) * 0.15  // Klares Sentiment = sicherer
+  );
+
+  // Confidence-Adjustments
+  if (externalData?.newsAlpha?.matchCount === 1) {
+    confidence *= 0.7; // Single-Source Penalty
+  }
+  if (freshnessFactor < 0.3) {
+    confidence *= 0.8; // Alte News Penalty
+  }
+  if (externalData?.aiAnalysis) {
+    confidence = Math.max(confidence, externalData.aiAnalysis.confidence * 0.9);
+  }
+
+  confidence = Math.min(Math.max(confidence, 0.1), 0.95); // 10-95% Range
+
+  // Falls kein sinnvoller Input, minimale Werte
+  if (!externalData?.newsAlpha && !externalData?.germanSources && !externalData?.aiAnalysis) {
+    score = Math.max(score, 0.1);
+    edge = 0;
+    confidence = 0.1;
+  }
+
+  // Logging fuer Debugging
+  logger.debug(
+    `AlphaScore: match=${matchScore.toFixed(2)}, src=${sourceScore.toFixed(2)}, ` +
+    `time=${timingScore.toFixed(2)}, content=${contentScore.toFixed(2)} -> ` +
+    `score=${score.toFixed(2)}, edge=${(edge * 100).toFixed(1)}%, conf=${(confidence * 100).toFixed(0)}%`
+  );
 
   return {
-    score: normalizedScore,
-    edge: Math.max(edge, 0),
+    score: Math.max(0, Math.min(1, score)),
+    edge: Math.max(0, edge),
+    confidence,
     direction,
     reasoning: reasons.join(' | '),
+    breakdown: {
+      matchScore,
+      sourceScore,
+      timingScore,
+      contentScore,
+    },
   };
 }
 
@@ -518,7 +690,7 @@ export function createAlphaSignal(
     newsAlpha?: NewsAlphaData;
   }
 ): AlphaSignal | null {
-  const { score, edge, direction, reasoning } = calculateAlphaScore(
+  const { score, edge, confidence, direction, reasoning, breakdown } = calculateAlphaScore(
     market,
     externalData
   );
@@ -535,14 +707,19 @@ export function createAlphaSignal(
     }
   }
 
+  // Erweitertes Reasoning mit Breakdown
+  const detailedReasoning = reasoning + (breakdown
+    ? ` [M:${(breakdown.matchScore * 100).toFixed(0)}% S:${(breakdown.sourceScore * 100).toFixed(0)}% T:${(breakdown.timingScore * 100).toFixed(0)}% C:${(breakdown.contentScore * 100).toFixed(0)}%]`
+    : '');
+
   const signal: AlphaSignal = {
     id: uuid(),
     market,
     score,
     edge,
-    confidence: score,
+    confidence, // Jetzt echte berechnete Confidence statt score
     direction,
-    reasoning,
+    reasoning: detailedReasoning,
     sources: [],
     timestamp: new Date(),
     germanSource: externalData?.germanSources?.[0]
