@@ -23,8 +23,8 @@ const envSchema = z.object({
   MAX_BET_USDC: z.string().default('10'),
   RISK_PER_TRADE_PERCENT: z.string().default('10'),
   KELLY_FRACTION: z.string().default('0.25'),
-  TRADING_ENABLED: z.string().default('true'),
-  REQUIRE_CONFIRMATION: z.string().default('true'),
+  TRADING_ENABLED: z.string().default('false'),
+  REQUIRE_CONFIRMATION: z.string().default('true'),  // Default: true (sicher)
   MIN_ALPHA_FOR_TRADE: z.string().default('0.15'),
 
   // Scanner
@@ -42,18 +42,20 @@ const envSchema = z.object({
   DESTATIS_ENABLED: z.string().default('true'),
   RSS_FEEDS_ENABLED: z.string().default('true'),
 
-  // Web
+  // Web Security
   WEB_AUTH_ENABLED: z.string().default('true'),
   WEB_USERNAME: z.string().default('admin'),
-  WEB_PASSWORD_HASH: z.string().optional(),
+  WEB_PASSWORD_HASH: z.string().optional(),  // bcrypt hash - REQUIRED wenn WEB_AUTH_ENABLED=true
+  WEB_SESSION_SECRET: z.string().optional(),  // min 32 chars - REQUIRED wenn WEB_AUTH_ENABLED=true
+  WEB_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),  // comma-separated allowlist für CORS
 
   // Feature Flags
   ALPHA_ENGINE: z.enum(['timeDelay', 'mispricing', 'meta']).default('meta'),
-  EXECUTION_MODE: z.enum(['paper', 'shadow', 'live']).default('paper'),
+  EXECUTION_MODE: z.enum(['paper', 'shadow', 'live']).default('paper'),  // Default: paper (kein echtes Trading)
   SQLITE_PATH: z.string().default('./data/edgyalpha.db'),
   BACKTEST_MODE: z.string().default('false'),
 
-  // Auto-Trading bei Breaking News
+  // Auto-Trading bei Breaking News (GEFÄHRLICH - default: false)
   AUTO_TRADE_ENABLED: z.string().default('false'),
   AUTO_TRADE_MIN_EDGE: z.string().default('0.15'),  // 15% minimum Edge
   AUTO_TRADE_MAX_SIZE: z.string().default('50'),    // Max 50 USDC pro Auto-Trade
@@ -98,7 +100,7 @@ export const config: Config = {
   },
   germany: {
     enabled: env.GERMANY_MODE_ENABLED === 'true',
-    autoTrade: env.GERMANY_AUTO_TRADE === 'false',
+    autoTrade: env.GERMANY_AUTO_TRADE === 'true',  // Fix: Muss explizit 'true' sein
     minEdge: parseFloat(env.GERMANY_MIN_EDGE),
     sources: {
       dawum: env.DAWUM_ENABLED === 'true',
@@ -133,5 +135,8 @@ export const POLYGON_RPC_URL = env.POLYGON_RPC_URL;
 export const BUNDESTAG_API_KEY = env.BUNDESTAG_API_KEY;
 export const WEB_USERNAME = env.WEB_USERNAME;
 export const WEB_PASSWORD_HASH = env.WEB_PASSWORD_HASH;
+export const WEB_SESSION_SECRET = env.WEB_SESSION_SECRET;
+export const WEB_ALLOWED_ORIGINS = env.WEB_ALLOWED_ORIGINS;
+export const WEB_AUTH_ENABLED = env.WEB_AUTH_ENABLED === 'true';
 
 export default config;

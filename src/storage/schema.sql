@@ -415,3 +415,106 @@ CREATE TABLE IF NOT EXISTS price_check_queue (
 );
 CREATE INDEX IF NOT EXISTS idx_pcq_scheduled ON price_check_queue(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_pcq_status ON price_check_queue(status);
+
+-- ═══════════════════════════════════════════════════════════════
+-- IDEMPOTENCY KEYS (Verhindert doppelte Orders)
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key TEXT PRIMARY KEY,                          -- Unique Key: `${decisionId}:${marketId}:${side}:${sizeUsdc}`
+  decision_id TEXT NOT NULL,
+  market_id TEXT NOT NULL,
+  side TEXT NOT NULL,                            -- 'BUY' | 'SELL'
+  size_usdc REAL NOT NULL,
+  created_at TEXT NOT NULL,
+  execution_id TEXT,                             -- Verknüpfung zur Execution
+  status TEXT NOT NULL DEFAULT 'pending',        -- pending | completed | failed | expired
+  expires_at TEXT NOT NULL,                      -- Automatischer Ablauf nach 24h
+  UNIQUE(decision_id, market_id, side, size_usdc)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_decision ON idempotency_keys(decision_id);
+CREATE INDEX IF NOT EXISTS idx_idempotency_status ON idempotency_keys(status);
+CREATE INDEX IF NOT EXISTS idx_idempotency_expires ON idempotency_keys(expires_at);
+
+-- ═══════════════════════════════════════════════════════════════
+-- EXECUTION RECORDS (Vollständiges Audit für jeden Trade-Versuch)
+-- Erweitert die bestehende executions-Tabelle mit zusätzlichen Details
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS execution_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  execution_id TEXT UNIQUE NOT NULL,             -- Verknüpfung zu executions.execution_id
+  decision_id TEXT NOT NULL,
+  signal_id TEXT,
+  mode TEXT NOT NULL,                            -- paper | shadow | live
+  venue TEXT,                                    -- polymarket_clob | simulation
+  venue_order_id TEXT,                           -- Order ID von der Venue
+
+  -- Request Details
+  market_id TEXT NOT NULL,
+  token_id TEXT,
+  direction TEXT NOT NULL,                       -- YES | NO
+  requested_size_usdc REAL,
+  requested_price REAL,
+
+  -- Result Details
+  status TEXT NOT NULL,                          -- pending | submitted | filled | cancelled | failed
+  filled_size REAL,
+  filled_price REAL,
+  fees REAL,
+  slippage REAL,
+  tx_hash TEXT,
+  error_message TEXT,
+  error_code TEXT,
+
+  -- Timestamps
+  created_at TEXT NOT NULL,
+  submitted_at TEXT,
+  filled_at TEXT,
+
+  -- Audit Context
+  triggered_by TEXT,                             -- telegram_user | web_user | auto_trader | scheduler
+  user_id TEXT,                                  -- Optional: User ID des Auslösers
+  risk_checks_snapshot TEXT,                     -- JSON: Snapshot der Risk Checks zum Zeitpunkt
+  config_snapshot TEXT,                          -- JSON: Relevante Config-Werte zum Zeitpunkt
+  market_snapshot TEXT,                          -- JSON: Markt-Zustand zum Zeitpunkt (Preis, Liquidität, etc.)
+
+  -- Idempotency
+  idempotency_key TEXT,                          -- Verknüpfung zu idempotency_keys
+  retry_count INTEGER DEFAULT 0,
+  previous_attempt_id TEXT,                      -- Bei Retry: vorherige Execution ID
+
+  FOREIGN KEY (decision_id) REFERENCES decisions(decision_id)
+);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_decision ON execution_audit(decision_id);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_market ON execution_audit(market_id);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_status ON execution_audit(status);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_mode ON execution_audit(mode);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_created ON execution_audit(created_at);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_triggered ON execution_audit(triggered_by);
+CREATE INDEX IF NOT EXISTS idx_exec_audit_idempotency ON execution_audit(idempotency_key);
+
+-- ═══════════════════════════════════════════════════════════════
+-- ORDER TRACKING (Status-Verfolgung offener Orders)
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS order_tracking (
+  order_id TEXT PRIMARY KEY,                     -- Order ID von der Venue
+  execution_id TEXT NOT NULL,
+  venue TEXT NOT NULL,                           -- polymarket_clob
+  token_id TEXT,
+  side TEXT NOT NULL,                            -- BUY | SELL
+  size REAL NOT NULL,
+  price REAL NOT NULL,
+  status TEXT NOT NULL,                          -- open | partial | filled | cancelled | expired | failed
+  filled_size REAL DEFAULT 0,
+  avg_fill_price REAL,
+  last_checked_at TEXT NOT NULL,
+  check_count INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (execution_id) REFERENCES executions(execution_id)
+);
+CREATE INDEX IF NOT EXISTS idx_order_tracking_execution ON order_tracking(execution_id);
+CREATE INDEX IF NOT EXISTS idx_order_tracking_status ON order_tracking(status);
+CREATE INDEX IF NOT EXISTS idx_order_tracking_venue ON order_tracking(venue);

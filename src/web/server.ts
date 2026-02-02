@@ -3,7 +3,8 @@ import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { join } from 'path';
 import cookieSession from 'cookie-session';
-import { config, PORT, WEB_USERNAME, WEB_PASSWORD_HASH, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
+import bcrypt from 'bcrypt';
+import { config, PORT, NODE_ENV, WEB_USERNAME, WEB_PASSWORD_HASH, WEB_SESSION_SECRET, WEB_ALLOWED_ORIGINS, WEB_AUTH_ENABLED, WALLET_PRIVATE_KEY, WALLET_ADDRESS } from '../utils/config.js';
 import logger from '../utils/logger.js';
 import { scanner } from '../scanner/index.js';
 import { germanySources } from '../germany/index.js';
@@ -44,15 +45,131 @@ let backtestState: BacktestState = {
   completedAt: null,
 };
 
+// ═══════════════════════════════════════════════════════════════
+//                    SECURITY VALIDATION
+// ═══════════════════════════════════════════════════════════════
+
+// Validate required secrets when auth is enabled
+if (WEB_AUTH_ENABLED) {
+  if (!WEB_PASSWORD_HASH) {
+    logger.error('SECURITY FEHLER: WEB_AUTH_ENABLED=true aber WEB_PASSWORD_HASH fehlt!');
+    logger.error('Generiere einen Hash mit: node -e "console.log(require(\'bcrypt\').hashSync(\'deinPasswort\', 10))"');
+    process.exit(1);
+  }
+  if (!WEB_SESSION_SECRET || WEB_SESSION_SECRET.length < 32) {
+    logger.error('SECURITY FEHLER: WEB_SESSION_SECRET fehlt oder ist zu kurz (min 32 Zeichen)!');
+    logger.error('Generiere ein Secret mit: openssl rand -hex 32');
+    process.exit(1);
+  }
+}
+
+// Parse allowed origins for CORS
+const allowedOrigins = WEB_ALLOWED_ORIGINS
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(origin => origin.length > 0);
+
+logger.info(`CORS erlaubte Origins: ${allowedOrigins.join(', ')}`);
+
+// ═══════════════════════════════════════════════════════════════
+//                    RATE LIMITING
+// ═══════════════════════════════════════════════════════════════
+
+interface RateLimitEntry {
+  attempts: number;
+  firstAttempt: number;
+  blockedUntil: number | null;
+}
+
+const loginRateLimits = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;  // 1 Minute
+const MAX_LOGIN_ATTEMPTS = 5;
+const BLOCK_DURATION_MS = 5 * 60 * 1000;  // 5 Minuten Block nach zu vielen Versuchen
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = loginRateLimits.get(ip);
+
+  // Keine vorherigen Versuche
+  if (!entry) {
+    loginRateLimits.set(ip, { attempts: 1, firstAttempt: now, blockedUntil: null });
+    return { allowed: true };
+  }
+
+  // Blockiert?
+  if (entry.blockedUntil && now < entry.blockedUntil) {
+    return { allowed: false, retryAfter: Math.ceil((entry.blockedUntil - now) / 1000) };
+  }
+
+  // Window abgelaufen? Reset
+  if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    loginRateLimits.set(ip, { attempts: 1, firstAttempt: now, blockedUntil: null });
+    return { allowed: true };
+  }
+
+  // Zu viele Versuche?
+  if (entry.attempts >= MAX_LOGIN_ATTEMPTS) {
+    entry.blockedUntil = now + BLOCK_DURATION_MS;
+    logger.warn(`Login Rate Limit: IP ${ip} blockiert für ${BLOCK_DURATION_MS / 1000}s`);
+    return { allowed: false, retryAfter: BLOCK_DURATION_MS / 1000 };
+  }
+
+  // Noch erlaubt, Zähler erhöhen
+  entry.attempts++;
+  return { allowed: true };
+}
+
+function resetLoginRateLimit(ip: string): void {
+  loginRateLimits.delete(ip);
+}
+
+// Cleanup alte Einträge alle 5 Minuten
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginRateLimits.entries()) {
+    if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS * 2 && (!entry.blockedUntil || now > entry.blockedUntil)) {
+      loginRateLimits.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════════════════
+//                    EXPRESS SETUP
+// ═══════════════════════════════════════════════════════════════
+
 // Use process.cwd() for paths (works with both ESM and CJS)
 const publicPath = join(process.cwd(), 'src', 'web', 'public');
 
 const app = express();
 const httpServer = createServer(app);
+
+// Socket.io mit CORS Allowlist (NICHT origin: '*')
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      // Erlaube Requests ohne Origin (z.B. mobile Apps, curl)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      // Prüfe gegen Allowlist
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.warn(`Socket.io CORS blockiert Origin: ${origin}`);
+        callback(new Error('CORS not allowed'));
+      }
+    },
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
@@ -60,13 +177,14 @@ const io = new SocketServer(httpServer, {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session Middleware
+// Session Middleware mit sicheren Cookie-Einstellungen
 app.use(cookieSession({
   name: 'edgyalpha_session',
-  keys: [WEB_PASSWORD_HASH || 'edgy-alpha-secret-key-2026'],
+  keys: WEB_SESSION_SECRET ? [WEB_SESSION_SECRET] : ['dev-only-insecure-key'],
   maxAge: 24 * 60 * 60 * 1000, // 24 Stunden
-  httpOnly: true,
-  sameSite: 'lax',
+  httpOnly: true,  // Kein JavaScript-Zugriff auf Cookie
+  sameSite: 'strict',  // CSRF-Schutz: Cookie nur bei Same-Site Requests
+  secure: NODE_ENV === 'production',  // HTTPS only in Production
 }));
 
 // Session Auth Middleware
@@ -118,21 +236,56 @@ app.get('/login', (req: Request, res: Response) => {
   res.sendFile(join(publicPath, 'login.html'));
 });
 
-// Login verarbeiten
-app.post('/login', (req: Request, res: Response) => {
+// Login verarbeiten (mit Rate Limiting und bcrypt)
+app.post('/login', async (req: Request, res: Response) => {
   const { username, password } = req.body;
+  const clientIp = getClientIp(req);
 
-  if (username === WEB_USERNAME && password === (WEB_PASSWORD_HASH || 'admin')) {
+  // Rate Limit prüfen
+  const rateLimitCheck = checkLoginRateLimit(clientIp);
+  if (!rateLimitCheck.allowed) {
+    logger.warn(`Login Rate Limit erreicht für IP: ${clientIp}`);
+    res.status(429).redirect(`/login?error=ratelimit&retry=${rateLimitCheck.retryAfter}`);
+    return;
+  }
+
+  // Username prüfen
+  if (username !== WEB_USERNAME) {
+    logger.warn(`Login fehlgeschlagen (falscher Username): ${username} von IP ${clientIp}`);
+    res.redirect('/login?error=1');
+    return;
+  }
+
+  // Passwort via bcrypt prüfen (wenn Hash vorhanden)
+  let passwordValid = false;
+  if (WEB_PASSWORD_HASH) {
+    try {
+      passwordValid = await bcrypt.compare(password, WEB_PASSWORD_HASH);
+    } catch (err) {
+      logger.error(`bcrypt Fehler: ${(err as Error).message}`);
+      res.redirect('/login?error=1');
+      return;
+    }
+  } else if (NODE_ENV !== 'production') {
+    // Nur in Development: Fallback ohne Hash (NICHT in Production erlaubt)
+    logger.warn('WARNUNG: Login ohne WEB_PASSWORD_HASH (nur in Development erlaubt)');
+    passwordValid = password === 'admin';  // Default-Passwort nur für Dev
+  }
+
+  if (passwordValid) {
+    // Erfolgreicher Login - Rate Limit zurücksetzen
+    resetLoginRateLimit(clientIp);
+
     if (req.session) {
       req.session.authenticated = true;
       req.session.username = username;
     }
-    logger.info(`Login erfolgreich: ${username}`);
+    logger.info(`Login erfolgreich: ${username} von IP ${clientIp}`);
     res.redirect('/');
     return;
   }
 
-  logger.warn(`Login fehlgeschlagen: ${username}`);
+  logger.warn(`Login fehlgeschlagen (falsches Passwort): ${username} von IP ${clientIp}`);
   res.redirect('/login?error=1');
 });
 
