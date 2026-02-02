@@ -7,6 +7,41 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.16] - 2026-02-02
+
+### Hinzugefuegt
+- **Zeitvorsprung-Tracking System** (Task #36)
+  - **Neues Datenmodell:**
+    - `time_advantage_tracking` Tabelle: News-zu-Markt Tracking mit allen Zeitstempeln
+    - `time_advantage_stats` Tabelle: Aggregierte Statistiken pro Quelle und Zeitraum
+    - `price_check_queue` Tabelle: Queue fuer automatische Preis-Checks
+  - **Automatisches Tracking:**
+    - Bei jeder deutschen News: Timestamp und Quelle gespeichert
+    - Bei Markt-Match: Initialer Preis-Snapshot
+    - Automatische Price-Checks nach 5/15/30/60 Minuten, 4h und 24h
+    - Erkennung signifikanter Bewegungen (>2%)
+  - **Time Advantage Service:**
+    - Orchestriert das gesamte Tracking
+    - Berechnet Zeitvorsprung bei signifikanten Marktbewegungen
+    - Statistik-Aggregation nach Quelle, Tag, Woche, Monat
+  - **Telegram Dashboard:**
+    - Neuer `/edge` Befehl zeigt Zeitvorsprung-Dashboard
+    - Neuer "Zeitvorsprung" Button im Hauptmenue
+    - Anzeige: Getrackte News, Matches, Signifikante Moves
+    - Avg. Zeitvorsprung, Avg. Preisbewegung, Vorhersage-Genauigkeit
+    - Top-Quellen Tabelle mit Performance-Metriken
+    - Letzte Trackings mit Status-Emojis
+  - **Metriken:**
+    - `timeAdvantageMinutes`: Zeit zwischen News und Marktbewegung
+    - `predictionAccuracy`: Wie oft stimmt News-Richtung mit Markt ueberein
+    - `edgeCaptured`: Tatsaechlicher Edge wenn getradet
+  - **Integration:**
+    - Germany-Modul: Automatisches Tracking bei Breaking News
+    - Matching-Modul: Automatisches Verknuepfen von News mit Maerkten
+    - Sentiment-Analyse fuer Vorhersage-Richtung
+
+---
+
 ## [3.0.15] - 2026-02-02
 
 ### Behoben

@@ -101,11 +101,59 @@ Die "ALMANIEN"-Seite im Web-Interface zeigt das Herzstück des Features:
 - **Match-Details**: Entities und Keywords die zum Match führten
 - **Aktueller Preis**: Wenn verfügbar, Marktpreis als Prozent
 
+#### Zeitvorsprung-Tracking (NEU!)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║     Z E I T V O R S P R U N G - T R A C K I N G                  ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  EDGE-BEWEIS in Echtzeit:                                         ║
+║  1. Deutsche News wird erkannt (publishedAt)                      ║
+║  2. Markt-Match gefunden (priceAtNews gespeichert)                ║
+║  3. Preis-Checks: 5min, 15min, 30min, 60min, 4h, 24h             ║
+║  4. Signifikante Bewegung (>2%) → Zeitvorsprung berechnet        ║
+║                                                                   ║
+║  Dashboard-Metriken:                                              ║
+║  > Avg. Zeitvorsprung in Minuten                                 ║
+║  > Avg. Preisbewegung nach News                                  ║
+║  > Vorhersage-Genauigkeit (News-Richtung = Markt-Richtung?)      ║
+║  > Top-Quellen Ranking nach Performance                          ║
+║                                                                   ║
+║  Telegram: /edge                                                  ║
+║  Hauptmenü: "Zeitvorsprung" Button                               ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
 ### Interfaces
 
 - **Trading Desk Console** - Bloomberg/Palantir-Style UI (Dark-First, Three-Column Layout)
 - **Telegram Bot** - Inline-Buttons, 1-Click Trading, Runtime Controls
-- **REST API** - WebSocket-Support für Live-Updates + Runtime State Events
+- **REST API** - WebSocket-Support fuer Live-Updates + Runtime State Events
+- **Browser Notifications** - Desktop Push-Alerts fuer wichtige Events (NEU!)
+
+### Browser Push-Notifications (NEU!)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║         B R O W S E R   N O T I F I C A T I O N S                 ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  Events die Notifications triggern:                               ║
+║  > High-Alpha Signal (Edge > 20%)                                 ║
+║  > Almanien Zeitvorsprung gefunden                                ║
+║  > Trade ausgefuehrt (auto oder manuell)                          ║
+║  > Risk Warning (Kill-Switch, Daily Limit > 80%)                  ║
+║  > Pipeline Fehler                                                ║
+║                                                                   ║
+║  Settings (in SETTINGS-View):                                     ║
+║  > Master on/off Toggle                                           ║
+║  > Sound on/off                                                   ║
+║  > Individuelle Event-Typ Toggles                                 ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
 
 ### Runtime Controls (NEU!)
 

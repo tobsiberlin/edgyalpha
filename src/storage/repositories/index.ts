@@ -120,3 +120,26 @@ export {
   getAuditLog,
 } from './riskState.js';
 export type { PersistedRiskState, AuditLogEntry } from './riskState.js';
+
+// Time Advantage Repository
+export {
+  createTrackingEntry,
+  getTrackingByNewsId,
+  getTrackingById,
+  getPendingPriceChecks,
+  updatePriceCheck,
+  completeTracking,
+  getActiveTrackings,
+  getRecentTrackings,
+  expireOldTrackings,
+  getTimeAdvantageDashboard,
+  calculateStats,
+  saveStats,
+} from './timeAdvantage.js';
+export type {
+  TimeAdvantageRecord,
+  TimeAdvantageInput,
+  TimeAdvantageStats,
+  PriceCheckItem,
+  TimeAdvantageDashboard,
+} from './timeAdvantage.js';

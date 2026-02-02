@@ -201,10 +201,13 @@ ${this.DIVIDER}
         ],
         [
           { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
-          { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
+          { text: '📈 Zeitvorsprung', callback_data: 'action:edge' },
         ],
         [
+          { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
           { text: `${modeEmoji} Mode: ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
+        ],
+        [
           { text: '⚙️ Settings', callback_data: 'action:settings' },
         ],
       ],

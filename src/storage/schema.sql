@@ -319,3 +319,99 @@ CREATE TABLE IF NOT EXISTS notification_push_log (
 );
 CREATE INDEX IF NOT EXISTS idx_push_log_sent ON notification_push_log(sent_at);
 CREATE INDEX IF NOT EXISTS idx_push_log_type ON notification_push_log(push_type);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TIME ADVANTAGE TRACKING (Zeitvorsprung-Messung)
+-- Beweist den "Alman Heimvorteil" mit harten Daten
+-- ═══════════════════════════════════════════════════════════════
+
+-- time_advantage_tracking (Haupttabelle für News → Markt Tracking)
+CREATE TABLE IF NOT EXISTS time_advantage_tracking (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- News-Identifikation
+  news_id TEXT UNIQUE NOT NULL,          -- Hash/ID der deutschen News
+  news_source TEXT NOT NULL,             -- z.B. "Tagesschau", "Spiegel", "Reuters-DE"
+  news_title TEXT NOT NULL,
+  news_url TEXT,
+  news_category TEXT,                    -- politics, economy, sports, etc.
+  news_keywords TEXT,                    -- JSON Array: Erkannte Keywords
+  -- Zeitstempel
+  published_at TEXT NOT NULL,            -- Wann wurde die News publiziert (deutsche Quelle)
+  detected_at TEXT NOT NULL,             -- Wann haben wir sie erkannt
+  english_version_at TEXT,               -- Wann kam englische Version (falls messbar)
+  -- Markt-Matching
+  matched_market_id TEXT,                -- Polymarket Market ID
+  matched_market_question TEXT,
+  match_confidence REAL,                 -- 0-1 Matching-Konfidenz
+  match_method TEXT,                     -- 'keyword'|'semantic'|'manual'
+  -- Preis-Snapshots
+  price_at_news REAL,                    -- YES-Preis als News kam
+  price_after_5min REAL,                 -- Preis 5 Min später
+  price_after_15min REAL,                -- Preis 15 Min später
+  price_after_30min REAL,                -- Preis 30 Min später
+  price_after_60min REAL,                -- Preis 60 Min später
+  price_after_4h REAL,                   -- Preis 4 Stunden später
+  price_final REAL,                      -- Finaler Preis (bei Resolution oder 24h)
+  -- Berechnete Metriken
+  time_advantage_minutes INTEGER,        -- Zeitvorsprung in Minuten (News → signifikante Marktbewegung)
+  price_move_5min REAL,                  -- Preisbewegung nach 5 Min
+  price_move_15min REAL,                 -- Preisbewegung nach 15 Min
+  price_move_30min REAL,                 -- Preisbewegung nach 30 Min
+  price_move_60min REAL,                 -- Preisbewegung nach 60 Min
+  first_significant_move_at TEXT,        -- Wann kam erste signifikante Bewegung (>2%)
+  significant_move_delta_minutes INTEGER,-- Minuten zwischen News und signifikanter Bewegung
+  -- Bewertung
+  prediction_correct INTEGER,            -- 1 wenn News-Richtung mit Marktbewegung übereinstimmt
+  news_sentiment TEXT,                   -- 'positive'|'negative'|'neutral'
+  market_direction TEXT,                 -- 'up'|'down'|'flat'
+  edge_captured REAL,                    -- Tatsächlicher Edge in % (falls getradet)
+  -- Tracking-Status
+  status TEXT NOT NULL DEFAULT 'tracking', -- 'tracking'|'completed'|'expired'|'no_match'
+  last_price_check_at TEXT,
+  price_checks_remaining INTEGER DEFAULT 6,  -- Countdown für ausstehende Checks
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ta_news_id ON time_advantage_tracking(news_id);
+CREATE INDEX IF NOT EXISTS idx_ta_market ON time_advantage_tracking(matched_market_id);
+CREATE INDEX IF NOT EXISTS idx_ta_status ON time_advantage_tracking(status);
+CREATE INDEX IF NOT EXISTS idx_ta_published ON time_advantage_tracking(published_at);
+CREATE INDEX IF NOT EXISTS idx_ta_source ON time_advantage_tracking(news_source);
+
+-- time_advantage_stats (Aggregierte Statistiken pro Quelle)
+CREATE TABLE IF NOT EXISTS time_advantage_stats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_name TEXT NOT NULL,             -- News-Quelle
+  period TEXT NOT NULL,                  -- 'daily'|'weekly'|'monthly'|'all_time'
+  period_start TEXT NOT NULL,            -- Beginn des Zeitraums
+  period_end TEXT NOT NULL,              -- Ende des Zeitraums
+  -- Metriken
+  news_count INTEGER NOT NULL DEFAULT 0, -- Anzahl getrackter News
+  matched_count INTEGER NOT NULL DEFAULT 0, -- Davon mit Markt-Match
+  significant_move_count INTEGER NOT NULL DEFAULT 0, -- News die signifikante Bewegung hatten
+  -- Zeitvorsprung
+  avg_time_advantage_minutes REAL,       -- Durchschnittlicher Zeitvorsprung
+  median_time_advantage_minutes REAL,    -- Median Zeitvorsprung
+  max_time_advantage_minutes INTEGER,    -- Maximaler Zeitvorsprung
+  -- Erfolgsquote
+  prediction_accuracy REAL,              -- % korrekte Vorhersagen
+  avg_price_move REAL,                   -- Durchschnittliche Preisbewegung
+  -- Zuletzt aktualisiert
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(source_name, period, period_start)
+);
+CREATE INDEX IF NOT EXISTS idx_ta_stats_source ON time_advantage_stats(source_name);
+CREATE INDEX IF NOT EXISTS idx_ta_stats_period ON time_advantage_stats(period);
+
+-- price_check_queue (Queue für ausstehende Preis-Checks)
+CREATE TABLE IF NOT EXISTS price_check_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tracking_id INTEGER NOT NULL,          -- FK zu time_advantage_tracking
+  check_type TEXT NOT NULL,              -- '5min'|'15min'|'30min'|'60min'|'4h'|'final'
+  scheduled_at TEXT NOT NULL,            -- Wann soll der Check stattfinden
+  executed_at TEXT,                      -- Wann wurde er ausgeführt
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending'|'executed'|'skipped'
+  FOREIGN KEY (tracking_id) REFERENCES time_advantage_tracking(id)
+);
+CREATE INDEX IF NOT EXISTS idx_pcq_scheduled ON price_check_queue(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_pcq_status ON price_check_queue(status);

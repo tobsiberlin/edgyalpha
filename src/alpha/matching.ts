@@ -6,6 +6,7 @@
 import { Market } from '../types/index.js';
 import { SourceEvent } from './types.js';
 import logger from '../utils/logger.js';
+import { timeAdvantageService } from './timeAdvantageService.js';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -323,6 +324,17 @@ export function fuzzyMatch(
         `keywords=[${matchedKeywords.slice(0, 3).join(', ')}], ` +
         `entities=[${matchedEntities.join(', ')}]`
       );
+
+      // TIME ADVANTAGE TRACKING: Verknuepfe News mit Markt
+      // Nutze eventHash als newsId fuer konsistentes Tracking
+      timeAdvantageService.linkNewsToMarket(
+        event.eventHash,
+        market,
+        confidence,
+        'keyword'
+      ).catch(err => {
+        logger.debug(`[TIME_ADVANTAGE] Link-Fehler: ${(err as Error).message}`);
+      });
     }
   }
 

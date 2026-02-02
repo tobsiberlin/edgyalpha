@@ -8,6 +8,7 @@ import { startWebServer } from './web/server.js';
 import { germanySources } from './germany/index.js';
 import { initDatabase, isSqliteAvailable } from './storage/db.js';
 import { syncPositionsToRiskState } from './runtime/positionSync.js';
+import { timeAdvantageService } from './alpha/timeAdvantageService.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                    POLYMARKET ALPHA SCANNER
@@ -87,6 +88,10 @@ async function main(): Promise<void> {
       }).catch(err => {
         logger.warn(`Deutschland-Daten Fehler (non-fatal): ${err.message}`);
       });
+
+      // 3.5 Time Advantage Service starten (Zeitvorsprung-Tracking)
+      logger.info('Starte Time Advantage Service...');
+      timeAdvantageService.start();
     }
 
     // 4. Scanner starten
@@ -115,6 +120,9 @@ function setupGracefulShutdown(): void {
     try {
       scanner.stop();
       logger.info('Scanner gestoppt');
+
+      timeAdvantageService.stop();
+      logger.info('Time Advantage Service gestoppt');
     } catch (err) {
       logger.error(`Shutdown-Fehler: ${(err as Error).message}`);
     }

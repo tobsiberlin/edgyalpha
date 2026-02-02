@@ -11,3 +11,4 @@ export * from './riskGates';
 export * from './sizing';
 export * from './executionQuality';
 export * from './perplexityEngine';
+export * from './timeAdvantageService';
