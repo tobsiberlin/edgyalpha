@@ -312,6 +312,71 @@ Nutze /status um den aktuellen Zustand zu prüfen.`;
       await this.sendMessage(message, chatId);
     });
 
+    // /cooldown - Cooldown Status anzeigen / resetten
+    this.bot.onText(/\/cooldown(?:\s+(reset))?/, async (msg, match) => {
+      const chatId = msg.chat.id.toString();
+      const action = match?.[1];
+
+      const cooldownStatus = runtimeState.getCooldownStatus();
+      const state = runtimeState.getState();
+
+      if (action === 'reset') {
+        if (!cooldownStatus.active && state.consecutiveLosses < 3) {
+          await this.sendMessage('ℹ️ Kein aktiver Cooldown zum Resetten.', chatId);
+          return;
+        }
+
+        runtimeState.resetCooldown('telegram');
+
+        const message = `${this.HEADER}
+
+✅ *COOLDOWN ZURÜCKGESETZT*
+
+${this.DIVIDER}
+
+Trading wieder möglich.
+⚠️ _Achtung: Die Verlustserie wurde erkannt - trade vorsichtig!_`;
+
+        await this.sendMessage(message, chatId);
+        return;
+      }
+
+      // Status anzeigen
+      const message = `${this.HEADER}
+
+🛡️ *INTRADAY RISK STATUS*
+
+${this.DIVIDER}
+
+*Tages-PnL:* ${state.dailyPnL >= 0 ? '+' : ''}${state.dailyPnL.toFixed(2)} USDC
+*Tageshoch:* ${state.intradayHighWaterMark.toFixed(2)} USDC
+*Drawdown:* ${state.intradayDrawdown.toFixed(2)} USDC
+
+*Consecutive Losses:* ${state.consecutiveLosses}
+*Cooldown:* ${cooldownStatus.active
+    ? `⏳ Aktiv (${cooldownStatus.minutesLeft} Min) - ${cooldownStatus.reason}`
+    : '✅ Inaktiv'}
+
+${this.DIVIDER}
+
+*Limits:*
+• Daily Loss: ${state.maxDailyLoss} USDC
+• Intraday Drawdown: ${(state.maxDailyLoss * 0.5).toFixed(0)} USDC (50%)
+• Rapid Loss (15 Min): ${(state.maxDailyLoss * 0.3).toFixed(0)} USDC (30%)
+• Max Consecutive Losses: 3`;
+
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: cooldownStatus.active || state.consecutiveLosses >= 3
+          ? [
+              [{ text: '🔓 Cooldown Reset', callback_data: 'action:cooldown_reset' }],
+              [{ text: '🔙 Menü', callback_data: 'action:menu' }],
+            ]
+          : [
+              [{ text: '🔙 Menü', callback_data: 'action:menu' }],
+            ],
+      }, chatId);
+    });
+
     // /mode [paper|shadow|live] - Mode wechseln
     this.bot.onText(/\/mode(?:\s+(paper|shadow|live))?/, async (msg, match) => {
       const chatId = msg.chat.id.toString();
@@ -592,6 +657,7 @@ ${this.DIVIDER}
 ├─────────────────────────────────┤
 │  /kill [grund] - Stop All       │
 │  /resume       - Resume Trading │
+│  /cooldown     - Drawdown-Pause │
 │  /mode [m]     - paper/shadow/  │
 │                  live           │
 ├─────────────────────────────────┤
@@ -747,6 +813,10 @@ ${this.DIVIDER}
         break;
       case 'killswitch':
         await this.handleKillSwitchToggle(chatId, messageId);
+        break;
+      case 'cooldown_reset':
+        runtimeState.resetCooldown('telegram');
+        await this.sendMessage('✅ Cooldown zurückgesetzt. Trading wieder möglich.', chatId);
         break;
     }
   }

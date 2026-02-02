@@ -5,6 +5,7 @@
 export * from './types';
 export * from './mispricingEngine';
 export * from './metaCombiner';
+export * from './driftDetection';
 export * from './telemetry';
 export * from './riskGates';
 export * from './sizing';

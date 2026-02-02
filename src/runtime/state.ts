@@ -25,6 +25,14 @@ import {
 //                         INTERFACES
 // ═══════════════════════════════════════════════════════════════
 
+// Trade-Eintrag für Rolling Window
+export interface TradeEntry {
+  timestamp: Date;
+  pnl: number;
+  marketId: string;
+  sizeUsdc: number;
+}
+
 export interface RuntimeState {
   // Execution Control
   executionMode: ExecutionMode;
@@ -40,6 +48,14 @@ export interface RuntimeState {
   dailyTrades: number;
   dailyWins: number;
   dailyLosses: number;
+
+  // INTRADAY DRAWDOWN TRACKING (NEU)
+  recentTrades: TradeEntry[];           // Rolling Window letzte N Trades
+  intradayHighWaterMark: number;        // Höchster PnL des Tages
+  intradayDrawdown: number;             // Aktueller Drawdown vom High
+  consecutiveLosses: number;            // Aufeinanderfolgende Verluste
+  cooldownUntil: Date | null;           // Cooldown aktiv bis
+  cooldownReason: string | null;        // Grund für Cooldown
 
   // Position Tracking
   openPositions: number;
@@ -118,6 +134,14 @@ class RuntimeStateManager extends EventEmitter {
       dailyTrades: persisted?.dailyTrades ?? 0,
       dailyWins: persisted?.dailyWins ?? 0,
       dailyLosses: persisted?.dailyLosses ?? 0,
+
+      // Intraday Drawdown Tracking - immer frisch starten
+      recentTrades: [],
+      intradayHighWaterMark: persisted?.dailyPnL ?? 0,
+      intradayDrawdown: 0,
+      consecutiveLosses: 0,
+      cooldownUntil: null,
+      cooldownReason: null,
 
       // Position Tracking - aus DB laden!
       openPositions: persisted ? Object.keys(persisted.positions).length : 0,
@@ -215,6 +239,43 @@ class RuntimeStateManager extends EventEmitter {
       };
     }
 
+    // INTRADAY DRAWDOWN prüfen (50% des Daily Limits)
+    const intradayDrawdownLimit = this.state.maxDailyLoss * 0.5;
+    if (this.state.intradayDrawdown >= intradayDrawdownLimit) {
+      return {
+        allowed: false,
+        reason: `Intraday Drawdown-Limit erreicht: ${this.state.intradayDrawdown.toFixed(2)} USDC (Max: ${intradayDrawdownLimit.toFixed(0)})`,
+      };
+    }
+
+    // COOLDOWN prüfen
+    if (this.state.cooldownUntil && this.state.cooldownUntil > new Date()) {
+      const minutesLeft = Math.ceil((this.state.cooldownUntil.getTime() - Date.now()) / 60000);
+      return {
+        allowed: false,
+        reason: `Cooldown aktiv: ${this.state.cooldownReason} (noch ${minutesLeft} Min)`,
+      };
+    }
+
+    // CONSECUTIVE LOSSES prüfen (Max 3 in Folge = 15 Min Pause)
+    if (this.state.consecutiveLosses >= 3) {
+      return {
+        allowed: false,
+        reason: `Verlustserie: ${this.state.consecutiveLosses} Losses in Folge - warte auf Reset oder manuellen Resume`,
+      };
+    }
+
+    // ROLLING WINDOW: Prüfe Verluste in letzten 15 Minuten
+    const recentLosses = this.getRecentLosses(15);
+    const recentLossTotal = recentLosses.reduce((sum, t) => sum + Math.abs(t.pnl), 0);
+    const rapidLossLimit = this.state.maxDailyLoss * 0.3; // 30% in 15 Min = zu schnell
+    if (recentLossTotal >= rapidLossLimit) {
+      return {
+        allowed: false,
+        reason: `Schnelle Verlustserie: ${recentLossTotal.toFixed(2)} USDC in 15 Min (Max: ${rapidLossLimit.toFixed(0)})`,
+      };
+    }
+
     // Max Positions prüfen
     if (this.state.openPositions >= this.state.maxPositions) {
       return {
@@ -224,6 +285,14 @@ class RuntimeStateManager extends EventEmitter {
     }
 
     return { allowed: true, reason: 'OK' };
+  }
+
+  // Hilfsfunktion: Verluste der letzten N Minuten
+  private getRecentLosses(minutes: number): TradeEntry[] {
+    const cutoff = new Date(Date.now() - minutes * 60 * 1000);
+    return this.state.recentTrades.filter(
+      t => t.timestamp >= cutoff && t.pnl < 0
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -355,6 +424,55 @@ class RuntimeStateManager extends EventEmitter {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // COOLDOWN MANAGEMENT
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Reset Cooldown manuell (via Telegram/Web)
+   * Erlaubt Trading wieder nach Verlustserie
+   */
+  resetCooldown(source: StateChangeEvent['source'] = 'api'): void {
+    if (!this.state.cooldownUntil && this.state.consecutiveLosses < 3) {
+      logger.info('[RISK] Kein aktiver Cooldown zum Resetten');
+      return;
+    }
+
+    const previousCooldown = this.state.cooldownReason;
+    const previousLosses = this.state.consecutiveLosses;
+
+    this.state.cooldownUntil = null;
+    this.state.cooldownReason = null;
+    this.state.consecutiveLosses = 0;
+
+    logger.info(`[RISK] Cooldown manuell zurückgesetzt (via ${source})`);
+    this.emit('cooldownReset', { source, previousCooldown, previousLosses });
+
+    // AUDIT LOG
+    this.writeAudit({
+      eventType: 'cooldown_reset',
+      actor: source,
+      action: `Cooldown manuell zurückgesetzt (${previousCooldown}, ${previousLosses} Losses)`,
+      details: { previousCooldown, previousLosses },
+    });
+  }
+
+  /**
+   * Gibt Cooldown-Status zurück
+   */
+  getCooldownStatus(): { active: boolean; reason: string | null; minutesLeft: number | null } {
+    if (!this.state.cooldownUntil || this.state.cooldownUntil <= new Date()) {
+      return { active: false, reason: null, minutesLeft: null };
+    }
+
+    const minutesLeft = Math.ceil((this.state.cooldownUntil.getTime() - Date.now()) / 60000);
+    return {
+      active: true,
+      reason: this.state.cooldownReason,
+      minutesLeft,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // RISK TRACKING
   // ─────────────────────────────────────────────────────────────
 
@@ -368,8 +486,50 @@ class RuntimeStateManager extends EventEmitter {
 
     if (pnl > 0) {
       this.state.dailyWins += 1;
+      // Reset consecutive losses bei Win
+      this.state.consecutiveLosses = 0;
     } else if (pnl < 0) {
       this.state.dailyLosses += 1;
+      // Track consecutive losses
+      this.state.consecutiveLosses += 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTRADAY DRAWDOWN TRACKING
+    // ═══════════════════════════════════════════════════════════════
+
+    // Trade zur Rolling Window Historie hinzufügen
+    const tradeEntry: TradeEntry = {
+      timestamp: new Date(),
+      pnl,
+      marketId,
+      sizeUsdc,
+    };
+    this.state.recentTrades.push(tradeEntry);
+
+    // Rolling Window: Nur letzte 100 Trades behalten
+    while (this.state.recentTrades.length > 100) {
+      this.state.recentTrades.shift();
+    }
+
+    // High Water Mark aktualisieren
+    if (this.state.dailyPnL > this.state.intradayHighWaterMark) {
+      this.state.intradayHighWaterMark = this.state.dailyPnL;
+      this.state.intradayDrawdown = 0;
+    } else {
+      // Drawdown berechnen
+      this.state.intradayDrawdown = this.state.intradayHighWaterMark - this.state.dailyPnL;
+    }
+
+    // Auto-Cooldown bei 3 Consecutive Losses
+    if (this.state.consecutiveLosses >= 3 && !this.state.cooldownUntil) {
+      this.state.cooldownUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 Min
+      this.state.cooldownReason = `${this.state.consecutiveLosses} Verluste in Folge`;
+      logger.warn(`[RISK] Auto-Cooldown aktiviert: ${this.state.cooldownReason}`);
+      this.emit('cooldownActivated', {
+        reason: this.state.cooldownReason,
+        until: this.state.cooldownUntil,
+      });
     }
 
     // Position Tracking
@@ -391,10 +551,19 @@ class RuntimeStateManager extends EventEmitter {
       signalId,
       pnlImpact: pnl,
       riskStateBefore: { dailyPnL: previousPnL, dailyTrades: previousTrades },
-      riskStateAfter: { dailyPnL: this.state.dailyPnL, dailyTrades: this.state.dailyTrades },
+      riskStateAfter: {
+        dailyPnL: this.state.dailyPnL,
+        dailyTrades: this.state.dailyTrades,
+        intradayDrawdown: this.state.intradayDrawdown,
+        consecutiveLosses: this.state.consecutiveLosses,
+      },
     });
 
-    // Auto Kill-Switch bei großem Verlust
+    // ═══════════════════════════════════════════════════════════════
+    // AUTO KILL-SWITCH CHECKS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Daily Loss Limit
     if (this.state.dailyPnL <= -this.state.maxDailyLoss) {
       this.activateKillSwitch(
         `Tägliches Verlust-Limit erreicht: ${this.state.dailyPnL.toFixed(2)} USDC`,
@@ -402,7 +571,23 @@ class RuntimeStateManager extends EventEmitter {
       );
     }
 
-    this.emit('tradeRecorded', { pnl, marketId, sizeUsdc, dailyPnL: this.state.dailyPnL });
+    // Intraday Drawdown Limit (50% des Daily Limits)
+    const intradayDrawdownLimit = this.state.maxDailyLoss * 0.5;
+    if (this.state.intradayDrawdown >= intradayDrawdownLimit && !this.state.killSwitchActive) {
+      this.activateKillSwitch(
+        `Intraday Drawdown-Limit: ${this.state.intradayDrawdown.toFixed(2)} USDC vom Tageshoch`,
+        'system'
+      );
+    }
+
+    this.emit('tradeRecorded', {
+      pnl,
+      marketId,
+      sizeUsdc,
+      dailyPnL: this.state.dailyPnL,
+      intradayDrawdown: this.state.intradayDrawdown,
+      consecutiveLosses: this.state.consecutiveLosses,
+    });
   }
 
   closePosition(marketId: string): void {
@@ -503,6 +688,14 @@ class RuntimeStateManager extends EventEmitter {
     this.state.dailyWins = 0;
     this.state.dailyLosses = 0;
     this.state.lastResetAt = new Date();
+
+    // Intraday Drawdown Tracking zurücksetzen
+    this.state.recentTrades = [];
+    this.state.intradayHighWaterMark = 0;
+    this.state.intradayDrawdown = 0;
+    this.state.consecutiveLosses = 0;
+    this.state.cooldownUntil = null;
+    this.state.cooldownReason = null;
 
     // Kill-Switch NICHT automatisch deaktivieren - das muss manuell passieren
     // this.state.killSwitchActive = false;

@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AlphaSignalV2, Decision, RiskChecks, Rationale } from './types.js';
 import { getDatabase, isDatabaseInitialized } from '../storage/db.js';
 import { logger } from '../utils/logger.js';
+import { driftDetector, DriftEvent, DriftStatus } from './driftDetection.js';
 
 // ============================================================================
 // Konfiguration
@@ -251,6 +252,12 @@ export class MetaCombiner {
     timeDelaySignal?: AlphaSignalV2,
     mispricingSignal?: AlphaSignalV2
   ): CombinedSignal | null {
+    // DRIFT CHECK: Bei Throttle keine neuen Signale
+    if (driftDetector.isThrottled()) {
+      logger.warn('MetaCombiner: Throttled wegen Drift - keine neuen Signale');
+      return null;
+    }
+
     // Mindestens ein Signal benötigt
     const signalCount = (timeDelaySignal ? 1 : 0) + (mispricingSignal ? 1 : 0);
 
@@ -342,6 +349,18 @@ export class MetaCombiner {
     }
 
     this.trainingCount++;
+
+    // Drift Detection: Prüfe auf instabile Coefficients/Weights
+    const drifts = driftDetector.recordUpdate(
+      this.weights,
+      this.coefficients,
+      prediction,
+      actualOutcome
+    );
+
+    if (drifts.length > 0) {
+      logger.warn(`MetaCombiner: ${drifts.length} Drift(s) erkannt`);
+    }
 
     // Auto-Save alle 50 Updates
     if (this.trainingCount % 50 === 0) {
@@ -745,6 +764,34 @@ export class MetaCombiner {
   }
 
   /**
+   * Diagnostik: Drift Detection Status
+   */
+  getDriftStatus(): DriftStatus {
+    return driftDetector.getStatus();
+  }
+
+  /**
+   * Manuell Throttle aktivieren
+   */
+  activateDriftThrottle(reason: string): void {
+    driftDetector.activateThrottle(reason);
+  }
+
+  /**
+   * Manuell Throttle deaktivieren
+   */
+  deactivateDriftThrottle(): void {
+    driftDetector.deactivateThrottle();
+  }
+
+  /**
+   * Prüfe ob gedrosselt wegen Drift
+   */
+  isThrottled(): boolean {
+    return driftDetector.isThrottled();
+  }
+
+  /**
    * Reset auf Defaults (für Tests)
    */
   reset(): void {
@@ -752,6 +799,7 @@ export class MetaCombiner {
     this.initializeCoefficients();
     this.trainingBuffer = [];
     this.trainingCount = 0;
+    driftDetector.reset();
     logger.info('MetaCombiner: Reset auf Defaults');
   }
 }

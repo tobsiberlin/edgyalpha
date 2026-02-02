@@ -36,15 +36,15 @@ export interface PersistedRiskState {
 }
 
 export interface AuditLogEntry {
-  eventType: 'trade' | 'mode_change' | 'kill_switch' | 'settings' | 'login' | 'error' | 'daily_reset';
+  eventType: 'trade' | 'mode_change' | 'kill_switch' | 'settings' | 'login' | 'error' | 'daily_reset' | 'cooldown_reset';
   actor: 'web' | 'telegram' | 'system' | 'scheduler';
   action: string;
   details?: Record<string, unknown>;
   marketId?: string;
   signalId?: string;
   pnlImpact?: number;
-  riskStateBefore?: Partial<PersistedRiskState>;
-  riskStateAfter?: Partial<PersistedRiskState>;
+  riskStateBefore?: Partial<PersistedRiskState> | Record<string, unknown>;
+  riskStateAfter?: Partial<PersistedRiskState> | Record<string, unknown>;
 }
 
 /**
