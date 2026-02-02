@@ -1631,12 +1631,36 @@ scanner.on('signal_found', (signal: AlphaSignal) => {
   io.emit('signal_found', signal);
 });
 
+// TimeDelayEngine Signals
+scanner.on('time_delay_signal', (signal: unknown) => {
+  io.emit('time_delay_signal', signal);
+});
+
 // ═══════════════════════════════════════════════════════════════
 //                    LIVE TICKER EVENTS
 // ═══════════════════════════════════════════════════════════════
 
 newsTicker.on('tick', (event: TickerEvent) => {
   io.emit('ticker', event);
+});
+
+// Ticker Match Events für Dashboard
+newsTicker.on('ticker:match_found', (data: {
+  newsId: string;
+  newsTitle: string;
+  newsSource: string;
+  bestMatch: { marketId: string; question: string; confidence: number; price: number; direction: string };
+}) => {
+  io.emit('ticker_match', {
+    newsTitle: data.newsTitle,
+    newsSource: data.newsSource,
+    marketId: data.bestMatch.marketId,
+    question: data.bestMatch.question,
+    confidence: data.bestMatch.confidence,
+    direction: data.bestMatch.direction,
+    price: data.bestMatch.price,
+    timestamp: new Date(),
+  });
 });
 
 // Ticker starten wenn Server startet

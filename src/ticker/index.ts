@@ -166,9 +166,35 @@ class NewsTicker extends EventEmitter {
       this.emitTick(matchFoundEvent);
 
       // ══════════════════════════════════════════════════════════════
-      // KRITISCH: NotificationService über Match informieren
-      // Das verbindet den Ticker mit der Push-Pipeline
+      // KRITISCH: Event-basierte Verbindung mit NotificationService
+      // Emittiert ticker:match_found für externe Listener
       // ══════════════════════════════════════════════════════════════
+      this.emit('ticker:match_found', {
+        newsId: news.id || `${news.source}:${Date.now()}`,
+        newsTitle: news.title,
+        newsSource: news.source,
+        newsUrl: news.url,
+        newsContent: news.content,
+        newsKeywords: news.keywords,
+        timeAdvantageSeconds: news.timeAdvantageSeconds,
+        publishedAt: news.publishedAt,
+        matches: matches.map(m => ({
+          marketId: m.id,
+          question: m.question,
+          confidence: m.matchScore,
+          price: m.price,
+          direction: this.inferDirection(news, m),
+        })),
+        bestMatch: {
+          marketId: matches[0].id,
+          question: matches[0].question,
+          confidence: matches[0].matchScore,
+          price: matches[0].price,
+          direction: this.inferDirection(news, matches[0]),
+        },
+      });
+
+      // Legacy: NotificationService direkt informieren (Fallback)
       await this.notifyMatchToNotificationService(news, matches[0]);
     } else {
       const noMatchEvent: TickerEvent = {
@@ -431,6 +457,54 @@ class NewsTicker extends EventEmitter {
     } catch (err) {
       logger.debug(`[TICKER] NotificationService-Integration Fehler: ${(err as Error).message}`);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                     DIRECTION INFERENCE
+  // Bestimmt YES/NO Richtung basierend auf News-Sentiment
+  // ═══════════════════════════════════════════════════════════════
+
+  private inferDirection(
+    news: BreakingNewsEvent,
+    match: { id: string; question: string; matchScore: number; price: number }
+  ): 'yes' | 'no' {
+    const text = `${news.title} ${news.content || ''}`.toLowerCase();
+    const question = match.question.toLowerCase();
+
+    // Positive Indikatoren
+    const positivePatterns = [
+      /gewinnt|wins?|victory|sieg|erfolg|success|steigt|rises?|grows?|wächst/i,
+      /bestätigt|confirmed|announced|angekündigt|approved|genehmigt/i,
+      /einigung|agreement|deal|pact|vertrag/i,
+    ];
+
+    // Negative Indikatoren
+    const negativePatterns = [
+      /verliert|loses?|defeat|niederlage|scheitert|fails?|fällt|falls?|sinkt/i,
+      /entlass|fired|sacked|dismissed|rücktritt|resigned|quits?/i,
+      /abgesagt|cancelled|rejected|abgelehnt|gestoppt|blocked/i,
+    ];
+
+    let sentiment = 0;
+    for (const pattern of positivePatterns) {
+      if (pattern.test(text)) sentiment += 1;
+    }
+    for (const pattern of negativePatterns) {
+      if (pattern.test(text)) sentiment -= 1;
+    }
+
+    // Bei Fragen mit "wird X entlassen?" und negativem News-Sentiment → YES
+    if (/entlass|fire|sack|leave|resign/i.test(question) && sentiment < 0) {
+      return 'yes';
+    }
+
+    // Bei Fragen mit "bleibt X?" und negativem News-Sentiment → NO
+    if (/bleibt|remain|stay|continue/i.test(question) && sentiment < 0) {
+      return 'no';
+    }
+
+    // Default: Positives Sentiment → YES, sonst NO
+    return sentiment >= 0 ? 'yes' : 'no';
   }
 
   // ═══════════════════════════════════════════════════════════════

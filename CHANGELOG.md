@@ -7,6 +7,35 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.7.0] - 2026-02-02
+
+### Hinzugefuegt
+- **TimeDelayEngine Integration in Scanner**
+  - Scanner ruft jetzt `timeDelayEngine.generateSignals()` in jeder Scan-Loop auf
+  - Konvertiert News zu SourceEvents fuer strukturierte Signal-Generierung
+  - Emittiert `time_delay_signal` Events fuer bessere Signale
+
+- **NewsTicker → NotificationService Event-Verbindung**
+  - NewsTicker emittiert `ticker:match_found` Events mit detaillierten Match-Daten
+  - Telegram Bot hoert auf `ticker:match_found` und leitet an NotificationService weiter
+  - Verbesserte Direction-Inferenz basierend auf News-Sentiment
+  - Fallback auf Legacy-Methode `notifyMatchToNotificationService()`
+
+- **Scanner → AutoTrader Integration**
+  - `time_delay_signal` Events im Telegram Bot geloggt
+  - AutoTrader wird von TimeDelayEngine bei `breaking_confirmed` automatisch aufgerufen
+
+- **Web UI Live-Updates erweitert**
+  - `time_delay_signal` Events an Socket.IO weitergeleitet
+  - `ticker_match` Events fuer Dashboard-Matching-Visualisierung
+
+### Geaendert
+- Event-Flow Architektur: Telegram Bot als zentraler Orchestrator
+- Strukturierte Event-Weiterleitung statt direkter Service-Calls
+- Bessere Logging-Ausgaben mit Certainty-Emojis
+
+---
+
 ## [3.6.0] - 2026-02-02
 
 ### Hinzugefuegt

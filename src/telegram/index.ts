@@ -2950,6 +2950,102 @@ ${riskGates}`;
     });
 
     // ═══════════════════════════════════════════════════════════════
+    // TICKER MATCH EVENTS → NotificationService
+    // Verbindet den NewsTicker mit der Push-Pipeline
+    // ═══════════════════════════════════════════════════════════════
+    newsTicker.on('ticker:match_found', async (data: {
+      newsId: string;
+      newsTitle: string;
+      newsSource: string;
+      newsUrl?: string;
+      newsContent?: string;
+      newsKeywords: string[];
+      timeAdvantageSeconds?: number;
+      publishedAt?: Date;
+      matches: Array<{
+        marketId: string;
+        question: string;
+        confidence: number;
+        price: number;
+        direction: 'yes' | 'no';
+      }>;
+      bestMatch: {
+        marketId: string;
+        question: string;
+        confidence: number;
+        price: number;
+        direction: 'yes' | 'no';
+      };
+    }) => {
+      if (!runtimeSettings.timeDelayEnabled) {
+        return;
+      }
+
+      logger.info(`[TELEGRAM] Ticker Match: "${data.newsTitle.substring(0, 40)}..." → ${data.bestMatch.question.substring(0, 30)}...`);
+
+      // Finde den Candidate per Title (bereits von breaking_news erstellt)
+      try {
+        const { getCandidateByTitle } = await import('../storage/repositories/newsCandidates.js');
+        const candidate = getCandidateByTitle(data.newsTitle);
+
+        if (candidate) {
+          // Erstelle MarketInfo für Gate-Check
+          const marketInfo = {
+            marketId: data.bestMatch.marketId,
+            question: data.bestMatch.question,
+            currentPrice: data.bestMatch.price,
+            totalVolume: 50000, // Mindest-Volume für Gate-Pass
+          };
+
+          // Erstelle SourceInfo
+          const sourceInfo = {
+            sourceId: data.newsSource,
+            sourceName: data.newsSource,
+            reliabilityScore: 0.7,
+          };
+
+          // Informiere NotificationService mit Match-Daten
+          const expectedLagMinutes = data.timeAdvantageSeconds
+            ? Math.ceil(data.timeAdvantageSeconds / 60)
+            : 15;
+
+          const matched = await notificationService.setMatchAndEvaluate(
+            candidate.id,
+            marketInfo,
+            sourceInfo,
+            expectedLagMinutes
+          );
+
+          if (matched) {
+            logger.info(`[TELEGRAM] Ticker Match an NotificationService übergeben: ${data.newsTitle.substring(0, 40)}...`);
+          }
+        } else {
+          logger.debug(`[TELEGRAM] Ticker Match ohne Candidate: ${data.newsTitle.substring(0, 40)}...`);
+        }
+      } catch (err) {
+        logger.debug(`[TELEGRAM] Ticker Match Fehler: ${(err as Error).message}`);
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIME_DELAY SIGNALS vom Scanner (neue Integration)
+    // TimeDelayEngine ruft bereits intern AutoTrader auf wenn nötig
+    // ═══════════════════════════════════════════════════════════════
+    scanner.on('time_delay_signal', async (signal: AlphaSignalV2) => {
+      if (!runtimeSettings.timeDelayEnabled) {
+        return;
+      }
+
+      const certaintyEmoji = signal.certainty === 'breaking_confirmed' ? '🚨' :
+                             signal.certainty === 'high' ? '⚡' : '📊';
+
+      logger.info(`[TELEGRAM] ${certaintyEmoji} TimeDelay Signal: ${signal.question.substring(0, 40)}... | Edge: ${(signal.predictedEdge * 100).toFixed(1)}% | Certainty: ${signal.certainty || 'medium'}`);
+
+      // Hinweis: Auto-Trading wird bereits in TimeDelayEngine.generateSignals() ausgelöst
+      // wenn certainty === 'breaking_confirmed' UND autoTradeEnabled === true
+    });
+
+    // ═══════════════════════════════════════════════════════════════
     // ALPHA SCANNER EVENTS (für MISPRICING - nur Digest, kein Breaking)
     // ═══════════════════════════════════════════════════════════════
     scanner.on('signal_found', async (signal: AlphaSignal) => {

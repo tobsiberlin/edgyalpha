@@ -12,6 +12,8 @@ import {
 } from '../types/index.js';
 import { EventEmitter } from 'events';
 import { runtimeState } from '../runtime/state.js';
+import { timeDelayEngine } from '../alpha/timeDelayEngine.js';
+import { SourceEvent } from '../alpha/types.js';
 
 export class AlphaScanner extends EventEmitter {
   private isScanning = false;
@@ -141,7 +143,55 @@ export class AlphaScanner extends EventEmitter {
         }
       }
 
-      logger.info(`📊 ${newsMatches} Märkte mit News-Matches`)
+      logger.info(`📊 ${newsMatches} Märkte mit News-Matches`);
+
+      // ═══════════════════════════════════════════════════════════════
+      // TIME_DELAY ENGINE: Bessere Signal-Generierung
+      // Nutzt die neue TimeDelayEngine für strukturierte Signale
+      // ═══════════════════════════════════════════════════════════════
+      try {
+        // News zu SourceEvents konvertieren
+        const sourceEvents: SourceEvent[] = allNews.map(n => ({
+          eventHash: (n.data.hash as string) || `${n.data.source}:${n.title}`.substring(0, 200),
+          sourceId: (n.data.source as string) || 'unknown',
+          sourceName: (n.data.source as string) || 'Deutsche Quelle',
+          url: n.url || null,
+          title: n.title,
+          content: (n.data.content as string) || null,
+          category: (n.data.category as string) || 'news',
+          keywords: (n.data.keywords as string[]) || [],
+          publishedAt: n.publishedAt || null,
+          ingestedAt: new Date(),
+          reliabilityScore: 0.8, // Standard für kuratierte Quellen
+        }));
+
+        // Market-Preise zum Zeitpunkt der News (vereinfacht: aktuelle Preise)
+        const marketPricesAtNews = new Map<string, number>();
+        for (const market of markets) {
+          const yesOutcome = market.outcomes.find(o => o.name.toLowerCase() === 'yes');
+          if (yesOutcome) {
+            marketPricesAtNews.set(market.id, yesOutcome.price);
+          }
+        }
+
+        // TimeDelayEngine Signale generieren
+        const timeDelaySignals = await timeDelayEngine.generateSignals(
+          sourceEvents,
+          markets,
+          marketPricesAtNews
+        );
+
+        logger.info(`⏱️ TimeDelayEngine: ${timeDelaySignals.length} Signale generiert`);
+
+        // TimeDelay Signale als Events emittieren
+        for (const signal of timeDelaySignals) {
+          this.emit('time_delay_signal', signal);
+        }
+      } catch (err) {
+        const error = err as Error;
+        logger.error(`TimeDelayEngine Fehler: ${error.message}`);
+        errors.push(`TimeDelayEngine: ${error.message}`);
+      }
 
       // Signale nach Score sortieren
       signals.sort((a, b) => b.score - a.score);
