@@ -10,6 +10,46 @@ export interface FeatureSet {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SIGNAL REASONING - Erklärt WARUM ein Signal interessant ist
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Einzelner Faktor, der zum Signal beiträgt
+ * Macht transparent, welche Komponenten wie stark einfließen
+ */
+export interface ReasoningFactor {
+  name: string;         // "Zeitvorsprung", "Quellen-Qualität", "News-Match"
+  value: number;        // 0-1 Rohwert
+  weight: number;       // Gewichtung im Gesamtscore
+  contribution: number; // value * weight = Beitrag zum Score
+  explanation: string;  // "News 15 Min vor Marktreaktion"
+}
+
+/**
+ * News-Match Information (wenn Signal durch News getriggert)
+ */
+export interface NewsMatchInfo {
+  newsTitle: string;
+  newsSource: string;
+  matchConfidence: number;     // 0-1 wie gut passt News zu Markt
+  matchedKeywords: string[];   // Welche Keywords haben gematcht
+  isBreaking: boolean;         // Ist es eine Breaking News?
+  ageMinutes: number;          // Alter der News in Minuten
+}
+
+/**
+ * Vollständiges Reasoning für ein Signal
+ * Erklärt dem User, WARUM dieses Signal interessant ist
+ */
+export interface SignalReasoning {
+  summary: string;             // "Deutsche News über Bundestagswahl matched mit CDU-Umfrage-Markt"
+  factors: ReasoningFactor[];  // Alle Score-Komponenten
+  totalScore: number;          // Gesamtscore 0-1
+  matchInfo?: NewsMatchInfo;   // News-Details (falls vorhanden)
+  whyInteresting: string[];    // Kurze Bullet-Points warum das interessant ist
+}
+
+// ═══════════════════════════════════════════════════════════════
 // SIGNAL CERTAINTY LEVELS
 // Bestimmt das Sizing-Verhalten
 // ═══════════════════════════════════════════════════════════════
@@ -32,6 +72,8 @@ export interface AlphaSignalV2 {
   features: FeatureSet;
   reasoning: string[];
   createdAt: Date;
+  // NEU: Strukturiertes Reasoning
+  structuredReasoning?: SignalReasoning;
 }
 
 // TIME_DELAY Features

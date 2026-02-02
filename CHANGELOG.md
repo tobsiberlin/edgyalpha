@@ -7,6 +7,41 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.21] - 2026-02-02
+
+### Behoben
+- **Matching-Algorithmus: Thematische Relevanz**
+  - Neue `isThematicallyRelevant()` Funktion verhindert falsche Keyword-Matches
+  - Problem: "Iran-USA Treffen" matchte mit "Trump 2028 nomination" nur wegen "Trump"
+  - Loesung: Kategorien-System prueft ob News und Market im gleichen Themenbereich sind
+  - Kategorien: US-Wahlen, Iran-Diplomatie, Deutschland-Politik, Ukraine-Konflikt, Sport, Crypto, Nahost
+  - Personen-Match: Bei gleichem Namen (z.B. "Trump") muessen mindestens 2 weitere Woerter matchen
+  - Fallback-Threshold erhoeht: Nur noch Matches mit 3+ Keywords werden akzeptiert
+  - Schwache Matches (1-2 Keywords) werden jetzt uebersprungen mit Debug-Log
+  - `isNewsRelevantToMarket()` nutzt jetzt thematische Relevanz-Pruefung
+
+---
+
+## [3.0.20] - 2026-02-02
+
+### Hinzugefuegt
+- **Telegram Quick-Buy-Buttons**
+  - Neue direkte Kauf-Buttons bei Alerts: 💰 5$ / 10$ / 25$ / 50$
+  - Konfigurierbare Betraege via `QUICK_BUY_AMOUNTS` ENV Variable
+  - Bestaetigung vor Trade-Ausfuehrung
+  - Paper/Shadow Mode: Simuliert Trade ohne echtes Geld
+  - Live Mode: Leitet zu Polymarket (Auto-Execution kommt spaeter)
+  - Watch-Button: Markt zur Watchlist hinzufuegen (Placeholder)
+  - Chart-Button: Direktlink zum Polymarket-Chart
+  - Quick-Buy-Betraege in Settings-Menue angezeigt
+
+### Geaendert
+- **Config erweitert**
+  - Neues `quickBuy.amounts` Array in Config
+  - Default: [5, 10, 25, 50] USDC
+
+---
+
 ## [3.0.19] - 2026-02-02
 
 ### Geaendert

@@ -900,6 +900,24 @@ ${this.DIVIDER}
           case 'safebetconfirm':
             await this.handleSafeBetConfirm(params[0], params[1], parseInt(params[2], 10), chatId, query.message?.message_id);
             break;
+          case 'quickbuy':
+            // quickbuy:signalId:direction:amount
+            await this.handleQuickBuy(params[0], params[1] as 'yes' | 'no', parseFloat(params[2]), chatId, query.message?.message_id);
+            break;
+          case 'quickbuy_confirm':
+            // quickbuy_confirm:signalId:direction:amount
+            await this.handleQuickBuyConfirm(params[0], params[1] as 'yes' | 'no', parseFloat(params[2]), chatId, query.message?.message_id);
+            break;
+          case 'quickbuy_cancel':
+            // quickbuy_cancel:signalId
+            await this.sendMessage('❌ Trade abgebrochen.', chatId);
+            break;
+          case 'watch':
+            await this.handleWatch(params[0], chatId);
+            break;
+          case 'chart':
+            await this.handleChart(params[0], chatId);
+            break;
         }
       } catch (err) {
         const error = err as Error;
@@ -1572,6 +1590,12 @@ ${this.DIVIDER}
 *SAFE BET AUTO\\-TRADING:*
 ${autoStatus} Auto\\-Bet: ${runtimeSettings.autoBetOnSafeBet ? '🚀 AKTIV' : '⏸️ AUS'}
 _Bei SAFE BET ${runtimeSettings.autoBetOnSafeBet ? 'automatisch traden' : 'nur Benachrichtigung'}_
+
+${this.DIVIDER}
+
+*QUICK\\-BUY BETRÄGE:*
+💰 ${config.quickBuy.amounts.join(', ')} USDC
+_Änderbar via ENV: QUICK\\_BUY\\_AMOUNTS_
 
 ${this.DIVIDER}
 
@@ -2757,22 +2781,9 @@ ${improvedWhyNow.map(r => `• ${r}`).join('\n')}
 ${candidate.url ? `🔗 [Quelle](${candidate.url})` : ''}
 ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
 
-    await this.sendMessageWithKeyboard(message, {
-      inline_keyboard: [
-        [
-          { text: '👀 Watch', callback_data: `watch:${market.marketId}` },
-          { text: '🧪 Paper', callback_data: `trade:paper:${candidate.id}` },
-        ],
-        [
-          { text: '🕶️ Shadow', callback_data: `trade:shadow:${candidate.id}` },
-          { text: '🚀 Live', callback_data: `trade:live:${candidate.id}` },
-        ],
-        [
-          { text: '📈 Chart', callback_data: `chart:${market.marketId}` },
-          { text: '🧾 Details', callback_data: `details:${candidate.id}` },
-        ],
-      ],
-    });
+    // Quick-Buy Buttons mit konfigurierbaren Beträgen
+    // Signal-ID: candidate.id (als string), Market-ID: market.marketId
+    await this.sendMessageWithKeyboard(message, this.getQuickBuyKeyboard(String(candidate.id), market.marketId, 'yes'));
 
     logger.info(`[TELEGRAM] Almanien Alert gesendet: ${candidate.title.substring(0, 40)}...`);
   }
@@ -3159,6 +3170,176 @@ _Bitte manuell auf Polymarket traden!_`;
         await this.sendMessageWithKeyboard(errorMessage, this.getBackButton(), chatId);
       }
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                    QUICK-BUY HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Zeigt Bestätigungsdialog für Quick-Buy
+   */
+  private async handleQuickBuy(
+    signalId: string,
+    direction: 'yes' | 'no',
+    amount: number,
+    chatId: string,
+    messageId?: number
+  ): Promise<void> {
+    const directionEmoji = direction === 'yes' ? '✅ JA' : '❌ NEIN';
+    const state = runtimeState.getState();
+    const modeEmoji = state.executionMode === 'live' ? '🚀 LIVE' : state.executionMode === 'shadow' ? '👻 SHADOW' : '📝 PAPER';
+
+    const message = `${this.HEADER}
+
+⚠️ *BESTÄTIGUNG ERFORDERLICH*
+
+${this.DIVIDER}
+
+🎯 *Kaufen:* ${directionEmoji}
+💵 *Betrag:* $${amount} USDC
+📊 *Signal:* \`${signalId.substring(0, 16)}...\`
+${modeEmoji}
+
+${this.DIVIDER}
+
+_Wirklich ausführen?_`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '✅ JA, kaufen!', callback_data: `quickbuy_confirm:${signalId}:${direction}:${amount}` },
+          { text: '❌ Abbrechen', callback_data: `quickbuy_cancel:${signalId}` },
+        ],
+        [
+          { text: '◀️ Zurück', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+
+    logger.info(`[QUICK-BUY] Confirmation requested: ${signalId} | ${direction} | $${amount}`);
+  }
+
+  /**
+   * Führt Quick-Buy Trade nach Bestätigung aus
+   */
+  private async handleQuickBuyConfirm(
+    signalId: string,
+    direction: 'yes' | 'no',
+    amount: number,
+    chatId: string,
+    messageId?: number
+  ): Promise<void> {
+    const state = runtimeState.getState();
+
+    // Kill-Switch Check
+    if (state.killSwitchActive) {
+      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      return;
+    }
+
+    const directionEmoji = direction === 'yes' ? '✅' : '❌';
+
+    try {
+      logger.info(`[QUICK-BUY] Executing: ${signalId} | ${direction.toUpperCase()} | $${amount}`);
+
+      // Paper/Shadow Mode: Simulieren
+      if (state.executionMode !== 'live') {
+        const modeEmoji = state.executionMode === 'paper' ? '📝' : '👻';
+
+        const successMessage = `${this.HEADER}
+
+${modeEmoji} *QUICK-BUY SIMULIERT*
+
+${this.DIVIDER}
+
+${directionEmoji} *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+📊 *Mode:* ${state.executionMode.toUpperCase()}
+
+${this.DIVIDER}
+
+✅ _Simuliert - kein echter Trade._
+_Wechsle zu LIVE Mode für echtes Trading._`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, successMessage, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(successMessage, this.getBackButton(), chatId);
+        }
+
+        logger.info(`[QUICK-BUY] Simulated: ${direction} @ $${amount} (${state.executionMode})`);
+        return;
+      }
+
+      // Live Mode: Link zu Polymarket
+      const marketUrl = `https://polymarket.com/event/${signalId}`;
+
+      const liveMessage = `${this.HEADER}
+
+🚀 *QUICK-BUY - MANUELL AUSFÜHREN*
+
+${this.DIVIDER}
+
+${directionEmoji} *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+
+${this.DIVIDER}
+
+⚠️ _Auto-Execution noch nicht implementiert._
+Bitte manuell auf Polymarket ausführen:
+
+[📊 Polymarket öffnen](${marketUrl})`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, liveMessage, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(liveMessage, this.getBackButton(), chatId);
+      }
+
+      logger.warn(`[QUICK-BUY] Live trade requires manual execution: ${signalId}`);
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[QUICK-BUY] Execution failed: ${error.message}`);
+
+      const errorMessage = `${this.HEADER}
+
+❌ *FEHLER*
+
+${error.message}
+
+_Bitte manuell auf Polymarket traden!_`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMessage, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMessage, this.getBackButton(), chatId);
+      }
+    }
+  }
+
+  /**
+   * Watch-Handler: Markt zur Watchlist hinzufügen
+   */
+  private async handleWatch(signalId: string, chatId: string): Promise<void> {
+    // TODO: Implementiere Watchlist-Funktionalität
+    await this.sendMessage(`👀 *Watchlist*\n\nMarkt \`${signalId.substring(0, 16)}...\` wird beobachtet.\n\n_Watchlist-Feature kommt bald!_`, chatId);
+    logger.info(`[WATCH] Added to watchlist: ${signalId}`);
+  }
+
+  /**
+   * Chart-Handler: Zeigt Preis-Chart für Markt
+   */
+  private async handleChart(marketId: string, chatId: string): Promise<void> {
+    const chartUrl = `https://polymarket.com/event/${marketId}`;
+    await this.sendMessage(`📈 *Chart*\n\n[Chart auf Polymarket öffnen](${chartUrl})`, chatId);
+    logger.info(`[CHART] Opened chart: ${marketId}`);
   }
 
   // ═══════════════════════════════════════════════════════════════

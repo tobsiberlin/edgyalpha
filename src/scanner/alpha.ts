@@ -8,6 +8,33 @@ import { v4 as uuid } from 'uuid';
 //          ALLE QUELLEN NUTZEN - MAXIMALE POWER
 // ═══════════════════════════════════════════════════════════════
 
+// Keywords für Deutschland-relevante Märkte
+const GERMANY_MARKET_KEYWORDS = [
+  // Deutsche Politik
+  'germany', 'german', 'deutschland', 'bundestag', 'bundesregierung',
+  'bundeskanzler', 'bundesminister', 'bundeswahl',
+  // Deutsche Politiker
+  'merz', 'scholz', 'habeck', 'lindner', 'weidel', 'wagenknecht',
+  'söder', 'laschet', 'baerbock', 'pistorius',
+  // Deutsche Parteien
+  'cdu', 'csu', 'spd', 'grüne', 'fdp', 'afd', 'bsw', 'linke',
+  // Deutsche Wirtschaft
+  'volkswagen', 'mercedes', 'bmw', 'siemens', 'deutsche bank', 'dax',
+  'basf', 'bayer', 'allianz', 'sap',
+  // Deutsche Städte/Regionen
+  'berlin', 'munich', 'frankfurt', 'hamburg', 'bavaria', 'bayern',
+  // Sport
+  'bundesliga', 'dfb', 'german national team',
+];
+
+/**
+ * Prüft ob ein Markt Deutschland-relevant ist basierend auf der Frage
+ */
+export function isGermanyRelevantMarket(marketQuestion: string): boolean {
+  const lower = marketQuestion.toLowerCase();
+  return GERMANY_MARKET_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 // Sentiment Keywords für verschiedene Richtungen
 const BULLISH_KEYWORDS = [
   'wins', 'victory', 'success', 'approved', 'passed', 'confirmed', 'deal',
@@ -722,7 +749,8 @@ export function createAlphaSignal(
     reasoning: detailedReasoning,
     sources: [],
     timestamp: new Date(),
-    germanSource: externalData?.germanSources?.[0]
+    // NUR germanSource setzen wenn der MARKT Deutschland-relevant ist
+    germanSource: isGermanyRelevantMarket(market.question) && externalData?.germanSources?.[0]
       ? {
           type: 'rss',
           title: externalData.newsAlpha?.bestMatch?.title || 'News Match',
@@ -750,4 +778,5 @@ export default {
   createTradeRecommendation,
   createAlphaSignal,
   analyzeNewsForMarket,
+  isGermanyRelevantMarket,
 };

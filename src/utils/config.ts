@@ -59,6 +59,9 @@ const envSchema = z.object({
   AUTO_TRADE_ENABLED: z.string().default('false'),
   AUTO_TRADE_MIN_EDGE: z.string().default('0.15'),  // 15% minimum Edge
   AUTO_TRADE_MAX_SIZE: z.string().default('50'),    // Max 50 USDC pro Auto-Trade
+
+  // Quick-Buy Button Beträge (USDC)
+  QUICK_BUY_AMOUNTS: z.string().default('5,10,25,50'),
 });
 
 const env = envSchema.parse(process.env);
@@ -124,6 +127,10 @@ export const config: Config = {
     enabled: env.AUTO_TRADE_ENABLED === 'true',
     minEdge: parseFloat(env.AUTO_TRADE_MIN_EDGE),
     maxSize: parseFloat(env.AUTO_TRADE_MAX_SIZE),
+  },
+  // Quick-Buy Button Beträge
+  quickBuy: {
+    amounts: env.QUICK_BUY_AMOUNTS.split(',').map(a => parseFloat(a.trim())).filter(a => !isNaN(a) && a > 0),
   },
 };
 

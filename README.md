@@ -394,6 +394,9 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 TELEGRAM_ENABLED=true
 
+# Quick-Buy Button Betraege (USDC)
+QUICK_BUY_AMOUNTS=5,10,25,50
+
 # ═══════════════════════════════════════════════════════════════
 #                    TRADING (POLYGON/USDC)
 # ═══════════════════════════════════════════════════════════════

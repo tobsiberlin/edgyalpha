@@ -862,6 +862,168 @@ class GermanySources extends EventEmitter {
     }
   }
 
+  /**
+   * Prüft ob News und Market THEMATISCH zusammenpassen.
+   * Verhindert falsche Matches wie "Iran-USA Treffen" → "Trump 2028 nomination"
+   * nur weil beide "Trump" enthalten.
+   */
+  private isThematicallyRelevant(
+    newsTitle: string,
+    newsContent: string,
+    marketQuestion: string
+  ): boolean {
+    const newsLower = (newsTitle + ' ' + newsContent).toLowerCase();
+    const marketLower = marketQuestion.toLowerCase();
+
+    // Kategorien definieren - News und Market müssen in der GLEICHEN Kategorie sein
+    const categories: Record<string, string[]> = {
+      usElection: [
+        'president',
+        'presidential',
+        'nomination',
+        'republican',
+        'democrat',
+        'election 202',
+        'primary',
+        'gop',
+        'dnc',
+        'campaign',
+      ],
+      iranDiplomacy: [
+        'iran',
+        'tehran',
+        'nuclear deal',
+        'sanctions',
+        'diplomatic',
+        'talks',
+        'persian gulf',
+        'rouhani',
+        'khamenei',
+      ],
+      germanyPolitics: [
+        'bundestag',
+        'bundesregierung',
+        'bundeskanzler',
+        'koalition',
+        'merz',
+        'scholz',
+        'ampel',
+        'cdu',
+        'spd',
+        'grüne',
+        'fdp',
+        'afd',
+      ],
+      ukraineConflict: [
+        'ukraine',
+        'kyiv',
+        'kiev',
+        'zelensky',
+        'crimea',
+        'donbas',
+        'donetsk',
+        'luhansk',
+        'ceasefire',
+        'invasion',
+      ],
+      sports: [
+        'bundesliga',
+        'champions league',
+        'world cup',
+        'olympic',
+        'euro 202',
+        'fifa',
+        'uefa',
+      ],
+      crypto: ['bitcoin', 'ethereum', 'crypto', 'btc', 'eth', 'blockchain'],
+      middleEast: [
+        'israel',
+        'gaza',
+        'hamas',
+        'hezbollah',
+        'netanyahu',
+        'palestinian',
+        'west bank',
+      ],
+    };
+
+    // Prüfe ob beide in der GLEICHEN Kategorie sind
+    for (const [_category, keywords] of Object.entries(categories)) {
+      const newsInCategory = keywords.some((kw) => newsLower.includes(kw));
+      const marketInCategory = keywords.some((kw) => marketLower.includes(kw));
+
+      if (newsInCategory && marketInCategory) {
+        return true; // Beide in gleicher Kategorie = thematisch relevant
+      }
+    }
+
+    // Spezialfall: Person muss in BEIDEN im gleichen Kontext sein
+    const persons = [
+      'trump',
+      'biden',
+      'merz',
+      'scholz',
+      'putin',
+      'zelensky',
+      'macron',
+      'xi jinping',
+    ];
+    for (const person of persons) {
+      if (newsLower.includes(person) && marketLower.includes(person)) {
+        // Person in beiden - aber IST der Kontext gleich?
+        // "Trump meets Iran" vs "Trump 2028 nomination" = NICHT gleich!
+        // Prüfe ob ANDERE Keywords (außer der Person) auch matchen
+
+        // Stopwörter die wir ignorieren
+        const stopWords = new Set([
+          'the',
+          'and',
+          'for',
+          'with',
+          'will',
+          'that',
+          'this',
+          'from',
+          'have',
+          'been',
+          'would',
+          'could',
+          'should',
+          'about',
+          'after',
+          'before',
+          'during',
+          person, // Die Person selbst auch ignorieren
+        ]);
+
+        const newsWords = newsLower
+          .split(/\s+/)
+          .filter((w) => w.length > 4 && !stopWords.has(w));
+        const marketWords = marketLower
+          .split(/\s+/)
+          .filter((w) => w.length > 4 && !stopWords.has(w));
+        const commonWords = newsWords.filter((w) => marketWords.includes(w));
+
+        if (commonWords.length >= 2) {
+          return true; // Mindestens 2 gemeinsame Wörter (außer der Person)
+        }
+        // Person matcht aber Kontext nicht → NICHT relevant
+        logger.debug(
+          `[ThematicMatch] Person "${person}" in beiden, aber Kontext unterschiedlich`
+        );
+        return false;
+      }
+    }
+
+    // Keine Kategorie-Überlappung und keine Person-Match → prüfe allgemeine Wort-Überlappung
+    // Braucht mindestens 3 gemeinsame signifikante Wörter
+    const newsWords = newsLower.split(/\s+/).filter((w) => w.length > 5);
+    const marketWords = marketLower.split(/\s+/).filter((w) => w.length > 5);
+    const commonWords = newsWords.filter((w) => marketWords.includes(w));
+
+    return commonWords.length >= 3;
+  }
+
   async matchMarketsWithGermanData(
     markets: Market[]
   ): Promise<Map<string, { relevance: number; direction: 'YES' | 'NO' }[]>> {
@@ -939,11 +1101,21 @@ class GermanySources extends EventEmitter {
       }
 
       // WICHTIG: Wenn Keywords matchen aber keine spezifischen Quellen gefunden wurden,
-      // trotzdem als relevant markieren mit Basis-Relevanz
+      // NUR akzeptieren wenn es ein ECHTER thematischer Match ist
       if (sources.length === 0 && keywordMatches.length > 0) {
         // Geopolitik-Märkte (Ukraine, Russland, etc.) sind immer relevant für DE/EU
-        const isGeopolitical = ['ukraine', 'russia', 'ceasefire', 'nato', 'putin', 'zelensky', 'crimea', 'donbas'].some(
-          kw => keywordMatches.includes(kw)
+        const geopoliticalKeywords = [
+          'ukraine',
+          'russia',
+          'ceasefire',
+          'nato',
+          'putin',
+          'zelensky',
+          'crimea',
+          'donbas',
+        ];
+        const isGeopolitical = geopoliticalKeywords.some((kw) =>
+          keywordMatches.includes(kw)
         );
 
         if (isGeopolitical) {
@@ -951,14 +1123,23 @@ class GermanySources extends EventEmitter {
             relevance: baseRelevance + 0.25, // Geopolitik-Bonus erhöht
             direction: 'YES', // Basis-Annahme: EU/NATO unterstützt Ukraine
           });
-          logger.info(`🌍 Geopolitik-Alpha: ${market.question.substring(0, 40)}... (Relevanz: ${(baseRelevance + 0.25).toFixed(2)})`);
-        } else {
-          // Allgemeine DE/EU-Relevanz (auch ohne Geopolitik)
+          logger.info(
+            `Geopolitik-Alpha: ${market.question.substring(0, 40)}... (Relevanz: ${(baseRelevance + 0.25).toFixed(2)})`
+          );
+        } else if (keywordMatches.length >= 3) {
+          // NUR wenn mindestens 3 Keywords matchen → wahrscheinlich echter DE/EU-Bezug
           sources.push({
             relevance: baseRelevance + 0.15,
             direction: 'YES',
           });
-          logger.info(`🇩🇪 DE/EU-Alpha: ${market.question.substring(0, 40)}... (Relevanz: ${(baseRelevance + 0.15).toFixed(2)})`);
+          logger.info(
+            `DE/EU-Alpha (${keywordMatches.length} Keywords): ${market.question.substring(0, 40)}... (Relevanz: ${(baseRelevance + 0.15).toFixed(2)})`
+          );
+        } else {
+          // Nur 1-2 Keywords → zu schwacher Match, überspringen
+          logger.debug(
+            `[Match] Überspringe schwachen Match: "${market.question.substring(0, 50)}" - nur ${keywordMatches.length} Keyword(s): ${keywordMatches.join(', ')}`
+          );
         }
       }
 
@@ -1031,10 +1212,17 @@ class GermanySources extends EventEmitter {
   }
 
   private isNewsRelevantToMarket(news: GermanSource, market: Market): boolean {
-    const marketText = market.question.toLowerCase();
-    const newsText = `${news.title} ${(news.data.content as string) || ''}`.toLowerCase();
+    const newsTitle = news.title || '';
+    const newsContent = (news.data.content as string) || '';
 
-    // Einfache Keyword-Überlappung
+    // WICHTIG: Thematische Relevanz prüfen (verhindert falsche Keyword-Matches)
+    if (!this.isThematicallyRelevant(newsTitle, newsContent, market.question)) {
+      return false;
+    }
+
+    // Zusätzlich: Mindestens 2 gemeinsame signifikante Wörter
+    const marketText = market.question.toLowerCase();
+    const newsText = `${newsTitle} ${newsContent}`.toLowerCase();
     const marketWords = marketText.split(/\s+/).filter((w) => w.length > 4);
     const matchCount = marketWords.filter((w) => newsText.includes(w)).length;
 

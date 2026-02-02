@@ -2357,6 +2357,31 @@ function resetDrilldown() {
 //                        SIGNALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Keywords für Deutschland-relevante Märkte (synchron mit Backend alpha.ts)
+const GERMANY_MARKET_KEYWORDS = [
+    // Deutsche Politik
+    'germany', 'german', 'deutschland', 'bundestag', 'bundesregierung',
+    'bundeskanzler', 'bundesminister', 'bundeswahl',
+    // Deutsche Politiker
+    'merz', 'scholz', 'habeck', 'lindner', 'weidel', 'wagenknecht',
+    'söder', 'laschet', 'baerbock', 'pistorius',
+    // Deutsche Parteien
+    'cdu', 'csu', 'spd', 'grüne', 'fdp', 'afd', 'bsw', 'linke',
+    // Deutsche Wirtschaft
+    'volkswagen', 'mercedes', 'bmw', 'siemens', 'deutsche bank', 'dax',
+    'basf', 'bayer', 'allianz', 'sap',
+    // Deutsche Städte/Regionen
+    'berlin', 'munich', 'frankfurt', 'hamburg', 'bavaria', 'bayern',
+    // Sport
+    'bundesliga', 'dfb', 'german national team',
+];
+
+function isGermanyRelevantMarket(marketQuestion) {
+    if (!marketQuestion) return false;
+    const lower = marketQuestion.toLowerCase();
+    return GERMANY_MARKET_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 function renderSignals() {
     const container = document.getElementById('signal-list');
     document.getElementById('signal-count').textContent = signals.length;

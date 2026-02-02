@@ -143,6 +143,10 @@ export interface Config {
     minEdge: number;  // z.B. 0.15 = 15%
     maxSize: number;  // Max USDC pro Auto-Trade
   };
+  // Quick-Buy Button Beträge
+  quickBuy: {
+    amounts: number[];  // z.B. [5, 10, 25, 50] USDC
+  };
 }
 
 export interface LogEntry {
