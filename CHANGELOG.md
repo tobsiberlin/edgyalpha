@@ -7,6 +7,33 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.25] - 2026-02-02
+
+### Hinzugefuegt
+- **Responsive Design fuer Mobile Geraete**
+  - Hamburger-Menue: Sidebar als Slide-In Panel auf Mobile (<768px)
+  - Toggle-Button mit animiertem Icon im Header
+  - Overlay zum Schliessen des Menues durch Tippen ausserhalb
+  - Escape-Taste schliesst Menue
+  - Automatisches Schliessen bei View-Wechsel
+
+### Geaendert
+- **Mobile-optimierte UI**
+  - Kompakterer Header mit versteckten Metriken auf Mobile
+  - Signal-Liste mit responsivem Grid-Layout
+  - Groessere Touch-Targets (min 44px) fuer Buttons
+  - Tabellen horizontal scrollbar fuer kleine Bildschirme
+  - Stats-Grid zu 2-spaltigem Layout auf Mobile
+  - Charts auf 180px Hoehe reduziert
+  - Footer vereinfacht (weniger Stats sichtbar)
+  - Settings-Formulare stacken vertikal
+- **Tablet-Optimierungen** (769px-1024px)
+  - Schmalere Sidebar (180px statt 280px)
+  - Weniger Header-Metriken sichtbar
+- **Viewport Meta Tag**: Zoom deaktiviert fuer native App-Feeling
+
+---
+
 ## [3.0.24] - 2026-02-02
 
 ### Hinzugefuegt
