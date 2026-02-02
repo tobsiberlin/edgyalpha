@@ -7,6 +7,23 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.18] - 2026-02-02
+
+### Behoben
+- **ESLint Flat Config Fix**
+  - Veraltetes `--ext` Flag entfernt (kompatibel mit ESLint 9.x Flat Config)
+  - Fehlende Dependencies: `typescript-eslint`, `@eslint/js` hinzugefuegt
+  - Deploy-Failures behoben
+
+### Hinzugefuegt
+- **Polymarket CLOB Client Integration**
+  - Echte Order-Platzierung via Polymarket CLOB API
+  - API Credentials Derivation
+  - FOK (Fill-or-Kill) Orders
+  - Slippage-Berechnung
+
+---
+
 ## [3.0.17] - 2026-02-02
 
 ### Geaendert
