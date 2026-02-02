@@ -90,6 +90,28 @@ export interface BreakingNewsEvent {
 // Import: WORKING_RSS_FEEDS aus ./rss.js
 
 // ═══════════════════════════════════════════════════════════════
+// ALMANIEN KEYWORDS - NUR ECHTE DEUTSCHLAND-BEZOGENE MÄRKTE
+// Für den "Deutschland-Informationsvorsprung" Bereich
+// ═══════════════════════════════════════════════════════════════
+const ALMANIEN_ONLY_KEYWORDS = [
+  // Deutsche Politik
+  'bundestag', 'bundesregierung', 'kanzler', 'kanzlerin', 'kanzleramt',
+  'scholz', 'merz', 'habeck', 'lindner', 'baerbock', 'weidel', 'chrupalla',
+  'wagenknecht', 'söder', 'laschet', 'steinmeier', 'faeser', 'pistorius',
+  'afd', 'cdu', 'csu', 'spd', 'grüne', 'fdp', 'linke', 'bsw',
+  'bundestagswahl', 'landtagswahl', 'koalition', 'ampel', 'groko',
+  'germany', 'german', 'deutschland',
+  // Deutsche Wirtschaft
+  'volkswagen', 'mercedes', 'bmw', 'siemens', 'deutsche bank', 'dax',
+  'basf', 'bayer', 'allianz', 'sap', 'deutsche telekom',
+  // Deutsche Städte
+  'berlin', 'munich', 'münchen', 'frankfurt', 'hamburg', 'köln', 'düsseldorf',
+  // Bundesliga
+  'bundesliga', 'bayern munich', 'bayern münchen', 'borussia dortmund', 'bvb',
+  'rb leipzig', 'bayer leverkusen', 'dfb', 'dfb-pokal',
+];
+
+// ═══════════════════════════════════════════════════════════════
 // MEGA-KEYWORDS FÜR MARKT-MATCHING
 // Massiv erweitert für maximale Alpha-Erkennung
 // ═══════════════════════════════════════════════════════════════
@@ -517,6 +539,28 @@ class GermanySources extends EventEmitter {
     super();
     // Lade persistente Hashes aus DB
     this.seenNewsIds = loadSeenHashes();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ALMANIEN RELEVANZ-CHECK
+  // Prüft ob ein Markt ECHTE Deutschland-Relevanz hat
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Prüft ob ein Markt für den Almanien-Bereich relevant ist.
+   * NUR echte Deutschland-bezogene Märkte (Politik, Wirtschaft, Sport)
+   * KEINE US-Politik, UK-Politik, etc.
+   */
+  isAlmanienRelevantMarket(marketQuestion: string): boolean {
+    const lower = marketQuestion.toLowerCase();
+    return ALMANIEN_ONLY_KEYWORDS.some(kw => lower.includes(kw.toLowerCase()));
+  }
+
+  /**
+   * Filtert Märkte für den Almanien-Bereich
+   */
+  filterAlmanienMarkets(markets: Market[]): Market[] {
+    return markets.filter(m => this.isAlmanienRelevantMarket(m.question));
   }
 
   // ═══════════════════════════════════════════════════════════════

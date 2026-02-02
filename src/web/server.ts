@@ -405,6 +405,17 @@ app.get('/api/germany/matches', requireAuth, async (_req: Request, res: Response
       }
     }
 
+    // WICHTIG: Für Almanien NUR echte Deutschland-Märkte!
+    // Filtere US-Politik, UK-Politik etc. HERAUS
+    const almanienMarkets = allMarkets.filter(m =>
+      germanySources.isAlmanienRelevantMarket(m.question)
+    );
+
+    logger.info(`Almanien: ${almanienMarkets.length}/${allMarkets.length} Märkte haben echten Deutschland-Bezug`);
+
+    // Verwende nur die gefilterten Märkte für Matching
+    const marketsForMatching = almanienMarkets;
+
     // 3. News zu SourceEvents konvertieren für Matching
     const matches: Array<{
       news: {
@@ -446,8 +457,8 @@ app.get('/api/germany/matches', requireAuth, async (_req: Request, res: Response
         reliabilityScore: 0.8,
       };
 
-      // Matching durchführen
-      const newsMatches = fuzzyMatch(sourceEvent, allMarkets);
+      // Matching durchführen - NUR gegen Almanien-relevante Märkte
+      const newsMatches = fuzzyMatch(sourceEvent, marketsForMatching);
 
       if (newsMatches.length > 0) {
         // Zeitvorsprung berechnen (geschätzt)
@@ -466,7 +477,7 @@ app.get('/api/germany/matches', requireAuth, async (_req: Request, res: Response
             content: (newsItem.data.content as string)?.substring(0, 200),
           },
           marketMatches: newsMatches.slice(0, 3).map(match => {
-            const market = allMarkets.find(m => m.id === match.marketId);
+            const market = marketsForMatching.find(m => m.id === match.marketId);
             return {
               marketId: match.marketId,
               question: market?.question || 'Unbekannt',
@@ -495,7 +506,9 @@ app.get('/api/germany/matches', requireAuth, async (_req: Request, res: Response
       matches,
       totalNews: news.length,
       matchedNews: matches.length,
-      marketsChecked: allMarkets.length,
+      marketsChecked: marketsForMatching.length,
+      totalMarketsAvailable: allMarkets.length,
+      almanienRelevantMarkets: almanienMarkets.length,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
