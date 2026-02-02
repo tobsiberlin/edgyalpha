@@ -7,6 +7,20 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.19] - 2026-02-02
+
+### Geaendert
+- **Telegram Almanien-Alerts ueberarbeitet**
+  - Titel von "TIME_DELAY - TRADEABLE" zu "ALMANIEN ALERT" geaendert
+  - Deutschland-Relevanz-Filter: Alerts nur fuer DE-bezogene Maerkte
+  - Neue GERMANY_KEYWORDS Liste mit 30+ relevanten Begriffen
+  - Zeitvorsprung-Text korrigiert: "Markt hat noch nicht reagiert" statt "X Min vor US-Medien"
+  - Verbesserte Alert-Struktur mit "Zeitvorsprung aktiv!" Indikator
+  - Batch-Alerts filtern jetzt auch nach Deutschland-Bezug
+  - UI: Module-Toggle zeigt jetzt "ALMANIEN" statt "TIME_DELAY"
+
+---
+
 ## [3.0.18] - 2026-02-02
 
 ### Behoben

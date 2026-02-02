@@ -49,6 +49,27 @@ const runtimeSettings = {
   autoBetOnSafeBet: false,   // Bei SAFE BET automatisch traden? Default: AUS (sicher)
 };
 
+// ═══════════════════════════════════════════════════════════════
+//           GERMANY KEYWORDS - Filter für Almanien Alerts
+// ═══════════════════════════════════════════════════════════════
+const GERMANY_KEYWORDS = [
+  'germany', 'german', 'deutschland', 'bundestag', 'bundesregierung',
+  'merz', 'scholz', 'habeck', 'lindner', 'weidel', 'cdu', 'spd', 'grüne',
+  'afd', 'fdp', 'bundeswahl', 'koalition', 'berlin', 'bayern', 'nrw',
+  'volkswagen', 'mercedes', 'bmw', 'siemens', 'deutsche bank', 'dax',
+  'bundesliga', 'wagenknecht', 'bsw', 'pistorius', 'baerbock', 'kretschmer',
+  'söder', 'laschet', 'ampel', 'jamaika', 'große koalition', 'groko',
+];
+
+/**
+ * Prüft ob eine Markt-Frage Deutschland-Bezug hat
+ * Nur bei Deutschland-Bezug werden Almanien Alerts gesendet
+ */
+function hasGermanyRelevance(marketQuestion: string): boolean {
+  const lower = marketQuestion.toLowerCase();
+  return GERMANY_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 export class TelegramAlertBot extends EventEmitter {
   private bot: TelegramBot | null = null;
   private chatId: string;
@@ -246,6 +267,59 @@ ${this.DIVIDER}
         [
           { text: '✅ Bestätigen', callback_data: `confirm:${direction}:${signalId}` },
           { text: '❌ Abbrechen', callback_data: `cancel:${signalId}` },
+        ],
+      ],
+    };
+  }
+
+  /**
+   * Quick-Buy Buttons für Alerts
+   * Zeigt konfigurierbare Beträge (Standard: 5$, 10$, 25$, 50$)
+   */
+  private getQuickBuyKeyboard(signalId: string, marketId: string, direction: 'yes' | 'no' = 'yes'): InlineKeyboardMarkup {
+    const amounts = config.quickBuy.amounts; // z.B. [5, 10, 25, 50]
+    const directionEmoji = direction === 'yes' ? '✅' : '❌';
+
+    // Buttons für alle Beträge erstellen
+    const buyButtons: InlineKeyboardButton[][] = [];
+
+    // Zeile 1: Erste 2 Beträge
+    if (amounts.length >= 2) {
+      buyButtons.push(
+        amounts.slice(0, 2).map(amount => ({
+          text: `💰 ${amount}$ ${directionEmoji}`,
+          callback_data: `quickbuy:${signalId}:${direction}:${amount}`,
+        }))
+      );
+    } else if (amounts.length === 1) {
+      buyButtons.push([{
+        text: `💰 ${amounts[0]}$ ${directionEmoji}`,
+        callback_data: `quickbuy:${signalId}:${direction}:${amounts[0]}`,
+      }]);
+    }
+
+    // Zeile 2: Weitere Beträge (3-4)
+    if (amounts.length > 2) {
+      buyButtons.push(
+        amounts.slice(2, 4).map(amount => ({
+          text: `💰 ${amount}$ ${directionEmoji}`,
+          callback_data: `quickbuy:${signalId}:${direction}:${amount}`,
+        }))
+      );
+    }
+
+    return {
+      inline_keyboard: [
+        ...buyButtons,
+        // Zeile 3: Utility Buttons
+        [
+          { text: '👀 Watch', callback_data: `watch:${signalId}` },
+          { text: '📊 Details', callback_data: `details:${signalId}` },
+        ],
+        // Zeile 4: Chart + Polymarket Link
+        [
+          { text: '📈 Chart', callback_data: `chart:${marketId}` },
+          { text: '🔗 Polymarket', url: `https://polymarket.com/event/${marketId}` },
         ],
       ],
     };
@@ -1489,7 +1563,7 @@ _Auto-Update alle 60 Sekunden_`;
 ${this.DIVIDER}
 
 *ALPHA MODULE:*
-${tdStatus} TIME\\_DELAY: ${runtimeSettings.timeDelayEnabled ? 'AKTIV' : 'AUS'}
+${tdStatus} ⚡ ALMANIEN: ${runtimeSettings.timeDelayEnabled ? 'AKTIV' : 'AUS'}
 ${mpStatus} MISPRICING: ${runtimeSettings.mispricingEnabled ? 'AKTIV' : 'AUS'}
 ${deStatus} Nur Deutschland: ${runtimeSettings.germanyOnly ? 'JA' : 'NEIN'}
 
@@ -1507,7 +1581,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
       inline_keyboard: [
         // Module Toggles
         [
-          { text: `${tdStatus} TIME_DELAY`, callback_data: 'toggle:timeDelay' },
+          { text: `${tdStatus} ⚡ ALMANIEN`, callback_data: 'toggle:timeDelay' },
           { text: `${mpStatus} MISPRICING`, callback_data: 'toggle:mispricing' },
         ],
         [
@@ -1572,7 +1646,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
 
     const newValue = runtimeSettings[settingKey];
     const moduleNames: Record<string, string> = {
-      timeDelay: 'TIME_DELAY',
+      timeDelay: '⚡ ALMANIEN',
       mispricing: 'MISPRICING',
       germanyOnly: '🇩🇪 Nur Deutschland',
       autoBet: '🚨 Auto-Bet bei SAFE BET',
@@ -2625,11 +2699,17 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //             TIME_DELAY ALERT (Neues Standardformat)
+  //             ALMANIEN ALERT (Deutscher Zeitvorsprung)
   // ═══════════════════════════════════════════════════════════════
 
   private async sendTimeDelayAlert(notification: PushReadyNotification): Promise<void> {
     const { candidate, market, whyNow, asOf } = notification;
+
+    // Prüfe Deutschland-Bezug - nur bei Relevanz senden
+    if (!hasGermanyRelevance(market.question)) {
+      logger.info(`[TELEGRAM] Überspringe Alert - kein Deutschland-Bezug: ${market.question.substring(0, 50)}...`);
+      return;
+    }
 
     // Format as_of Zeit
     const asOfStr = asOf.toLocaleString('de-DE', {
@@ -2645,8 +2725,15 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
       ? `https://polymarket.com/event/${market.marketId}`
       : '';
 
+    // Verbesserte "Why now?" Texte - keine falsche US-Medien Logik
+    const improvedWhyNow = [
+      `Deutsche Quelle: ${candidate.sourceName}`,
+      `Markt hat noch nicht reagiert`,
+      ...whyNow.filter(r => !r.includes('vor US-Medien') && !r.includes('Min vor')),
+    ];
+
     const message = `
-⚡ *TIME\\_DELAY – TRADEABLE* ⚡
+⚡ *ALMANIEN ALERT* ⚡
 
 ${this.DIVIDER}
 
@@ -2657,7 +2744,7 @@ ${market.question.substring(0, 100)}${market.question.length > 100 ? '...' : ''}
 
 ${this.DIVIDER}
 
-🕐 *as\\_of:* ${asOfStr}
+⏰ *Zeitvorsprung aktiv\\!*
 📰 *Quelle:* ${candidate.sourceName}
 💰 *Volume:* $${(market.totalVolume / 1000).toFixed(0)}k
 📈 *Preis:* ${(market.currentPrice * 100).toFixed(1)}%
@@ -2665,7 +2752,7 @@ ${this.DIVIDER}
 ${this.DIVIDER}
 
 🎯 *Why now?*
-${whyNow.map(r => `• ${r}`).join('\n')}
+${improvedWhyNow.map(r => `• ${r}`).join('\n')}
 
 ${candidate.url ? `🔗 [Quelle](${candidate.url})` : ''}
 ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
@@ -2687,7 +2774,7 @@ ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
       ],
     });
 
-    logger.info(`[TELEGRAM] TIME_DELAY Alert gesendet: ${candidate.title.substring(0, 40)}...`);
+    logger.info(`[TELEGRAM] Almanien Alert gesendet: ${candidate.title.substring(0, 40)}...`);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -3081,8 +3168,15 @@ _Bitte manuell auf Polymarket traden!_`;
   private async sendBatchedAlert(notifications: PushReadyNotification[]): Promise<void> {
     if (notifications.length === 0) return;
 
-    const primary = notifications[0];
-    const additional = notifications.slice(1);
+    // Filtere nur Deutschland-relevante Notifications
+    const germanyRelevant = notifications.filter(n => hasGermanyRelevance(n.market.question));
+    if (germanyRelevant.length === 0) {
+      logger.info(`[TELEGRAM] Batch übersprungen - keine Deutschland-relevanten Märkte`);
+      return;
+    }
+
+    const primary = germanyRelevant[0];
+    const additional = germanyRelevant.slice(1);
 
     // Format as_of Zeit
     const asOfStr = primary.asOf.toLocaleString('de-DE', {
@@ -3093,8 +3187,14 @@ _Bitte manuell auf Polymarket traden!_`;
       minute: '2-digit',
     });
 
+    // Verbesserte "Why now?" Texte
+    const improvedWhyNow = [
+      `Deutsche Quelle: ${primary.candidate.sourceName}`,
+      `Markt hat noch nicht reagiert`,
+    ];
+
     let message = `
-⚡ *TIME\\_DELAY – TRADEABLE* ⚡
+⚡ *ALMANIEN ALERT* ⚡
 
 ${this.DIVIDER}
 
@@ -3103,11 +3203,11 @@ ${this.DIVIDER}
 ${primary.market.question.substring(0, 80)}...
 \`\`\`
 
-🕐 *as\\_of:* ${asOfStr}
+⏰ *Zeitvorsprung aktiv\\!*
 📰 *Quelle:* ${primary.candidate.sourceName}
 
 🎯 *Why now?*
-${primary.whyNow.slice(0, 2).map(r => `• ${r}`).join('\n')}`;
+${improvedWhyNow.map(r => `• ${r}`).join('\n')}`;
 
     if (additional.length > 0) {
       message += `
@@ -3127,7 +3227,7 @@ ${additional.slice(0, 3).map(n => `• ${n.candidate.title.substring(0, 50)}...`
       ],
     });
 
-    logger.info(`[TELEGRAM] Batched Alert: ${notifications.length} Notifications`);
+    logger.info(`[TELEGRAM] Almanien Batch Alert: ${germanyRelevant.length} von ${notifications.length} Notifications`);
   }
 
   // ═══════════════════════════════════════════════════════════════
