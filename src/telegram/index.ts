@@ -910,7 +910,7 @@ ${this.DIVIDER}
             break;
           case 'quickbuy_cancel':
             // quickbuy_cancel:signalId
-            await this.sendMessage('❌ Trade abgebrochen.', chatId);
+            await this.handleQuickBuyCancel(chatId, query.message?.message_id);
             break;
           case 'watch':
             await this.handleWatch(params[0], chatId);
@@ -2279,9 +2279,47 @@ ${this.DIVIDER}
 └─────────────────────────────────┘
 \`\`\`
 
-${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}`;
+${this.formatSignalReasoning(signal)}`;
 
     await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signalId), chatId);
+  }
+
+  /**
+   * Formatiert das Signal-Reasoning fuer Telegram
+   */
+  private formatSignalReasoning(signal: AlphaSignal): string {
+    const sr = signal.structuredReasoning;
+
+    if (!sr) {
+      // Fallback auf altes reasoning-Feld
+      return signal.reasoning ? `💡 _${signal.reasoning}_` : '';
+    }
+
+    let text = '';
+
+    // Summary
+    if (sr.summary) {
+      text += `📊 *Warum interessant?*\n${sr.summary}\n`;
+    }
+
+    // Faktoren
+    if (sr.factors && sr.factors.length > 0) {
+      text += '\n🎯 *Faktoren:*\n';
+      text += sr.factors.map(f => {
+        const pct = Math.round(f.value * 100);
+        return `• ${f.name} (${pct}%): _${f.explanation}_`;
+      }).join('\n');
+    }
+
+    // News Match
+    if (sr.newsMatch) {
+      const conf = Math.round(sr.newsMatch.confidence * 100);
+      text += `\n\n📰 *News-Match (${conf}%):*\n`;
+      text += `_"${sr.newsMatch.title.substring(0, 60)}${sr.newsMatch.title.length > 60 ? '...' : ''}"_\n`;
+      text += `Quelle: ${sr.newsMatch.source}`;
+    }
+
+    return text;
   }
 
   private async handleResearch(_signalId: string, chatId: string): Promise<void> {
@@ -2403,7 +2441,7 @@ ${this.DIVIDER}
 └─────────────────────────────────┘
 \`\`\`
 
-${signal.reasoning ? `💡 _${signal.reasoning}_` : ''}
+${this.formatSignalReasoning(signal)}
 
 *Bock? Ein Klick und das Ding läuft.*`;
 
@@ -3278,32 +3316,125 @@ _Wechsle zu LIVE Mode für echtes Trading._`;
         return;
       }
 
-      // Live Mode: Link zu Polymarket
-      const marketUrl = `https://polymarket.com/event/${signalId}`;
+      // Live Mode: Echten Trade ausführen via TradingClient
 
-      const liveMessage = `${this.HEADER}
+      // Signal aus dem letzten Scan-Ergebnis abrufen
+      const lastResult = scanner.getLastResult();
+      const signal = lastResult?.signalsFound.find(s => s.id === signalId);
 
-🚀 *QUICK-BUY - MANUELL AUSFÜHREN*
+      if (!signal) {
+        // Fallback: Polymarket Link anzeigen wenn Signal nicht mehr im Cache
+        const marketUrl = `https://polymarket.com/event/${signalId}`;
+        const fallbackMessage = `${this.HEADER}
+
+⚠️ *SIGNAL NICHT GEFUNDEN*
+
+${this.DIVIDER}
+
+Signal ist nicht mehr im Cache.
+Bitte manuell auf Polymarket ausführen:
+
+[📊 Polymarket öffnen](${marketUrl})`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, fallbackMessage, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(fallbackMessage, this.getBackButton(), chatId);
+        }
+        logger.warn(`[QUICK-BUY] Signal nicht gefunden: ${signalId}`);
+        return;
+      }
+
+      // Token-ID für die gewählte Richtung (YES oder NO) bestimmen
+      const outcomeIndex = direction === 'yes' ? 0 : 1;
+      const outcome = signal.market.outcomes[outcomeIndex];
+
+      if (!outcome?.id) {
+        throw new Error(`Token-ID für ${direction.toUpperCase()} nicht gefunden`);
+      }
+
+      const tokenId = outcome.id;
+      const marketUrl = `https://polymarket.com/event/${signal.market.slug || signalId}`;
+
+      // Status-Nachricht: Trade wird ausgeführt
+      const pendingMessage = `${this.HEADER}
+
+🔄 *TRADE WIRD AUSGEFÜHRT...*
 
 ${this.DIVIDER}
 
 ${directionEmoji} *Direction:* ${direction.toUpperCase()}
 💵 *Betrag:* $${amount}
+📊 *Markt:* ${signal.market.question.substring(0, 40)}...
 
 ${this.DIVIDER}
 
-⚠️ _Auto-Execution noch nicht implementiert._
+_Bitte warten..._`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, pendingMessage);
+      } else {
+        await this.sendMessage(pendingMessage, chatId);
+      }
+
+      // Trade über TradingClient ausführen
+      logger.info(`[QUICK-BUY] Executing LIVE trade: Token ${tokenId.substring(0, 16)}... | BUY | $${amount}`);
+
+      const orderResult = await tradingClient.placeMarketOrder({
+        tokenId,
+        side: 'BUY',
+        amount,
+      });
+
+      if (orderResult.success) {
+        const successMessage = `${this.HEADER}
+
+✅ *TRADE ERFOLGREICH!*
+
+${this.DIVIDER}
+
+${directionEmoji} *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+📈 *Fill-Preis:* ${orderResult.fillPrice ? (orderResult.fillPrice * 100).toFixed(1) + '¢' : 'N/A'}
+🆔 *Order-ID:* \`${orderResult.orderId?.substring(0, 16) || 'N/A'}...\`
+
+${this.DIVIDER}
+
+📊 *Markt:* ${signal.market.question.substring(0, 50)}...
+
+[📊 Auf Polymarket ansehen](${marketUrl})`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, successMessage, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(successMessage, this.getBackButton(), chatId);
+        }
+
+        logger.info(`[QUICK-BUY] ✅ LIVE trade successful: ${orderResult.orderId}`);
+      } else {
+        // Trade fehlgeschlagen - Fallback zu manuellem Link
+        const failedMessage = `${this.HEADER}
+
+❌ *TRADE FEHLGESCHLAGEN*
+
+${this.DIVIDER}
+
+Fehler: ${orderResult.error || 'Unbekannter Fehler'}
+
+${this.DIVIDER}
+
 Bitte manuell auf Polymarket ausführen:
 
 [📊 Polymarket öffnen](${marketUrl})`;
 
-      if (messageId) {
-        await this.editMessage(chatId, messageId, liveMessage, this.getBackButton());
-      } else {
-        await this.sendMessageWithKeyboard(liveMessage, this.getBackButton(), chatId);
-      }
+        if (messageId) {
+          await this.editMessage(chatId, messageId, failedMessage, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(failedMessage, this.getBackButton(), chatId);
+        }
 
-      logger.warn(`[QUICK-BUY] Live trade requires manual execution: ${signalId}`);
+        logger.error(`[QUICK-BUY] ❌ LIVE trade failed: ${orderResult.error}`);
+      }
     } catch (err) {
       const error = err as Error;
       logger.error(`[QUICK-BUY] Execution failed: ${error.message}`);
@@ -3322,6 +3453,27 @@ _Bitte manuell auf Polymarket traden!_`;
         await this.sendMessageWithKeyboard(errorMessage, this.getBackButton(), chatId);
       }
     }
+  }
+
+  /**
+   * Behandelt Abbruch eines Quick-Buy Trades
+   */
+  private async handleQuickBuyCancel(chatId: string, messageId?: number): Promise<void> {
+    const message = `${this.HEADER}
+
+❌ *TRADE ABGEBROCHEN*
+
+${this.DIVIDER}
+
+_Der Trade wurde nicht ausgeführt._`;
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
+
+    logger.info(`[QUICK-BUY] Trade cancelled by user`);
   }
 
   /**

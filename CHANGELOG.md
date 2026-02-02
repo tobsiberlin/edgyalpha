@@ -7,6 +7,20 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.22] - 2026-02-02
+
+### Verbessert
+- **Telegram Quick-Buy-Buttons vollstaendig**
+  - Live-Mode: Echte Trades via TradingClient CLOB API statt nur Polymarket-Links
+  - Signal-Lookup aus Scanner-Cache fuer Token-ID Bestimmung
+  - Bestaetigungsdialog mit Modus-Anzeige (Paper/Shadow/Live)
+  - Status-Nachrichten waehrend Trade-Ausfuehrung
+  - Erfolgs-Nachricht mit Fill-Preis und Order-ID
+  - Fehler-Handling mit Fallback zu manuellem Polymarket-Link
+  - Verbesserter Cancel-Handler mit formatierter Nachricht
+
+---
+
 ## [3.0.21] - 2026-02-02
 
 ### Behoben
