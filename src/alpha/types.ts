@@ -9,6 +9,16 @@ export interface FeatureSet {
   features: Record<string, number | string | boolean | null>;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SIGNAL CERTAINTY LEVELS
+// Bestimmt das Sizing-Verhalten
+// ═══════════════════════════════════════════════════════════════
+export type SignalCertainty =
+  | 'low'              // Quarter-Kelly, normal
+  | 'medium'           // Quarter-Kelly, normal
+  | 'high'             // Half-Kelly
+  | 'breaking_confirmed';  // HALF IN! 50% Bankroll bei "quasi safe" News
+
 // Basis-Signal (beide Engines)
 export interface AlphaSignalV2 {
   signalId: string;
@@ -18,6 +28,7 @@ export interface AlphaSignalV2 {
   direction: 'yes' | 'no';
   predictedEdge: number;
   confidence: number;
+  certainty?: SignalCertainty;  // NEU: Für aggressives Sizing bei Breaking News
   features: FeatureSet;
   reasoning: string[];
   createdAt: Date;

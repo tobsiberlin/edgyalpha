@@ -5,7 +5,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { AlphaSignalV2, TimeDelayFeatures, SourceEvent, MarketQuality } from './types.js';
+import { AlphaSignalV2, TimeDelayFeatures, SourceEvent, MarketQuality, SignalCertainty } from './types.js';
 import { Market } from '../types/index.js';
 import { fuzzyMatch, MatchResult, extractKeywords } from './matching.js';
 import { eventExists, getEventByHash } from '../storage/repositories/events.js';
@@ -184,10 +184,13 @@ export class TimeDelayEngine {
       // 4e. Direction bestimmen
       const direction = this.determineDirection(matchedEvents, market);
 
-      // 4f. Reasoning zusammenstellen
-      const reasoning = this.buildReasoning(matchedEvents, eventMatches, features, edge);
+      // 4f. Certainty berechnen (für Sizing)
+      const certainty = this.calculateCertainty(features, matchedEvents);
 
-      // 4g. Signal erstellen
+      // 4g. Reasoning zusammenstellen
+      const reasoning = this.buildReasoning(matchedEvents, eventMatches, features, edge, certainty);
+
+      // 4h. Signal erstellen
       const signal: AlphaSignalV2 = {
         signalId: uuidv4(),
         alphaType: 'timeDelay',
@@ -196,6 +199,7 @@ export class TimeDelayEngine {
         direction,
         predictedEdge: edge,
         confidence,
+        certainty,  // NEU: Für aggressives Sizing
         features,
         reasoning,
         createdAt: new Date(),
@@ -203,10 +207,13 @@ export class TimeDelayEngine {
 
       signals.push(signal);
 
+      const certaintyEmoji = certainty === 'breaking_confirmed' ? '🚨 HALF IN!' :
+                             certainty === 'high' ? '⚡ HIGH' : '';
       logger.info(
         `Signal generiert: ${market.question.substring(0, 40)}... ` +
         `| direction=${direction} | edge=${(edge * 100).toFixed(1)}% ` +
-        `| confidence=${confidence.toFixed(2)} | sources=${matchedEvents.length}`
+        `| confidence=${confidence.toFixed(2)} | certainty=${certainty} ${certaintyEmoji}` +
+        `| sources=${matchedEvents.length}`
       );
     }
 
@@ -426,43 +433,299 @@ export class TimeDelayEngine {
   }
 
   /**
-   * Bestimmt Direction (yes/no) basierend auf Sentiment und Market-Frage
+   * ═══════════════════════════════════════════════════════════════
+   * CERTAINTY BERECHNUNG - Bestimmt Sizing-Aggressivität
+   * ═══════════════════════════════════════════════════════════════
+   *
+   * BREAKING_CONFIRMED (50% Bankroll "HALF IN!"):
+   * - Breaking News Indicator vorhanden
+   * - Sehr frisch (< 10 Min)
+   * - Multi-Source (3+) ODER Single Tier-1 Source (0.9+ reliability)
+   * - Kein signifikanter Markt-Move (< 2%)
+   * - Starkes Sentiment (|score| > 0.5)
+   * - Hohe Match-Confidence (> 0.6)
+   *
+   * Beispiele für BREAKING_CONFIRMED:
+   * - "Kompany bei Bayern entlassen" (Breaking, Multi-Source, klar negativ)
+   * - "Putin tot" (Tier-1 Source, Breaking, extrem impactful)
+   * - "Ukraine-Waffenstillstand unterzeichnet" (Breaking, Multi-Source)
+   */
+  private calculateCertainty(features: TimeDelayFeatures, events: SourceEvent[]): SignalCertainty {
+    const f = features.features;
+
+    // Kriterien für BREAKING_CONFIRMED
+    const isBreaking = f.impactScore >= 0.5;
+    const isVeryFresh = f.newsAgeMinutes <= 10;
+    const hasMultiSource = f.sourceCount >= 3;
+    const hasTier1Source = f.avgSourceReliability >= 0.9;
+    const noMarketMove = f.priceMoveSinceNews < 0.02;
+    const strongSentiment = Math.abs(f.sentimentScore) >= 0.5;
+    const highMatchConfidence = f.matchConfidence >= 0.6;
+
+    // BREAKING_CONFIRMED: Quasi-safe, 50% Bankroll
+    if (isBreaking && isVeryFresh && (hasMultiSource || hasTier1Source) &&
+        noMarketMove && strongSentiment && highMatchConfidence) {
+      logger.warn(
+        `🚨 BREAKING_CONFIRMED detected! ` +
+        `Breaking=${isBreaking}, Fresh=${f.newsAgeMinutes.toFixed(0)}min, ` +
+        `Sources=${f.sourceCount}, Reliability=${f.avgSourceReliability.toFixed(2)}, ` +
+        `Sentiment=${f.sentimentScore.toFixed(2)}, MatchConf=${f.matchConfidence.toFixed(2)}`
+      );
+      return 'breaking_confirmed';
+    }
+
+    // HIGH: Gute Bedingungen, Half-Kelly
+    if ((isBreaking || isVeryFresh) && (hasMultiSource || hasTier1Source) && highMatchConfidence) {
+      return 'high';
+    }
+
+    // MEDIUM: Solide Bedingungen
+    if (f.sourceCount >= 2 && f.avgSourceReliability >= 0.7 && f.matchConfidence >= 0.5) {
+      return 'medium';
+    }
+
+    // LOW: Default
+    return 'low';
+  }
+
+  /**
+   * ═══════════════════════════════════════════════════════════════
+   * VERBESSERTE DIRECTION-BESTIMMUNG
+   * Robuste Analyse von News-Events gegen Market-Fragen
+   * ═══════════════════════════════════════════════════════════════
+   *
+   * Beispiele:
+   * - "Kompany entlassen" + "Wird Kompany vor 2028 entlassen?" → YES
+   * - "Kompany entlassen" + "Bleibt Kompany bei Bayern?" → NO
+   * - "Putin tot" + "Wird Putin 2025 Präsident sein?" → NO
+   * - "Ukraine Waffenstillstand" + "Wird der Krieg 2025 enden?" → YES
    */
   private determineDirection(events: SourceEvent[], market: Market): 'yes' | 'no' {
-    // Sentiment berechnen
-    const sentimentScore = this.calculateSentimentScore(events);
-
-    // Heuristik: Market-Frage analysieren
     const question = market.question.toLowerCase();
 
-    // Negative Fragestellung erkennen
-    const negativePatterns = [
-      'fail', 'scheitern', 'verlieren', 'fall', 'drop', 'crash',
-      'not', 'nicht', 'won\'t', 'will not', 'keine',
+    // 1. Extrahiere Event-Keywords (was ist passiert?)
+    const eventKeywords = this.extractEventAction(events);
+
+    // 2. Analysiere Frage-Typ (was wird gefragt?)
+    const questionType = this.analyzeQuestionType(question);
+
+    // 3. Bestimme ob Event die Frage positiv oder negativ beantwortet
+    const eventAnswersYes = this.doesEventAnswerYes(eventKeywords, questionType, question, events);
+
+    logger.debug(
+      `[DIRECTION] Event: "${eventKeywords.action}" | Question Type: "${questionType}" | ` +
+      `Event answers YES: ${eventAnswersYes} | Sentiment: ${eventKeywords.sentiment.toFixed(2)}`
+    );
+
+    return eventAnswersYes ? 'yes' : 'no';
+  }
+
+  /**
+   * Extrahiert die Haupt-Aktion aus den Events
+   */
+  private extractEventAction(events: SourceEvent[]): { action: string; sentiment: number; keywords: string[] } {
+    const allText = events.map(e => `${e.title} ${e.content || ''}`).join(' ').toLowerCase();
+
+    // Action-Keywords erkennen
+    const actionPatterns: { pattern: RegExp; action: string; sentiment: number }[] = [
+      // Entlassung / Rücktritt
+      { pattern: /entlass|gefeuert|rausgeworfen|fired|sacked|dismissed/i, action: 'fired', sentiment: -1 },
+      { pattern: /rücktritt|zurückgetreten|tritt zurück|resigns?|steps? down/i, action: 'resigned', sentiment: -1 },
+      { pattern: /kündigt|verlässt|leaves|quits/i, action: 'leaves', sentiment: -1 },
+
+      // Tod / Ende
+      { pattern: /gestorben|tot|stirbt|died|dead|death/i, action: 'died', sentiment: -1 },
+      { pattern: /ende|beendet|endet|ends?|over|finished/i, action: 'ended', sentiment: 0 },
+
+      // Vertrag / Verlängerung
+      { pattern: /verlängert|vertrag|contract.*extend|renew/i, action: 'extended', sentiment: 1 },
+      { pattern: /unterschrieb|signed|signs/i, action: 'signed', sentiment: 1 },
+
+      // Gewinn / Erfolg
+      { pattern: /gewinnt|gewonnen|wins?|won|victory|sieg/i, action: 'won', sentiment: 1 },
+      { pattern: /gewählt|elected|wiedergewählt|re-?elected/i, action: 'elected', sentiment: 1 },
+
+      // Niederlage / Scheitern
+      { pattern: /verliert|verloren|loses?|lost|defeat/i, action: 'lost', sentiment: -1 },
+      { pattern: /scheitert|gescheitert|fails?|failed/i, action: 'failed', sentiment: -1 },
+
+      // Ankündigung / Bestätigung
+      { pattern: /bestätigt|confirmed|announces?|angekündigt/i, action: 'confirmed', sentiment: 0 },
+      { pattern: /abgesagt|cancelled|canceled|postponed/i, action: 'cancelled', sentiment: -1 },
+
+      // Waffenstillstand / Frieden
+      { pattern: /waffenstillstand|ceasefire|peace.*deal|friedens/i, action: 'ceasefire', sentiment: 1 },
+      { pattern: /krieg.*ende|war.*end|kriegsende/i, action: 'war_ends', sentiment: 1 },
+
+      // Eskalation / Konflikt
+      { pattern: /eskalation|escalat|angriff|attack|invasion/i, action: 'escalation', sentiment: -1 },
     ];
 
-    let isNegativeQuestion = false;
-    for (const pattern of negativePatterns) {
-      if (question.includes(pattern)) {
-        isNegativeQuestion = true;
+    let detectedAction = 'unknown';
+    let detectedSentiment = 0;
+    const keywords: string[] = [];
+
+    for (const { pattern, action, sentiment } of actionPatterns) {
+      const match = allText.match(pattern);
+      if (match) {
+        detectedAction = action;
+        detectedSentiment = sentiment;
+        keywords.push(match[0]);
         break;
       }
     }
 
-    // Direction Logic:
-    // Positive News + Positive Frage -> YES
-    // Positive News + Negative Frage -> NO
-    // Negative News + Positive Frage -> NO
-    // Negative News + Negative Frage -> YES
-
-    if (sentimentScore >= 0.1) {
-      return isNegativeQuestion ? 'no' : 'yes';
-    } else if (sentimentScore <= -0.1) {
-      return isNegativeQuestion ? 'yes' : 'no';
+    // Fallback: Generelles Sentiment
+    if (detectedAction === 'unknown') {
+      detectedSentiment = this.calculateSentimentScore(events);
     }
 
-    // Neutral: Default zu YES (konservativ)
-    return 'yes';
+    return { action: detectedAction, sentiment: detectedSentiment, keywords };
+  }
+
+  /**
+   * Analysiert den Typ der Markt-Frage
+   */
+  private analyzeQuestionType(question: string): 'will_happen' | 'will_stay' | 'will_end' | 'will_win' | 'will_not' | 'unknown' {
+    // "Wird X entlassen/gefeuert?" -> will_happen
+    if (/wird.*entlass|will.*fire|will.*sack|wird.*gefeuert/i.test(question)) {
+      return 'will_happen';
+    }
+
+    // "Bleibt X?" / "Will X remain?" -> will_stay
+    if (/bleibt|remain|stay|continues?|weiterhin/i.test(question)) {
+      return 'will_stay';
+    }
+
+    // "Endet X?" / "Will X end?" -> will_end
+    if (/endet|end|beend|over|vorbei/i.test(question)) {
+      return 'will_end';
+    }
+
+    // "Gewinnt X?" / "Will X win?" -> will_win
+    if (/gewinnt|win|victory|elected|gewählt/i.test(question)) {
+      return 'will_win';
+    }
+
+    // Negative Fragen: "Will X NOT happen?"
+    if (/not|nicht|keine|won't|will not/i.test(question)) {
+      return 'will_not';
+    }
+
+    return 'unknown';
+  }
+
+  /**
+   * Bestimmt ob das Event die Frage mit YES beantwortet
+   */
+  private doesEventAnswerYes(
+    eventKeywords: { action: string; sentiment: number; keywords: string[] },
+    questionType: string,
+    question: string,
+    events: SourceEvent[]
+  ): boolean {
+    const { action, sentiment } = eventKeywords;
+
+    // Spezifische Action-zu-Frage-Mappings
+    switch (action) {
+      case 'fired':
+      case 'resigned':
+      case 'leaves':
+        // Person wurde gefeuert/tritt zurück
+        if (questionType === 'will_happen') return true;  // "Wird X entlassen?" -> YES
+        if (questionType === 'will_stay') return false;   // "Bleibt X?" -> NO
+        break;
+
+      case 'died':
+        // Person ist gestorben
+        // "Wird X Präsident sein?" -> NO
+        // "Stirbt X?" -> YES (aber solche Fragen gibt es kaum)
+        return false;
+
+      case 'extended':
+      case 'signed':
+        // Vertrag verlängert
+        if (questionType === 'will_stay') return true;    // "Bleibt X?" -> YES
+        if (questionType === 'will_happen') return false; // "Wird X entlassen?" -> NO
+        break;
+
+      case 'won':
+      case 'elected':
+        // Hat gewonnen/wurde gewählt
+        if (questionType === 'will_win') return true;     // "Gewinnt X?" -> YES
+        break;
+
+      case 'lost':
+      case 'failed':
+        // Hat verloren/ist gescheitert
+        if (questionType === 'will_win') return false;    // "Gewinnt X?" -> NO
+        break;
+
+      case 'ceasefire':
+      case 'war_ends':
+        // Waffenstillstand / Krieg endet
+        if (questionType === 'will_end') return true;     // "Endet der Krieg?" -> YES
+        break;
+
+      case 'escalation':
+        // Eskalation
+        if (questionType === 'will_end') return false;    // "Endet der Krieg?" -> NO
+        break;
+
+      case 'cancelled':
+        if (questionType === 'will_happen') return false; // "Wird X stattfinden?" -> NO
+        break;
+
+      case 'confirmed':
+        // Bestätigt - Kontext-abhängig
+        if (questionType === 'will_happen') return true;
+        break;
+    }
+
+    // Fallback: Entity-Matching
+    // Prüfe ob die Person/das Subjekt in News und Frage übereinstimmt
+    const newsText = events.map(e => e.title).join(' ').toLowerCase();
+
+    // Einfaches Subjekt-Matching für Personen
+    const personPatterns = [
+      /(\w+)\s+(?:entlass|gefeuert|fired|sacked|resigned|tritt zurück)/i,
+      /(?:entlass|fire|sack)\s+(\w+)/i,
+    ];
+
+    for (const pattern of personPatterns) {
+      const newsMatch = newsText.match(pattern);
+      if (newsMatch && newsMatch[1]) {
+        const person = newsMatch[1].toLowerCase();
+        if (question.includes(person)) {
+          // Person in beiden Texten gefunden - Action auf Frage anwenden
+          if (action === 'fired' || action === 'resigned' || action === 'leaves') {
+            // "X entlassen" + Frage enthält X
+            if (question.includes('entlass') || question.includes('fire') || question.includes('sack')) {
+              return true; // "Wird X entlassen?" -> YES
+            }
+            if (question.includes('bleib') || question.includes('remain') || question.includes('stay')) {
+              return false; // "Bleibt X?" -> NO
+            }
+          }
+        }
+      }
+    }
+
+    // Ultimate Fallback: Sentiment-basiert mit verbesserter Logik
+    // Aber nur wenn keine spezifische Logik greift
+    if (questionType === 'will_not') {
+      // Negative Fragen invertieren
+      return sentiment > 0 ? false : true;
+    }
+
+    // Standard-Logik: Positives Sentiment -> YES, Negatives -> NO
+    // ABER: Bei "wird X entlassen?" und negativem Sentiment (Entlassung ist negativ) -> YES
+    if (questionType === 'will_happen' && sentiment < 0) {
+      // Negative Events bestätigen negative Fragen
+      return true;
+    }
+
+    return sentiment >= 0;
   }
 
   /**
@@ -483,10 +746,18 @@ export class TimeDelayEngine {
     events: SourceEvent[],
     matches: { event: SourceEvent; match: MatchResult }[],
     features: TimeDelayFeatures,
-    edge: number
+    edge: number,
+    certainty: SignalCertainty
   ): string[] {
     const reasoning: string[] = [];
     const f = features.features;
+
+    // 0. BREAKING_CONFIRMED Banner
+    if (certainty === 'breaking_confirmed') {
+      reasoning.push(`🚨 BREAKING CONFIRMED - HALF IN! 50% Bankroll`);
+    } else if (certainty === 'high') {
+      reasoning.push(`⚡ HIGH CERTAINTY - Aggressives Sizing`);
+    }
 
     // 1. Source Summary
     const uniqueSources = [...new Set(events.map(e => e.sourceName))];
@@ -521,6 +792,9 @@ export class TimeDelayEngine {
 
     // 6. Edge Summary
     reasoning.push(`Geschaetzter Edge: ${(edge * 100).toFixed(1)}%`);
+
+    // 7. Certainty Summary
+    reasoning.push(`Certainty Level: ${certainty.toUpperCase()}`);
 
     return reasoning;
   }

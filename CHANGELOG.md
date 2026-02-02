@@ -7,6 +7,44 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.3] - 2026-02-02
+
+### Hinzugefügt
+- **SAFE BET Feature:** Bei `breaking_confirmed` Certainty (quasi-sichere Breaking News)
+  - 🚨 SAFE BET Alert mit 50% Bankroll Empfehlung
+  - Auto-Bet Toggle in Settings (default: AUS für Sicherheit)
+  - Manuelle Buttons: 1/4 Bankroll, 1/2 Bankroll, Custom-Betrag
+  - Paper/Shadow Mode: Simuliert Trades ohne echte Ausführung
+  - Live Mode: Zeigt Polymarket-Link für manuelle Ausführung
+
+- **Verbesserte Richtungserkennung:**
+  - KI-ähnliche Heuristik für YES/NO Bestimmung
+  - Erkennt Action-Keywords (entlassen, gestorben, gewonnen, etc.)
+  - Analysiert Frage-Typ (will_happen, will_stay, will_end, will_win)
+  - Korrekte Zuordnung: "Kompany entlassen" + "Wird Kompany entlassen?" → YES
+
+- **News-Ansicht verbessert:**
+  - Zeigt jetzt 25 News (statt 5)
+  - Direkter RSS-Fetch falls Cache leer
+  - Zeitstempel und Quelle pro News
+  - Aktualisieren-Button
+
+### Behoben
+- **KRITISCH: Telegram Spam-Bug:** `markAsPushed()` wurde nicht aufgerufen
+  - Kandidaten wurden bei jedem 2-Min-Interval erneut gepusht
+  - Jetzt: Kandidat wird sofort nach Push als "gepusht" markiert
+
+- **Automatische Menü-Rücksprünge entfernt:**
+  - Kein `sleep(2000) → sendMainMenu()` mehr nach Aktionen
+  - User klickt explizit "Zurück" wenn gewünscht
+
+### Geändert
+- NotificationService: `SafeBetNotification` Interface hinzugefügt
+- TimeDelayEngine: `determineDirection()` komplett überarbeitet
+- Settings: Auto-Bet Toggle mit Warnung bei Aktivierung
+
+---
+
 ## [3.0.2] - 2026-02-02
 
 ### Hinzugefügt

@@ -16,7 +16,7 @@
  *   - Time Scaling: Adjustiert nach Tageszeit
  */
 
-import { MarketQuality, SlippageModel } from './types.js';
+import { MarketQuality, SlippageModel, SignalCertainty } from './types.js';
 import logger from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -633,6 +633,104 @@ export function calculateOptimalSize(
 }
 
 // ═══════════════════════════════════════════════════════════════
+//                  CERTAINTY-BASED SIZING
+// "HALF IN!" bei BREAKING_CONFIRMED
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Sizing basierend auf Signal-Certainty Level
+ *
+ * BREAKING_CONFIRMED: 50% Bankroll ("HALF IN!")
+ * - Quasi-safe Breaking News mit klarem Informationsvorsprung
+ * - Beispiel: "Kompany bei Bayern entlassen" -> HALF IN auf Trainer-Markt
+ *
+ * HIGH: Half-Kelly (50% des normalen Kelly)
+ * MEDIUM: Quarter-Kelly (25%, Standard)
+ * LOW: Eighth-Kelly (12.5%, konservativ)
+ */
+export function calculateSizeWithCertainty(
+  certainty: SignalCertainty,
+  bankroll: number,
+  edge: number,
+  confidence: number,
+  quality: MarketQuality,
+  config: SizingConfig = DEFAULT_SIZING_CONFIG
+): SizingResult {
+  const reasoning: string[] = [];
+
+  // Certainty-basierte Kelly-Fraction
+  let kellyMultiplier: number;
+  let maxSizeOverride: number | null = null;
+
+  switch (certainty) {
+    case 'breaking_confirmed':
+      // 🚨 HALF IN! 50% Bankroll bei quasi-safe Breaking News
+      kellyMultiplier = 2.0;  // Doppelt so aggressiv
+      maxSizeOverride = bankroll * 0.5;  // Max 50% der Bankroll
+      reasoning.push(`🚨 BREAKING_CONFIRMED: HALF IN Mode aktiviert!`);
+      reasoning.push(`Max Size: 50% Bankroll = $${maxSizeOverride.toFixed(2)}`);
+      break;
+
+    case 'high':
+      // Half-Kelly
+      kellyMultiplier = 0.5;
+      reasoning.push(`⚡ HIGH Certainty: Half-Kelly Sizing`);
+      break;
+
+    case 'medium':
+      // Quarter-Kelly (Standard)
+      kellyMultiplier = 0.25;
+      reasoning.push(`MEDIUM Certainty: Quarter-Kelly Sizing`);
+      break;
+
+    case 'low':
+    default:
+      // Eighth-Kelly (konservativ)
+      kellyMultiplier = 0.125;
+      reasoning.push(`LOW Certainty: Eighth-Kelly Sizing`);
+      break;
+  }
+
+  // Effective Kelly Fraction
+  const effectiveKellyFraction = config.kellyFraction * (kellyMultiplier / 0.25);
+  reasoning.push(`Kelly Fraction: ${(effectiveKellyFraction * 100).toFixed(1)}%`);
+
+  // Standard Sizing mit angepasster Kelly-Fraction
+  const adjustedConfig: SizingConfig = {
+    ...config,
+    kellyFraction: effectiveKellyFraction,
+    maxSize: maxSizeOverride ?? config.maxSize,
+  };
+
+  const result = calculatePositionSize(edge, confidence, bankroll, quality, effectiveKellyFraction, adjustedConfig);
+
+  // Reasoning zusammenführen
+  result.reasoning = [...reasoning, ...result.reasoning];
+
+  // BREAKING_CONFIRMED: Minimum 10% Bankroll wenn Edge vorhanden
+  if (certainty === 'breaking_confirmed' && result.size > 0 && result.size < bankroll * 0.1) {
+    const minBreakingSize = Math.min(bankroll * 0.1, maxSizeOverride ?? bankroll * 0.5);
+    result.reasoning.push(`BREAKING: Size erhöht auf Minimum 10% Bankroll = $${minBreakingSize.toFixed(2)}`);
+    result.size = minBreakingSize;
+  }
+
+  return result;
+}
+
+/**
+ * Gibt die empfohlene Kelly-Fraction für ein Certainty-Level zurück
+ */
+export function getKellyFractionForCertainty(certainty: SignalCertainty): number {
+  switch (certainty) {
+    case 'breaking_confirmed': return 1.0;    // Full-Kelly Richtung, gekappt auf 50% Bankroll
+    case 'high': return 0.5;                  // Half-Kelly
+    case 'medium': return 0.25;               // Quarter-Kelly
+    case 'low': return 0.125;                 // Eighth-Kelly
+    default: return 0.25;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //                      UTILITY FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
@@ -655,6 +753,9 @@ export default {
   calculateKellyFraction,
   calculateFullKellySize,
   calculateScalingFactors,
+  // Certainty-Based Sizing
+  calculateSizeWithCertainty,
+  getKellyFractionForCertainty,
   // Legacy Functions
   calculatePositionSize,
   estimateSlippage,

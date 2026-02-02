@@ -56,11 +56,32 @@ export interface PushReadyNotification {
   whyNow: string[];
   asOf: Date;
   type: 'TIME_DELAY' | 'MISPRICING' | 'SYSTEM';
+  // SAFE BET Felder (optional - nur bei breaking_confirmed)
+  certainty?: 'low' | 'medium' | 'high' | 'breaking_confirmed';
+  direction?: 'yes' | 'no';
+  predictedEdge?: number;
+  confidence?: number;
+  signalId?: string;
+}
+
+export interface SafeBetNotification {
+  candidate: NewsCandidate;
+  market: MarketInfo;
+  signal: {
+    signalId: string;
+    direction: 'yes' | 'no';
+    predictedEdge: number;
+    confidence: number;
+    certainty: 'breaking_confirmed';
+    reasoning: string[];
+  };
+  asOf: Date;
 }
 
 export interface NotificationServiceEvents {
   'push_ready': (notification: PushReadyNotification) => void;
   'push_batched': (notifications: PushReadyNotification[]) => void;
+  'safe_bet': (notification: SafeBetNotification) => void;
   'candidate_rejected': (candidate: NewsCandidate, reason: string) => void;
   'quiet_hours_queue': (count: number) => void;
 }
@@ -279,6 +300,10 @@ class NotificationService extends EventEmitter {
       asOf: candidate.publishedAt,
       type: 'TIME_DELAY',
     };
+
+    // WICHTIG: Kandidat als gepusht markieren BEVOR wir senden
+    // Verhindert, dass der gleiche Kandidat bei nächstem Interval erneut gepusht wird
+    markAsPushed(candidate.id);
 
     // Record in rate limiter
     recordPush();

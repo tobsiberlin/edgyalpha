@@ -42,6 +42,8 @@ const runtimeSettings = {
   timeDelayEnabled: true,    // TIME_DELAY Engine aktiv
   mispricingEnabled: false,  // MISPRICING Engine (default: aus - nur Digest)
   germanyOnly: true,         // Nur Deutschland-relevante Märkte
+  // SAFE BET Auto-Trading
+  autoBetOnSafeBet: false,   // Bei SAFE BET automatisch traden? Default: AUS (sicher)
 };
 
 export class TelegramAlertBot extends EventEmitter {
@@ -50,9 +52,34 @@ export class TelegramAlertBot extends EventEmitter {
   private pendingTrades: Map<string, TradeRecommendation> = new Map();
   private editingField: string | null = null; // Welches Feld wird gerade bearbeitet?
 
+  // ═══════════════════════════════════════════════════════════════
+  // SINGLE MENU MESSAGE SYSTEM
+  // Verhindert Menü-Spam: Nur EINE Menü-Nachricht pro Chat, wird editiert statt neu gesendet
+  // ═══════════════════════════════════════════════════════════════
+  private lastMenuMessageId: Map<string, number> = new Map();
+  private lastMenuUpdateTime: Map<string, number> = new Map();
+  private readonly MENU_UPDATE_COOLDOWN_MS = 30000; // 30 Sekunden Cooldown
+
   constructor() {
     super();
     this.chatId = config.telegram.chatId;
+  }
+
+  /**
+   * Speichert die Message-ID des letzten Menüs für einen Chat
+   */
+  private setLastMenuMessageId(chatId: string, messageId: number): void {
+    this.lastMenuMessageId.set(chatId, messageId);
+    this.lastMenuUpdateTime.set(chatId, Date.now());
+  }
+
+  /**
+   * Prüft ob ein Menü-Update erlaubt ist (Rate-Limit)
+   */
+  private canUpdateMenu(chatId: string): boolean {
+    const lastUpdate = this.lastMenuUpdateTime.get(chatId);
+    if (!lastUpdate) return true;
+    return Date.now() - lastUpdate >= this.MENU_UPDATE_COOLDOWN_MS;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -137,7 +164,11 @@ ${this.DIVIDER}
 *Was soll's sein, Chef?*`;
 
     const keyboard = this.getMainMenu();
-    await this.sendMessageWithKeyboard(message, keyboard);
+    const sentMessage = await this.sendMessageWithKeyboard(message, keyboard);
+    // Speichere messageId für Single Menu Message System
+    if (sentMessage?.message_id) {
+      this.setLastMenuMessageId(this.chatId, sentMessage.message_id);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -775,6 +806,12 @@ ${this.DIVIDER}
           case 'toggle':
             await this.handleModuleToggle(params[0], chatId, query.message?.message_id);
             break;
+          case 'safebet':
+            await this.handleSafeBetAction(params[0], params[1], params[2], chatId, query.message?.message_id);
+            break;
+          case 'safebetconfirm':
+            await this.handleSafeBetConfirm(params[0], params[1], parseInt(params[2], 10), chatId, query.message?.message_id);
+            break;
         }
       } catch (err) {
         const error = err as Error;
@@ -837,10 +874,26 @@ ${this.DIVIDER}
 
 Wähle eine Aktion:`;
 
-    if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getMainMenu());
-    } else {
-      await this.sendMessageWithKeyboard(message, this.getMainMenu(), chatId);
+    // Nutze gespeicherte messageId falls vorhanden
+    const effectiveMessageId = messageId || this.lastMenuMessageId.get(chatId);
+
+    if (effectiveMessageId) {
+      // Versuche zu editieren
+      try {
+        await this.editMessage(chatId, effectiveMessageId, message, this.getMainMenu());
+        this.setLastMenuMessageId(chatId, effectiveMessageId);
+        return;
+      } catch (err) {
+        // Edit fehlgeschlagen (Message zu alt oder gelöscht) - sende neu
+        logger.debug(`[TELEGRAM] Menu edit failed, sending new: ${(err as Error).message}`);
+        this.lastMenuMessageId.delete(chatId);
+      }
+    }
+
+    // Sende neue Nachricht und speichere messageId
+    const sentMessage = await this.sendMessageWithKeyboard(message, this.getMainMenu(), chatId);
+    if (sentMessage?.message_id) {
+      this.setLastMenuMessageId(chatId, sentMessage.message_id);
     }
   }
 
@@ -1120,29 +1173,101 @@ ${pollBars}\`\`\``;
 
   private async handleNews(chatId: string, messageId?: number): Promise<void> {
     const { germanySources } = await import('../germany/index.js');
-    const news = germanySources.getLatestNews().slice(0, 5);
+    const { fetchAllRSSFeeds, newsItemsToGermanSources } = await import('../germany/rss.js');
 
-    let newsList = '';
-    for (const item of news) {
-      const source = (item.data.source as string || 'News').substring(0, 12);
-      newsList += `
-📰 *${source}*
-\`${item.title.substring(0, 45)}...\`
-`;
+    // Hole gecachte News
+    let news = germanySources.getLatestNews();
+
+    // Falls Cache leer, direkt fetchen
+    if (news.length === 0) {
+      logger.info('[TELEGRAM] News cache leer - fetche direkt von RSS...');
+      try {
+        const result = await fetchAllRSSFeeds({
+          includeExperimental: true,
+          maxConcurrent: 15,
+          timeout: 10000,
+        });
+        news = newsItemsToGermanSources(result.items);
+        logger.info(`[TELEGRAM] ${news.length} News direkt gefetcht`);
+      } catch (err) {
+        logger.error(`[TELEGRAM] RSS-Fetch Fehler: ${(err as Error).message}`);
+      }
     }
 
-    const message = `${this.HEADER}
+    // Die neuesten 25 News anzeigen
+    const latestNews = news.slice(0, 25);
+
+    if (latestNews.length === 0) {
+      const emptyMessage = `${this.HEADER}
 
 📰 *DEUTSCHE NEWS*
 
 ${this.DIVIDER}
-${newsList}
+
+_Keine News verfügbar._
+_RSS-Feeds werden geladen..._
+
 ${this.DIVIDER}`;
 
+      if (messageId) {
+        await this.editMessage(chatId, messageId, emptyMessage, {
+          inline_keyboard: [
+            [{ text: '🔄 Neu laden', callback_data: 'action:news' }],
+            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+          ],
+        });
+      } else {
+        await this.sendMessageWithKeyboard(emptyMessage, {
+          inline_keyboard: [
+            [{ text: '🔄 Neu laden', callback_data: 'action:news' }],
+            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+          ],
+        }, chatId);
+      }
+      return;
+    }
+
+    // Formatiere News-Liste
+    let newsList = '';
+    for (const item of latestNews) {
+      const source = (item.data.source as string || 'News').substring(0, 15);
+      const pubDate = item.data.pubDate as Date | undefined;
+      const timeStr = pubDate
+        ? pubDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+        : '--:--';
+
+      // Escape Markdown-Zeichen im Titel
+      const safeTitle = item.title
+        .substring(0, 50)
+        .replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+
+      newsList += `\n📰 *${timeStr}* | ${source}\n${safeTitle}${item.title.length > 50 ? '...' : ''}\n`;
+    }
+
+    const message = `${this.HEADER}
+
+📰 *DEUTSCHE NEWS* (${latestNews.length})
+
+${this.DIVIDER}
+${newsList}
+${this.DIVIDER}
+
+_Aktualisiert: ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}_`;
+
     if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getBackButton());
+      await this.editMessage(chatId, messageId, message, {
+        inline_keyboard: [
+          [{ text: '🔄 Aktualisieren', callback_data: 'action:news' }],
+          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        ],
+      });
     } else {
-      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [{ text: '🔄 Aktualisieren', callback_data: 'action:news' }],
+          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        ],
+      }, chatId);
     }
   }
 
@@ -1212,6 +1337,7 @@ _Auto-Update alle 60 Sekunden_`;
     const tdStatus = runtimeSettings.timeDelayEnabled ? '🟢' : '🔴';
     const mpStatus = runtimeSettings.mispricingEnabled ? '🟢' : '🔴';
     const deStatus = runtimeSettings.germanyOnly ? '🟢' : '🔴';
+    const autoStatus = runtimeSettings.autoBetOnSafeBet ? '🟢' : '🔴';
 
     const message = `${this.HEADER}
 
@@ -1226,6 +1352,12 @@ ${deStatus} Nur Deutschland: ${runtimeSettings.germanyOnly ? 'JA' : 'NEIN'}
 
 ${this.DIVIDER}
 
+*SAFE BET AUTO\\-TRADING:*
+${autoStatus} Auto\\-Bet: ${runtimeSettings.autoBetOnSafeBet ? '🚀 AKTIV' : '⏸️ AUS'}
+_Bei SAFE BET ${runtimeSettings.autoBetOnSafeBet ? 'automatisch traden' : 'nur Benachrichtigung'}_
+
+${this.DIVIDER}
+
 _Tippe auf ein Modul zum Umschalten:_`;
 
     const keyboard: InlineKeyboardMarkup = {
@@ -1237,6 +1369,11 @@ _Tippe auf ein Modul zum Umschalten:_`;
         ],
         [
           { text: `${deStatus} 🇩🇪 Nur Deutschland`, callback_data: 'toggle:germanyOnly' },
+        ],
+        // SAFE BET Toggle
+        [{ text: '── SAFE BET ──', callback_data: 'noop' }],
+        [
+          { text: `${autoStatus} 🚨 Auto-Bet bei SAFE BET`, callback_data: 'toggle:autoBet' },
         ],
         // Divider
         [{ text: '── PARAMETER ──', callback_data: 'noop' }],
@@ -1281,6 +1418,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
       timeDelay: 'timeDelayEnabled',
       mispricing: 'mispricingEnabled',
       germanyOnly: 'germanyOnly',
+      autoBet: 'autoBetOnSafeBet',
     };
 
     const settingKey = moduleMap[module];
@@ -1294,9 +1432,20 @@ _Tippe auf ein Modul zum Umschalten:_`;
       timeDelay: 'TIME_DELAY',
       mispricing: 'MISPRICING',
       germanyOnly: '🇩🇪 Nur Deutschland',
+      autoBet: '🚨 Auto-Bet bei SAFE BET',
     };
 
     logger.info(`[TELEGRAM] Modul ${moduleNames[module]} → ${newValue ? 'AKTIVIERT' : 'DEAKTIVIERT'}`);
+
+    // Zusätzliche Warnung bei Auto-Bet Aktivierung
+    if (module === 'autoBet' && newValue) {
+      await this.sendMessage(
+        `⚠️ *AUTO-BET AKTIVIERT*\n\n` +
+        `Bei SAFE BET Signalen wird jetzt automatisch mit 50% Bankroll getradet!\n\n` +
+        `_Stelle sicher, dass du im richtigen Trading-Mode bist._`,
+        chatId
+      );
+    }
 
     // Refresh settings menu
     await this.handleSettings(chatId, messageId);
@@ -1347,6 +1496,12 @@ _Tippe den neuen Wert ein:_`;
 
   private async handleTextInput(text: string, chatId: string): Promise<void> {
     if (!this.editingField) return;
+
+    // SAFE BET Custom-Betrag verarbeiten
+    if (this.editingField.startsWith('safebet:')) {
+      const handled = await this.handleSafeBetCustomInput(text, chatId);
+      if (handled) return;
+    }
 
     const numValue = parseFloat(text.replace(/[^0-9.]/g, ''));
 
@@ -1544,10 +1699,7 @@ ${mode === 'live' ? '⚠️ *ACHTUNG: LIVE MODE!*\nEchte Trades werden ausgefüh
       } else {
         await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
       }
-
-      // Nach 2 Sekunden zurück zum Menü
-      await this.sleep(2000);
-      await this.sendMainMenu(chatId);
+      // KEIN automatisches Menü mehr - User kann "Zurück" klicken wenn gewünscht
     } else {
       const message = `${this.HEADER}
 
@@ -1581,9 +1733,7 @@ _Um fortzufahren, deaktiviere den Kill-Switch._`;
       if (messageId) {
         await this.editMessage(chatId, messageId, message, this.getBackButton());
       }
-
-      await this.sleep(1500);
-      await this.handleRiskDashboard(chatId);
+      // KEIN automatischer Rücksprung - User klickt "Zurück" wenn gewünscht
     } else if (action === 'off') {
       runtimeState.deactivateKillSwitch('telegram');
 
@@ -1596,9 +1746,7 @@ Trading wieder möglich.`;
       if (messageId) {
         await this.editMessage(chatId, messageId, message, this.getBackButton());
       }
-
-      await this.sleep(1500);
-      await this.handleRiskDashboard(chatId);
+      // KEIN automatischer Rücksprung
     } else if (action === 'reset') {
       runtimeState.resetDaily();
 
@@ -1611,9 +1759,7 @@ Tägliche Statistiken wurden zurückgesetzt.`;
       if (messageId) {
         await this.editMessage(chatId, messageId, message, this.getBackButton());
       }
-
-      await this.sleep(1500);
-      await this.handleRiskDashboard(chatId);
+      // KEIN automatischer Rücksprung
     }
   }
 
@@ -2368,6 +2514,390 @@ ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //                    🚨 SAFE BET ALERT 🚨
+  //  High-Conviction Breaking News mit 50% Bankroll Sizing
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Sendet SAFE BET Alert bei breaking_confirmed Certainty
+   * - Bei Auto-Bet: Führt automatisch Trade aus
+   * - Bei Manual: Zeigt Buttons für 1/4, 1/2 oder Custom Bankroll
+   */
+  async sendSafeBetAlert(params: {
+    signal: AlphaSignalV2;
+    market: { marketId: string; question: string; currentPrice: number; totalVolume: number };
+    newsTitle: string;
+    newsSource: string;
+    bankroll: number;
+    direction: 'yes' | 'no';
+    reasoning: string[];
+  }): Promise<void> {
+    const { signal, market, newsTitle, newsSource, bankroll, direction, reasoning } = params;
+
+    const executionMode = runtimeState.getState().executionMode;
+    const isAutoMode = runtimeSettings.autoBetOnSafeBet;
+
+    const betAmountHalf = Math.floor(bankroll * 0.5);
+    const betAmountQuarter = Math.floor(bankroll * 0.25);
+
+    const directionEmoji = direction === 'yes' ? '✅ JA' : '❌ NEIN';
+    const modeEmoji = executionMode === 'live' ? '🚀 LIVE' : executionMode === 'shadow' ? '👻 SHADOW' : '📝 PAPER';
+
+    // Market URL
+    const marketUrl = market.marketId
+      ? `https://polymarket.com/event/${market.marketId}`
+      : '';
+
+    const message = `
+🚨🚨🚨 *SAFE BET DETECTED* 🚨🚨🚨
+
+${this.DIVIDER}
+
+*Breaking News:*
+\`\`\`
+${newsTitle.substring(0, 120)}${newsTitle.length > 120 ? '...' : ''}
+\`\`\`
+
+📰 *Quelle:* ${newsSource}
+
+${this.DIVIDER}
+
+📊 *Markt:*
+\`\`\`
+${market.question.substring(0, 100)}${market.question.length > 100 ? '...' : ''}
+\`\`\`
+
+🎯 *Empfohlene Aktion:* ${directionEmoji}
+📈 *Aktueller Preis:* ${(market.currentPrice * 100).toFixed(1)}%
+💰 *Volume:* $${(market.totalVolume / 1000).toFixed(0)}k
+
+${this.DIVIDER}
+
+💎 *Certainty:* BREAKING\\_CONFIRMED
+📊 *Edge:* ${(signal.predictedEdge * 100).toFixed(1)}%
+🎲 *Confidence:* ${(signal.confidence * 100).toFixed(0)}%
+
+*Why SAFE BET?*
+${reasoning.slice(0, 3).map(r => `• ${r}`).join('\n')}
+
+${this.DIVIDER}
+
+💵 *Bankroll:* $${bankroll.toFixed(0)}
+🎯 *Empfohlene Bet-Sizes:*
+• 1/4 Bankroll: $${betAmountQuarter}
+• 1/2 Bankroll: $${betAmountHalf} ⚡
+
+${modeEmoji} Mode: ${executionMode.toUpperCase()}
+${isAutoMode ? '🤖 *AUTO-BET AKTIV*' : '⏸️ *Manuelle Bestätigung erforderlich*'}
+
+${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
+
+    // Bei Auto-Bet: Automatisch ausführen
+    if (isAutoMode && executionMode === 'live') {
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [
+            { text: '🔄 Trade wird ausgeführt...', callback_data: 'noop' },
+          ],
+        ],
+      });
+
+      // Trade ausführen
+      await this.executeSafeBetTrade(signal, market, direction, betAmountHalf);
+      return;
+    }
+
+    // Manuelle Buttons
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: `🚀 ${directionEmoji} - $${betAmountQuarter} (1/4)`, callback_data: `safebet:${direction}:${signal.signalId}:${betAmountQuarter}` },
+        ],
+        [
+          { text: `⚡ ${directionEmoji} - $${betAmountHalf} (1/2)`, callback_data: `safebet:${direction}:${signal.signalId}:${betAmountHalf}` },
+        ],
+        [
+          { text: '✏️ Custom Betrag', callback_data: `safebet:custom:${signal.signalId}:${direction}` },
+        ],
+        [
+          { text: '❌ Nicht traden', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    await this.sendMessageWithKeyboard(message, keyboard);
+
+    logger.warn(`[TELEGRAM] 🚨 SAFE BET Alert gesendet: ${newsTitle.substring(0, 40)}... | Direction: ${direction} | Auto: ${isAutoMode}`);
+  }
+
+  /**
+   * Führt den SAFE BET Trade aus
+   *
+   * HINWEIS: Derzeit nur Paper/Shadow Mode - Live Mode erfordert manuelle Ausführung
+   */
+  private async executeSafeBetTrade(
+    signal: AlphaSignalV2,
+    market: { marketId: string; question: string },
+    direction: 'yes' | 'no',
+    amount: number
+  ): Promise<void> {
+    try {
+      const state = runtimeState.getState();
+
+      // Kill-Switch Check
+      if (state.killSwitchActive) {
+        await this.sendMessage('❌ SAFE BET Trade abgebrochen: Kill-Switch aktiv', this.chatId);
+        return;
+      }
+
+      logger.info(`[SAFE BET] Trade request: ${market.marketId} | ${direction.toUpperCase()} | $${amount}`);
+
+      // Paper/Shadow Mode: Nur loggen und simulieren
+      if (state.executionMode !== 'live') {
+        const modeEmoji = state.executionMode === 'paper' ? '📝' : '👻';
+
+        await this.sendMessage(
+          `${modeEmoji} *SAFE BET (${state.executionMode.toUpperCase()})*\n\n` +
+          `📊 ${market.question.substring(0, 60)}...\n` +
+          `🎯 ${direction.toUpperCase()} @ $${amount}\n\n` +
+          `_Simuliert - kein echter Trade._`,
+          this.chatId
+        );
+
+        // PnL Tracking (simuliert)
+        logger.info(`[SAFE BET] Simulated trade recorded: ${direction} @ $${amount}`);
+        return;
+      }
+
+      // Live Mode: Warnung und Link zu Polymarket
+      const marketUrl = `https://polymarket.com/event/${market.marketId}`;
+
+      await this.sendMessage(
+        `🚀 *SAFE BET - LIVE MODE*\n\n` +
+        `📊 ${market.question.substring(0, 60)}...\n` +
+        `🎯 Empfehlung: *${direction.toUpperCase()}* @ $${amount}\n\n` +
+        `⚠️ _Auto-Execution noch nicht implementiert._\n` +
+        `Bitte manuell auf Polymarket ausführen:\n` +
+        `[📊 Polymarket öffnen](${marketUrl})`,
+        this.chatId
+      );
+
+      logger.warn(`[SAFE BET] Live trade requires manual execution: ${market.marketId}`);
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[SAFE BET] Trade execution failed: ${error.message}`);
+      await this.sendMessage(
+        `❌ *SAFE BET FEHLER*\n\n${error.message}`,
+        this.chatId
+      );
+    }
+  }
+
+  /**
+   * Handelt SAFE BET Button-Klicks
+   * @param directionOrAction - 'yes', 'no', oder 'custom'
+   * @param signalId - Signal ID
+   * @param amountOrDirection - Betrag (bei yes/no) oder Direction (bei custom)
+   */
+  private async handleSafeBetAction(
+    directionOrAction: string,
+    signalId: string,
+    amountOrDirection: string,
+    chatId: string,
+    messageId?: number
+  ): Promise<void> {
+    // Custom Betrag: User soll Wert eingeben
+    if (directionOrAction === 'custom') {
+      this.editingField = `safebet:${signalId}:${amountOrDirection}`; // signalId:direction gespeichert
+      const message = `${this.HEADER}
+
+✏️ *CUSTOM SAFE BET*
+
+Gib den gewünschten Betrag in USDC ein:
+
+_Beispiel: 50 für $50_`;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '❌ Abbrechen', callback_data: 'action:menu' }],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(message, keyboard, chatId);
+      }
+      return;
+    }
+
+    // Normaler SAFE BET Trade
+    const direction = directionOrAction as 'yes' | 'no';
+    const amount = parseInt(amountOrDirection, 10);
+
+    if (isNaN(amount) || amount <= 0) {
+      await this.sendMessage('❌ Ungültiger Betrag.', chatId);
+      return;
+    }
+
+    // Bestätigungsnachricht
+    const confirmMessage = `${this.HEADER}
+
+🚨 *SAFE BET BESTÄTIGUNG*
+
+${this.DIVIDER}
+
+🎯 *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+📝 *Signal:* ${signalId.substring(0, 8)}...
+
+${this.DIVIDER}
+
+_Bestätige den Trade:_`;
+
+    const confirmKeyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: `✅ ${direction.toUpperCase()} @ $${amount} BESTÄTIGEN`, callback_data: `safebetconfirm:${direction}:${signalId}:${amount}` },
+        ],
+        [
+          { text: '❌ Abbrechen', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, confirmMessage, confirmKeyboard);
+    } else {
+      await this.sendMessageWithKeyboard(confirmMessage, confirmKeyboard, chatId);
+    }
+  }
+
+  /**
+   * Custom SAFE BET Betrag verarbeiten
+   */
+  private async handleSafeBetCustomInput(text: string, chatId: string): Promise<boolean> {
+    if (!this.editingField?.startsWith('safebet:')) {
+      return false;
+    }
+
+    const parts = this.editingField.split(':');
+    if (parts.length !== 3) {
+      this.editingField = null;
+      return false;
+    }
+
+    const [, signalId, direction] = parts;
+    const amount = parseFloat(text.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(amount) || amount <= 0) {
+      await this.sendMessage('❌ Ungültiger Betrag. Bitte eine positive Zahl eingeben.', chatId);
+      return true; // Consumed but invalid
+    }
+
+    this.editingField = null;
+
+    // Zeige Bestätigung
+    await this.handleSafeBetAction(direction as 'yes' | 'no', signalId, Math.floor(amount).toString(), chatId);
+    return true;
+  }
+
+  /**
+   * SAFE BET Trade nach Bestätigung ausführen
+   */
+  private async handleSafeBetConfirm(
+    direction: string,
+    signalId: string,
+    amount: number,
+    chatId: string,
+    messageId?: number
+  ): Promise<void> {
+    const state = runtimeState.getState();
+
+    // Kill-Switch Check
+    if (state.killSwitchActive) {
+      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      return;
+    }
+
+    try {
+      const state = runtimeState.getState();
+      logger.info(`[SAFE BET] Manual confirm: ${signalId} | ${direction.toUpperCase()} | $${amount}`);
+
+      // Paper/Shadow Mode: Simulieren
+      if (state.executionMode !== 'live') {
+        const modeEmoji = state.executionMode === 'paper' ? '📝' : '👻';
+
+        const successMessage = `${this.HEADER}
+
+${modeEmoji} *SAFE BET (${state.executionMode.toUpperCase()})*
+
+${this.DIVIDER}
+
+🎯 *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+
+${this.DIVIDER}
+
+_Simuliert - kein echter Trade._`;
+
+        if (messageId) {
+          await this.editMessage(chatId, messageId, successMessage, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(successMessage, this.getBackButton(), chatId);
+        }
+
+        logger.info(`[SAFE BET] Simulated manual trade: ${direction} @ $${amount}`);
+        return;
+      }
+
+      // Live Mode: Link zu Polymarket
+      const marketUrl = `https://polymarket.com/event/${signalId}`;
+
+      const liveMessage = `${this.HEADER}
+
+🚀 *SAFE BET - MANUELL AUSFÜHREN*
+
+${this.DIVIDER}
+
+🎯 *Direction:* ${direction.toUpperCase()}
+💵 *Betrag:* $${amount}
+
+${this.DIVIDER}
+
+⚠️ _Auto-Execution noch nicht implementiert._
+Bitte manuell auf Polymarket ausführen:
+
+[📊 Polymarket öffnen](${marketUrl})`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, liveMessage, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(liveMessage, this.getBackButton(), chatId);
+      }
+
+      logger.warn(`[SAFE BET] Live trade requires manual execution: ${signalId}`);
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[SAFE BET] Execution failed: ${error.message}`);
+
+      const errorMessage = `${this.HEADER}
+
+❌ *FEHLER*
+
+${error.message}
+
+_Bitte manuell auf Polymarket traden!_`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMessage, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMessage, this.getBackButton(), chatId);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //                    BATCHED ALERTS
   // ═══════════════════════════════════════════════════════════════
 
@@ -2516,17 +3046,19 @@ ${detailLines}`;
     text: string,
     keyboard: InlineKeyboardMarkup,
     chatId?: string
-  ): Promise<void> {
-    if (!this.bot) return;
+  ): Promise<TelegramBot.Message | undefined> {
+    if (!this.bot) return undefined;
 
     try {
-      await this.bot.sendMessage(chatId || this.chatId, text, {
+      const sentMessage = await this.bot.sendMessage(chatId || this.chatId, text, {
         parse_mode: 'Markdown',
         reply_markup: keyboard,
         disable_web_page_preview: true,
       });
+      return sentMessage;
     } catch (err) {
       logger.error(`Telegram Nachricht Fehler: ${(err as Error).message}`);
+      return undefined;
     }
   }
 
