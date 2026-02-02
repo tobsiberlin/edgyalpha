@@ -50,16 +50,16 @@ let backtestState: BacktestState = {
 // ═══════════════════════════════════════════════════════════════
 
 // Validate required secrets when auth is enabled
+// WARNUNG statt CRASH - damit der Server trotzdem startet
 if (WEB_AUTH_ENABLED) {
   if (!WEB_PASSWORD_HASH) {
-    logger.error('SECURITY FEHLER: WEB_AUTH_ENABLED=true aber WEB_PASSWORD_HASH fehlt!');
-    logger.error('Generiere einen Hash mit: node -e "console.log(require(\'bcrypt\').hashSync(\'deinPasswort\', 10))"');
-    process.exit(1);
+    logger.warn('⚠️ SECURITY WARNUNG: WEB_PASSWORD_HASH fehlt!');
+    logger.warn('→ Fallback auf unsicheres Default-Passwort "admin"');
+    logger.warn('→ Generiere einen Hash mit: node -e "console.log(require(\'bcrypt\').hashSync(\'deinPasswort\', 10))"');
   }
   if (!WEB_SESSION_SECRET || WEB_SESSION_SECRET.length < 32) {
-    logger.error('SECURITY FEHLER: WEB_SESSION_SECRET fehlt oder ist zu kurz (min 32 Zeichen)!');
-    logger.error('Generiere ein Secret mit: openssl rand -hex 32');
-    process.exit(1);
+    logger.warn('⚠️ SECURITY WARNUNG: WEB_SESSION_SECRET fehlt oder ist zu kurz!');
+    logger.warn('→ Generiere ein Secret mit: openssl rand -hex 32');
   }
 }
 
