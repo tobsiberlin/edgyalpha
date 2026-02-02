@@ -6,7 +6,7 @@
   <title>EDGY ALPHA - Benutzerhandbuch</title>
   <link rel="icon" type="image/png" href="/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -16,1199 +16,1662 @@
 
     :root {
       --bg: #0a0a0a;
-      --fg: #00ff00;
-      --fg-dim: #00aa00;
-      --fg-bright: #00ff88;
-      --accent: #ff6600;
-      --accent2: #00ccff;
-      --error: #ff3333;
+      --bg-card: #111111;
+      --bg-elevated: #1a1a1a;
+      --fg: #e0e0e0;
+      --fg-dim: #888888;
+      --fg-muted: #555555;
+      --accent: #00ff88;
+      --accent-dim: #00aa66;
+      --accent-bg: rgba(0, 255, 136, 0.1);
       --warning: #ffaa00;
-      --border: #00ff0033;
-      --code-bg: #0d1a0d;
+      --warning-bg: rgba(255, 170, 0, 0.1);
+      --error: #ff3344;
+      --info: #00ccff;
+      --info-bg: rgba(0, 204, 255, 0.1);
+      --border: #222222;
+      --border-light: #333333;
+      --shadow: rgba(0, 0, 0, 0.3);
     }
 
-    /* BRIGHT MODE */
     [data-theme="light"] {
-      --bg: #f5f5f5;
-      --fg: #006600;
-      --fg-dim: #008800;
-      --fg-bright: #00aa00;
-      --accent: #cc5500;
-      --accent2: #0066aa;
-      --error: #cc2222;
+      --bg: #f8f9fa;
+      --bg-card: #ffffff;
+      --bg-elevated: #f0f0f0;
+      --fg: #1a1a1a;
+      --fg-dim: #666666;
+      --fg-muted: #999999;
+      --accent: #00aa55;
+      --accent-dim: #008844;
+      --accent-bg: rgba(0, 170, 85, 0.1);
       --warning: #cc8800;
-      --border: #00660033;
-      --code-bg: #e8f5e9;
+      --warning-bg: rgba(204, 136, 0, 0.1);
+      --error: #cc2233;
+      --info: #0088cc;
+      --info-bg: rgba(0, 136, 204, 0.1);
+      --border: #e0e0e0;
+      --border-light: #d0d0d0;
+      --shadow: rgba(0, 0, 0, 0.1);
     }
 
     body {
-      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--fg);
-      line-height: 1.6;
+      line-height: 1.7;
       min-height: 100vh;
     }
 
     /* Header */
     .header {
-      background: linear-gradient(180deg, #0d1a0d 0%, var(--bg) 100%);
+      background: var(--bg-card);
       border-bottom: 1px solid var(--border);
-      padding: 20px;
-      text-align: center;
+      padding: 16px 24px;
       position: sticky;
       top: 0;
       z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
     }
 
     .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--bg);
+      font-size: 14px;
+    }
+
+    .logo-text {
+      font-weight: 700;
+      font-size: 18px;
       color: var(--fg);
-      font-size: 10px;
-      line-height: 1.1;
-      margin-bottom: 10px;
-      white-space: pre;
-      overflow-x: auto;
+    }
+
+    .logo-text span {
+      color: var(--accent);
     }
 
     .nav {
       display: flex;
-      gap: 20px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-top: 15px;
+      gap: 8px;
+      align-items: center;
     }
 
     .nav a {
       color: var(--fg-dim);
       text-decoration: none;
-      padding: 5px 15px;
-      border: 1px solid var(--border);
-      transition: all 0.3s;
-    }
-
-    .nav a:hover, .nav a.active {
-      color: var(--fg-bright);
-      border-color: var(--fg);
-      background: var(--code-bg);
-    }
-
-    /* Main Content */
-    .main {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 40px 20px;
-    }
-
-    /* TOC */
-    .toc {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 20px;
-      margin-bottom: 40px;
-    }
-
-    .toc h2 {
-      color: var(--accent);
-      margin-bottom: 15px;
+      padding: 8px 16px;
+      border-radius: 6px;
       font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
     }
 
-    .toc ul {
+    .nav a:hover {
+      color: var(--fg);
+      background: var(--bg-elevated);
+    }
+
+    .nav a.active {
+      color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    .theme-toggle {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--fg-dim);
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Search */
+    .search-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .search-box {
+      position: relative;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 16px 20px 16px 48px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--fg);
+      font-size: 16px;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+    }
+
+    .search-input::placeholder {
+      color: var(--fg-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--fg-muted);
+      font-size: 18px;
+    }
+
+    .search-hint {
+      text-align: center;
+      color: var(--fg-muted);
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    .search-hint kbd {
+      background: var(--bg-elevated);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    /* Main Layout */
+    .main-layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 40px;
+    }
+
+    @media (max-width: 900px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: sticky;
+      top: 100px;
+      height: fit-content;
+    }
+
+    .sidebar-section {
+      margin-bottom: 24px;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--fg-muted);
+      margin-bottom: 12px;
+    }
+
+    .sidebar-nav {
       list-style: none;
-      columns: 2;
-      column-gap: 30px;
     }
 
-    .toc li {
-      margin-bottom: 8px;
+    .sidebar-nav li {
+      margin-bottom: 4px;
     }
 
-    .toc a {
+    .sidebar-nav a {
+      display: block;
+      padding: 8px 12px;
       color: var(--fg-dim);
       text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.2s;
     }
 
-    .toc a:hover {
-      color: var(--fg-bright);
-      text-decoration: underline;
+    .sidebar-nav a:hover {
+      color: var(--fg);
+      background: var(--bg-elevated);
     }
 
-    /* Section */
-    .section {
-      margin-bottom: 60px;
+    .sidebar-nav a.active {
+      color: var(--accent);
+      background: var(--accent-bg);
+      font-weight: 500;
+    }
+
+    /* Content */
+    .content {
+      min-width: 0;
+    }
+
+    .content-section {
+      margin-bottom: 48px;
+      scroll-margin-top: 100px;
+    }
+
+    .section-header {
+      margin-bottom: 24px;
     }
 
     .section-title {
-      color: var(--accent);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 8px;
+    }
+
+    .section-subtitle {
+      color: var(--fg-dim);
       font-size: 16px;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid var(--accent);
     }
 
     h3 {
-      color: var(--fg-bright);
-      margin: 30px 0 15px;
-      font-size: 14px;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--fg);
+      margin: 32px 0 16px;
+    }
+
+    h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg);
+      margin: 24px 0 12px;
     }
 
     p {
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       color: var(--fg-dim);
     }
 
     strong {
       color: var(--fg);
+      font-weight: 600;
     }
 
-    /* ASCII Art Boxes */
-    .ascii-box {
-      background: var(--code-bg);
+    /* Cards */
+    .card {
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      padding: 15px;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--accent-bg);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .card-content {
+      color: var(--fg-dim);
+      line-height: 1.7;
+    }
+
+    /* Info Boxes */
+    .info-box {
+      padding: 20px;
+      border-radius: 10px;
       margin: 20px 0;
-      overflow-x: auto;
-      font-size: 11px;
-      line-height: 1.3;
-      white-space: pre;
+      display: flex;
+      gap: 16px;
     }
 
-    .ascii-box.diagram {
-      color: var(--accent2);
+    .info-box-icon {
+      font-size: 24px;
+      flex-shrink: 0;
     }
 
-    .ascii-box.warning {
-      border-color: var(--warning);
-      color: var(--warning);
+    .info-box-content h4 {
+      margin: 0 0 8px;
+      font-size: 15px;
     }
 
-    .ascii-box.success {
-      border-color: var(--fg);
+    .info-box-content p {
+      margin: 0;
+      font-size: 14px;
     }
 
-    /* Code Blocks */
-    code {
-      background: var(--code-bg);
-      padding: 2px 6px;
+    .info-box.tip {
+      background: var(--accent-bg);
+      border-left: 4px solid var(--accent);
+    }
+
+    .info-box.warning {
+      background: var(--warning-bg);
+      border-left: 4px solid var(--warning);
+    }
+
+    .info-box.info {
+      background: var(--info-bg);
+      border-left: 4px solid var(--info);
+    }
+
+    /* Feature Grid */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin: 24px 0;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      font-size: 12px;
+      border-radius: 12px;
+      padding: 24px;
+      transition: all 0.2s;
     }
 
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 15px;
-      overflow-x: auto;
-      margin: 15px 0;
+    .feature-card:hover {
+      border-color: var(--accent-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--shadow);
+    }
+
+    .feature-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+
+    .feature-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg);
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      color: var(--fg-dim);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Signal Type Badges */
+    .signal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
       font-size: 12px;
+      font-weight: 600;
+    }
+
+    .signal-badge.mispricing {
+      background: rgba(255, 136, 0, 0.15);
+      color: #ff8800;
+    }
+
+    .signal-badge.time-delay {
+      background: rgba(0, 204, 255, 0.15);
+      color: #00ccff;
+    }
+
+    .signal-badge.meta {
+      background: rgba(0, 255, 136, 0.15);
+      color: #00ff88;
+    }
+
+    .signal-badge.llm {
+      background: rgba(170, 0, 255, 0.15);
+      color: #aa00ff;
     }
 
     /* Tables */
+    .table-container {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0;
-      font-size: 12px;
+      font-size: 14px;
     }
 
     th, td {
-      border: 1px solid var(--border);
-      padding: 10px;
+      padding: 14px 16px;
       text-align: left;
+      border-bottom: 1px solid var(--border);
     }
 
     th {
-      background: var(--code-bg);
-      color: var(--accent);
+      background: var(--bg-elevated);
+      font-weight: 600;
+      color: var(--fg);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    tr:hover {
-      background: var(--code-bg);
+    td {
+      color: var(--fg-dim);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: var(--bg-elevated);
+    }
+
+    /* FAQ */
+    .faq-list {
+      margin: 24px 0;
+    }
+
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .faq-question {
+      width: 100%;
+      padding: 20px 24px;
+      background: transparent;
+      border: none;
+      color: var(--fg);
+      font-size: 16px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .faq-question:hover {
+      background: var(--bg-elevated);
+    }
+
+    .faq-question::after {
+      content: '+';
+      font-size: 24px;
+      color: var(--fg-muted);
+      transition: transform 0.2s;
+    }
+
+    .faq-item.open .faq-question::after {
+      transform: rotate(45deg);
+    }
+
+    .faq-answer {
+      display: none;
+      padding: 0 24px 20px;
+      color: var(--fg-dim);
+      line-height: 1.7;
+    }
+
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    /* Glossary */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .glossary-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .glossary-term {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .glossary-def {
+      color: var(--fg-dim);
+      font-size: 14px;
+      line-height: 1.6;
     }
 
     /* Lists */
     ul, ol {
-      margin: 15px 0;
-      padding-left: 25px;
+      margin: 16px 0;
+      padding-left: 24px;
       color: var(--fg-dim);
     }
 
     li {
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      line-height: 1.6;
     }
 
     li strong {
       color: var(--fg);
     }
 
-    /* Feature Cards */
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-      margin: 20px 0;
-    }
-
-    .feature-card {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 20px;
-    }
-
-    .feature-card h4 {
-      color: var(--accent);
-      margin-bottom: 10px;
-      font-size: 13px;
-    }
-
-    .feature-card p {
-      font-size: 12px;
-    }
-
-    /* Keyboard shortcuts */
-    kbd {
-      background: var(--code-bg);
-      border: 1px solid var(--fg-dim);
+    /* Code */
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg-elevated);
       padding: 2px 8px;
-      border-radius: 3px;
-      font-size: 11px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--accent);
     }
 
-    /* Signal Types */
-    .signal-type {
-      display: inline-block;
-      padding: 3px 10px;
-      margin: 2px;
-      font-size: 11px;
-      border: 1px solid;
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 40px 0;
+      margin-bottom: 32px;
     }
 
-    .signal-type.mispricing { border-color: var(--accent); color: var(--accent); }
-    .signal-type.timedelay { border-color: var(--accent2); color: var(--accent2); }
-    .signal-type.meta { border-color: var(--fg); color: var(--fg); }
-    .signal-type.llm { border-color: #ff00ff; color: #ff00ff; }
-
-    /* Back to top */
-    .back-to-top {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
+    .hero-title {
+      font-size: 36px;
+      font-weight: 700;
       color: var(--fg);
-      padding: 10px 15px;
+      margin-bottom: 16px;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--fg-dim);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Quick Links */
+    .quick-links {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .quick-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--fg);
       text-decoration: none;
-      font-size: 12px;
-      transition: all 0.3s;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
     }
 
-    .back-to-top:hover {
-      border-color: var(--fg);
-      background: var(--fg);
-      color: var(--bg);
-    }
-
-    /* Responsive */
-    @media (max-width: 600px) {
-      .logo { font-size: 8px; }
-      .toc ul { columns: 1; }
-      .ascii-box { font-size: 9px; }
+    .quick-link:hover {
+      border-color: var(--accent);
+      background: var(--accent-bg);
     }
 
     /* Footer */
     .footer {
-      text-align: center;
-      padding: 40px;
+      background: var(--bg-card);
       border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .footer-content {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .footer-logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 12px;
+    }
+
+    .footer-text {
+      color: var(--fg-muted);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+    }
+
+    .footer-links a {
       color: var(--fg-dim);
-      font-size: 11px;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
     }
 
-    .footer a {
-      color: var(--fg);
+    .footer-links a:hover {
+      color: var(--accent);
     }
 
-    /* Blinking cursor */
-    .cursor {
-      animation: blink 1s infinite;
+    /* Highlight animation for search */
+    .highlight {
+      background: var(--warning-bg);
+      padding: 2px 0;
+      border-radius: 2px;
     }
 
-    @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
+    /* Back to top */
+    .back-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px var(--shadow);
+      transition: all 0.2s;
     }
 
-    /* Terminal prompt style */
-    .prompt {
-      color: var(--accent2);
+    .back-to-top:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px var(--shadow);
     }
 
-    .prompt::before {
-      content: '$ ';
-      color: var(--fg);
+    .back-to-top.visible {
+      display: flex;
+    }
+
+    /* Mobile Navigation */
+    @media (max-width: 768px) {
+      .header-inner {
+        flex-wrap: wrap;
+      }
+
+      .nav {
+        width: 100%;
+        justify-content: center;
+        margin-top: 12px;
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }
+
+      .hero-title {
+        font-size: 28px;
+      }
+
+      .section-title {
+        font-size: 24px;
+      }
+
+      .main-layout {
+        padding: 0 16px 40px;
+      }
+
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .glossary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* No results */
+    .no-results {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--fg-muted);
+    }
+
+    .no-results-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .no-results-text {
+      font-size: 18px;
     }
   </style>
 </head>
 <body>
   <header class="header">
-    <div class="logo">
-███████╗██████╗  ██████╗ ██╗   ██╗     █████╗ ██╗     ██████╗ ██╗  ██╗ █████╗
-██╔════╝██╔══██╗██╔════╝ ╚██╗ ██╔╝    ██╔══██╗██║     ██╔══██╗██║  ██║██╔══██╗
-█████╗  ██║  ██║██║  ███╗ ╚████╔╝     ███████║██║     ██████╔╝███████║███████║
-██╔══╝  ██║  ██║██║   ██║  ╚██╔╝      ██╔══██║██║     ██╔═══╝ ██╔══██║██╔══██║
-███████╗██████╔╝╚██████╔╝   ██║       ██║  ██║███████╗██║     ██║  ██║██║  ██║
-╚══════╝╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">EA</div>
+        <div class="logo-text">EDGY <span>ALPHA</span></div>
+      </div>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/docs.html" class="active">Handbuch</a>
+        <a href="#faq">FAQ</a>
+        <a href="#glossar">Glossar</a>
+        <button class="theme-toggle" onclick="toggleTheme()">
+          <span id="theme-icon">Dunkel</span>
+        </button>
+        <a href="/logout" style="color: var(--error);">Logout</a>
+      </nav>
     </div>
-    <div style="color: var(--fg-dim); font-size: 12px;">
-      [ BENUTZERHANDBUCH v3.0 ] - Die Cash-Machine Dokumentation
-    </div>
-    <nav class="nav">
-      <a href="/">Dashboard</a>
-      <a href="/docs.html" class="active">Docs</a>
-      <a href="#toc">Inhalt</a>
-      <a href="#quickstart">Quick Start</a>
-      <a href="#signals">Signale</a>
-      <a href="#risk">Risiko</a>
-      <a href="#" id="theme-btn" onclick="toggleTheme(); return false;">🌙 DARK</a>
-      <a href="/logout" style="color: var(--error);">Logout</a>
-    </nav>
   </header>
 
-  <main class="main">
-    <!-- ASCII Welcome -->
-    <div class="ascii-box success">
-+==============================================================================+
-|                                                                              |
-|   Willkommen zur EDGY ALPHA Dokumentation!                                   |
-|                                                                              |
-|   Diese Anleitung erklaert alle Funktionen des Polymarket Alpha Scanners.    |
-|   Egal ob Anfaenger oder Profi - hier findest du alles was du brauchst.     |
-|                                                                              |
-|   > Web-Dashboard fuer Desktop & Mobile                                      |
-|   > Telegram Bot fuer unterwegs                                              |
-|   > Automatische Alpha-Signale                                               |
-|   > Professionelles Risiko-Management                                        |
-|                                                                              |
-+==============================================================================+
+  <!-- Search -->
+  <div class="search-container">
+    <div class="search-box">
+      <span class="search-icon">&#128269;</span>
+      <input
+        type="text"
+        class="search-input"
+        id="search-input"
+        placeholder="Suche im Handbuch..."
+        autocomplete="off"
+      >
     </div>
+    <p class="search-hint">Probiere: <kbd>Edge</kbd> <kbd>Signal</kbd> <kbd>Kelly</kbd> <kbd>Risiko</kbd></p>
+  </div>
 
-    <!-- TOC -->
-    <div class="toc" id="toc">
-      <h2>[ INHALTSVERZEICHNIS ]</h2>
-      <ul>
-        <li><a href="#intro">1. Einfuehrung</a></li>
-        <li><a href="#quickstart">2. Quick Start</a></li>
-        <li><a href="#webui">3. Web-Interface</a></li>
-        <li><a href="#telegram">4. Telegram Bot</a></li>
-        <li><a href="#signals">5. Signal-Typen</a></li>
-        <li><a href="#alpha-engines">6. Alpha Engines</a></li>
-        <li><a href="#risk">7. Risiko-Management</a></li>
-        <li><a href="#kelly">8. Kelly Criterion</a></li>
-        <li><a href="#backtest">9. Backtesting</a></li>
-        <li><a href="#llm">10. LLM Alpha Engine</a></li>
-        <li><a href="#glossary">11. Glossar</a></li>
-        <li><a href="#faq">12. FAQ</a></li>
-      </ul>
-    </div>
-
-    <!-- Section 1: Intro -->
-    <section class="section" id="intro">
-      <h2 class="section-title">[ 1. EINFUEHRUNG ]</h2>
-
-      <p>
-        <strong>EDGY ALPHA</strong> ist ein automatisierter Trading-Scanner fuer
-        <strong>Polymarket</strong> - die fuehrende Prediction Market Plattform.
-      </p>
-
-      <div class="ascii-box diagram">
-                    ┌─────────────────────────────────────────┐
-                    │         EDGY ALPHA ARCHITEKTUR          │
-                    └─────────────────────────────────────────┘
-
-    ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-    │   SCANNER    │────▶│    ALPHA     │────▶│   SIGNALE    │
-    │  Polymarket  │     │   ENGINES    │     │   Output     │
-    │    API       │     │              │     │              │
-    └──────────────┘     └──────────────┘     └──────────────┘
-          │                    │                    │
-          │                    │                    │
-          ▼                    ▼                    ▼
-    ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-    │   GERMANY    │     │    RISK      │     │  TELEGRAM    │
-    │   SOURCES    │     │   CONTROL    │     │     BOT      │
-    │ Dawum/RSS    │     │ Kelly/Limits │     │   Alerts     │
-    └──────────────┘     └──────────────┘     └──────────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │     WEB DASHBOARD    │
-                    │    Mobile-First UI   │
-                    └──────────────────────┘
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Erste Schritte</div>
+        <ul class="sidebar-nav">
+          <li><a href="#was-ist-edgy-alpha">Was ist Edgy Alpha?</a></li>
+          <li><a href="#grundkonzepte">Grundkonzepte</a></li>
+          <li><a href="#erste-schritte">Loslegen</a></li>
+        </ul>
       </div>
-
-      <h3>Was macht EDGY ALPHA?</h3>
-      <ul>
-        <li><strong>Scannt</strong> hunderte Polymarket-Maerkte in Echtzeit</li>
-        <li><strong>Analysiert</strong> Preise mit mathematischen Modellen</li>
-        <li><strong>Findet</strong> Fehlbepreisungen und Trading-Chancen</li>
-        <li><strong>Berechnet</strong> optimale Positionsgroessen (Kelly)</li>
-        <li><strong>Benachrichtigt</strong> via Telegram bei starken Signalen</li>
-      </ul>
-    </section>
-
-    <!-- Section 2: Quick Start -->
-    <section class="section" id="quickstart">
-      <h2 class="section-title">[ 2. QUICK START ]</h2>
-
-      <div class="ascii-box warning">
-+-- WICHTIG ------------------------------------------------------------------+
-|                                                                              |
-|  Vor dem Start brauchst du:                                                  |
-|                                                                              |
-|  1. Login-Daten fuer das Web-Dashboard (vom Admin)                           |
-|  2. Telegram Bot Token (falls du Alerts willst)                              |
-|  3. Polymarket Wallet (falls du traden willst)                               |
-|                                                                              |
-+------------------------------------------------------------------------------+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Funktionen</div>
+        <ul class="sidebar-nav">
+          <li><a href="#signale">Signale verstehen</a></li>
+          <li><a href="#almanien">Almanien-Modus</a></li>
+          <li><a href="#telegram">Telegram Bot</a></li>
+          <li><a href="#auto-trading">Auto-Trading</a></li>
+        </ul>
       </div>
-
-      <h3>Schritt 1: Web-Dashboard oeffnen</h3>
-      <p>Oeffne das Dashboard in deinem Browser und logge dich ein:</p>
-      <pre class="prompt">https://dein-server.de/</pre>
-
-      <h3>Schritt 2: Dashboard erkunden</h3>
-      <div class="ascii-box diagram">
-┌─────────────────────────────────────────────────────────────────────┐
-│  EDGY ALPHA v3.0                                    [KILL] [MODE]   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─ STATUS ──────────┐  ┌─ RISK DASHBOARD ─────────────────────┐   │
-│  │ Uptime: 12h 34m   │  │ Daily PnL:    +$127.50               │   │
-│  │ Scans: 1,234      │  │ Win Rate:     62.5%                  │   │
-│  │ Signals: 47       │  │ Open Pos:     3/10                   │   │
-│  │ Last: 2 min ago   │  │ Exposure:     $450.00                │   │
-│  └───────────────────┘  └──────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─ ACTIVE SIGNALS ────────────────────────────────────────────┐   │
-│  │ [MISPRICING] Trump wins 2024 │ YES @ 0.52 │ Edge: 8.2%     │   │
-│  │ [TIME_DELAY] Germany Elec... │ NO  @ 0.31 │ Edge: 5.1%     │   │
-│  │ [META]       Ukraine Peace.. │ YES @ 0.12 │ Edge: 12.3%    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  [SCAN] [BACKTEST] [SETTINGS] [DOCS]                               │
-└─────────────────────────────────────────────────────────────────────┘
+      <div class="sidebar-section">
+        <div class="sidebar-title">Wichtig</div>
+        <ul class="sidebar-nav">
+          <li><a href="#risiko">Risiken verstehen</a></li>
+          <li><a href="#faq">Haeufige Fragen</a></li>
+          <li><a href="#glossar">Glossar</a></li>
+        </ul>
       </div>
+    </aside>
 
-      <h3>Schritt 3: Telegram verbinden (optional)</h3>
-      <p>Suche in Telegram nach deinem Bot und starte ihn mit <code>/start</code></p>
-    </section>
-
-    <!-- Section 3: Web UI -->
-    <section class="section" id="webui">
-      <h2 class="section-title">[ 3. WEB-INTERFACE ]</h2>
-
-      <h3>Navigation</h3>
-      <table>
-        <tr>
-          <th>Tab</th>
-          <th>Funktion</th>
-        </tr>
-        <tr>
-          <td><code>SCANNER</code></td>
-          <td>Live-Signale und aktive Maerkte</td>
-        </tr>
-        <tr>
-          <td><code>GERMANY</code></td>
-          <td>Deutsche Quellen (Umfragen, News, Bundestag)</td>
-        </tr>
-        <tr>
-          <td><code>BACKTEST</code></td>
-          <td>Historische Strategietests</td>
-        </tr>
-        <tr>
-          <td><code>PERFORMANCE</code></td>
-          <td>PnL-Tracking und Statistiken</td>
-        </tr>
-        <tr>
-          <td><code>DOCS</code></td>
-          <td>Diese Dokumentation</td>
-        </tr>
-      </table>
-
-      <h3>Signal-Karte erklaert</h3>
-      <div class="ascii-box">
-┌─ SIGNAL KARTE ──────────────────────────────────────────────────────┐
-│                                                                     │
-│  [MISPRICING] ◄── Signal-Typ (welche Engine hat das gefunden?)      │
-│                                                                     │
-│  "Will Trump win the 2024 election?"  ◄── Markt-Frage               │
-│                                                                     │
-│  Direction: YES @ $0.52                ◄── Empfohlene Richtung      │
-│  Estimated: 60.2%                      ◄── Geschaetzte Wahrsch.     │
-│  Edge: +8.2%                           ◄── Vorteil gegenueber Markt │
-│  Confidence: 72%                       ◄── Wie sicher ist das?      │
-│                                                                     │
-│  Kelly Size: $45.00 (1.8%)             ◄── Optimale Wette           │
-│  Volume 24h: $1.2M                     ◄── Handelsvolumen           │
-│                                                                     │
-│  [DETAILS] [TRADE YES] [TRADE NO]      ◄── Aktionen                 │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-      </div>
-
-      <h3>Kill-Switch</h3>
-      <p>
-        Der <strong>Kill-Switch</strong> stoppt sofort alle automatischen Trades.
-        Gruener Button = Trading aktiv. Roter Button = Alles gestoppt.
-      </p>
-
-      <div class="ascii-box warning">
-  KILL-SWITCH AKTIVIEREN:
-
-  [Button klicken] oder [Telegram: /killswitch]
-
-  → Keine neuen Trades
-  → Bestehende Positionen bleiben
-  → Signale werden weiter generiert
-      </div>
-    </section>
-
-    <!-- Section 4: Telegram -->
-    <section class="section" id="telegram">
-      <h2 class="section-title">[ 4. TELEGRAM BOT ]</h2>
-
-      <h3>Verfuegbare Befehle</h3>
-      <table>
-        <tr>
-          <th>Befehl</th>
-          <th>Beschreibung</th>
-        </tr>
-        <tr>
-          <td><code>/start</code></td>
-          <td>Bot starten und registrieren</td>
-        </tr>
-        <tr>
-          <td><code>/status</code></td>
-          <td>System-Status anzeigen</td>
-        </tr>
-        <tr>
-          <td><code>/signals</code></td>
-          <td>Aktuelle Signale anzeigen</td>
-        </tr>
-        <tr>
-          <td><code>/balance</code></td>
-          <td>Wallet-Balance pruefen</td>
-        </tr>
-        <tr>
-          <td><code>/risk</code></td>
-          <td>Risk Dashboard anzeigen</td>
-        </tr>
-        <tr>
-          <td><code>/killswitch</code></td>
-          <td>Kill-Switch umschalten</td>
-        </tr>
-        <tr>
-          <td><code>/scan</code></td>
-          <td>Manuellen Scan starten</td>
-        </tr>
-      </table>
-
-      <h3>Signal-Benachrichtigung</h3>
-      <div class="ascii-box">
-┌─ TELEGRAM ALERT ────────────────────────────────────────┐
-│                                                         │
-│  🎯 ALPHA SIGNAL                                        │
-│                                                         │
-│  Market: Will Trump win 2024?                           │
-│  Type: MISPRICING                                       │
-│  Direction: YES @ $0.52                                 │
-│  Edge: +8.2%                                            │
-│  Confidence: 72%                                        │
-│  Kelly Size: $45.00                                     │
-│                                                         │
-│  ┌────────────────┐  ┌────────────────┐                │
-│  │   [TRADE YES]  │  │   [TRADE NO]   │                │
-│  └────────────────┘  └────────────────┘                │
-│                                                         │
-│  ┌─────────────────────────────────────┐               │
-│  │          [DETAILS]                   │               │
-│  └─────────────────────────────────────┘               │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-      </div>
-
-      <p>
-        <strong>1-Klick Trading:</strong> Tippe auf [TRADE YES] oder [TRADE NO]
-        um direkt aus Telegram zu handeln. Der Trade wird mit Kelly-optimaler
-        Groesse ausgefuehrt.
-      </p>
-    </section>
-
-    <!-- Section 5: Signals -->
-    <section class="section" id="signals">
-      <h2 class="section-title">[ 5. SIGNAL-TYPEN ]</h2>
-
-      <p>EDGY ALPHA generiert verschiedene Arten von Signalen:</p>
-
-      <div class="feature-grid">
-        <div class="feature-card">
-          <h4><span class="signal-type mispricing">MISPRICING</span></h4>
-          <p>
-            Findet Maerkte wo der Preis stark von der geschaetzten
-            Wahrscheinlichkeit abweicht. Basiert auf Meta-Analyse
-            externer Quellen.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h4><span class="signal-type timedelay">TIME_DELAY</span></h4>
-          <p>
-            Erkennt wenn neue Informationen noch nicht eingepreist sind.
-            Nutzt schnelle News-Quellen und Dawum-Umfragen.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h4><span class="signal-type meta">META</span></h4>
-          <p>
-            Kombiniert mehrere Alpha-Engines. Nur wenn mindestens 2 Engines
-            uebereinstimmen, wird ein Meta-Signal generiert.
-          </p>
-        </div>
-        <div class="feature-card">
-          <h4><span class="signal-type llm">LLM</span></h4>
-          <p>
-            Nutzt Perplexity Pro fuer semantische News-Analyse.
-            Versteht Kontext und generiert KI-basierte Signale.
-          </p>
+    <!-- Main Content -->
+    <main class="content" id="content">
+      <!-- Hero -->
+      <div class="hero">
+        <h1 class="hero-title">Willkommen bei Edgy Alpha</h1>
+        <p class="hero-subtitle">
+          Dein intelligenter Assistent fuer Prediction Markets.
+          Wir finden Chancen, die andere uebersehen - und helfen dir, kluge Entscheidungen zu treffen.
+        </p>
+        <div class="quick-links">
+          <a href="#was-ist-edgy-alpha" class="quick-link">&#128161; Was ist das?</a>
+          <a href="#signale" class="quick-link">&#128202; Signale verstehen</a>
+          <a href="#faq" class="quick-link">&#10067; Haeufige Fragen</a>
         </div>
       </div>
 
-      <h3>Signal-Staerke Klassifikation</h3>
-      <div class="ascii-box">
-  ╔══════════════╦═══════════╦═════════════╦════════════════════════════╗
-  ║    STAERKE   ║   EDGE    ║ CONFIDENCE  ║         BEDEUTUNG          ║
-  ╠══════════════╬═══════════╬═════════════╬════════════════════════════╣
-  ║ VERY_STRONG  ║   ≥15%    ║    ≥75%     ║ Seltene Top-Gelegenheit   ║
-  ║ STRONG       ║   ≥10%    ║    ≥65%     ║ Gute Trading-Chance       ║
-  ║ MEDIUM       ║   ≥5%     ║    ≥55%     ║ Solide Gelegenheit        ║
-  ║ WEAK         ║   <5%     ║    <55%     ║ Beobachten, nicht traden  ║
-  ╚══════════════╩═══════════╩═════════════╩════════════════════════════╝
-      </div>
-    </section>
+      <!-- Was ist Edgy Alpha -->
+      <section class="content-section" id="was-ist-edgy-alpha">
+        <div class="section-header">
+          <h2 class="section-title">Was ist Edgy Alpha?</h2>
+          <p class="section-subtitle">Einfach erklaert - auch wenn du noch nie von Prediction Markets gehoert hast</p>
+        </div>
 
-    <!-- Section 6: Alpha Engines -->
-    <section class="section" id="alpha-engines">
-      <h2 class="section-title">[ 6. ALPHA ENGINES ]</h2>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon">&#127919;</div>
+            <h3 class="card-title">Die Kurzfassung</h3>
+          </div>
+          <div class="card-content">
+            <p>
+              <strong>Edgy Alpha</strong> ist wie ein kluger Freund, der staendig Wettmaerkte beobachtet
+              und dir sagt: "Hey, hier stimmt was nicht - der Markt unterschaetzt dieses Ereignis!"
+            </p>
+            <p>
+              Stell dir vor, du koenntest wetten, ob es morgen regnet. Der Markt sagt: "30% Chance auf Regen."
+              Aber du weisst, dass ein grosses Unwetter angekuendigt ist - also ist die echte Chance viel hoeher.
+              <strong>Das ist ein "Edge"</strong> - ein Vorteil, weil du mehr weisst als der Markt.
+            </p>
+            <p>
+              Edgy Alpha findet solche Vorteile automatisch, indem es hunderte Quellen analysiert -
+              Umfragen, Nachrichten, offizielle Daten - und mit den aktuellen Marktpreisen vergleicht.
+            </p>
+          </div>
+        </div>
 
-      <h3>Wie funktioniert Alpha-Detection?</h3>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">&#128269;</div>
+            <div class="feature-title">Automatisches Scannen</div>
+            <div class="feature-desc">
+              Edgy Alpha ueberwacht hunderte Maerkte gleichzeitig - rund um die Uhr.
+              Du musst nicht selbst suchen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128200;</div>
+            <div class="feature-title">Intelligente Analyse</div>
+            <div class="feature-desc">
+              Mathematische Modelle vergleichen echte Daten mit Marktpreisen
+              und finden Abweichungen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128276;</div>
+            <div class="feature-title">Sofortige Benachrichtigung</div>
+            <div class="feature-desc">
+              Wenn eine gute Gelegenheit gefunden wird, bekommst du sofort
+              eine Nachricht auf dein Handy.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#129302;</div>
+            <div class="feature-title">Optionales Auto-Trading</div>
+            <div class="feature-desc">
+              Wenn du willst, kann das System auch automatisch fuer dich handeln -
+              mit von dir festgelegten Limits.
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <div class="ascii-box diagram">
-                         ┌────────────────────┐
-                         │   MARKT DATEN      │
-                         │  Price: $0.52      │
-                         │  Volume: $1.2M     │
-                         └─────────┬──────────┘
-                                   │
-              ┌────────────────────┼────────────────────┐
-              │                    │                    │
-              ▼                    ▼                    ▼
-    ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-    │  MISPRICING      │ │  TIME DELAY      │ │  DRIFT           │
-    │  ENGINE          │ │  ENGINE          │ │  DETECTION       │
-    │                  │ │                  │ │                  │
-    │  Meta-Quellen    │ │  News-Speed      │ │  Momentum        │
-    │  Aggregation     │ │  Erkennung       │ │  Analyse         │
-    └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
-             │                    │                    │
-             │ Est: 60%           │ Est: 58%           │ Drift: +3%
-             │                    │                    │
-             └────────────────────┼────────────────────┘
-                                  │
-                                  ▼
-                    ┌─────────────────────────┐
-                    │     META COMBINER       │
-                    │                         │
-                    │  Gewichtet & Kombiniert │
-                    │  alle Engine-Outputs    │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │     RISK GATES          │
-                    │                         │
-                    │  ✓ Min Edge: 5%         │
-                    │  ✓ Min Volume: $10k     │
-                    │  ✓ Max Exposure: OK     │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │     KELLY SIZING        │
-                    │                         │
-                    │  Position: $45.00       │
-                    │  (1.8% des Bankrolls)   │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                         ┌────────────┐
-                         │   SIGNAL   │
-                         │   OUTPUT   │
-                         └────────────┘
-      </div>
+      <!-- Grundkonzepte -->
+      <section class="content-section" id="grundkonzepte">
+        <div class="section-header">
+          <h2 class="section-title">Die wichtigsten Begriffe</h2>
+          <p class="section-subtitle">Was du wissen musst, um Edgy Alpha zu verstehen</p>
+        </div>
 
-      <h3>Mispricing Engine</h3>
-      <p>
-        Vergleicht Polymarket-Preise mit externen Quellen wie Umfrage-Aggregatoren,
-        Wettquoten und News-Sentiment. Wenn der Unterschied gross genug ist,
-        liegt eine Fehlbepreisung vor.
-      </p>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon" style="background: rgba(0, 255, 136, 0.15);">&#127919;</div>
+            <h3 class="card-title">Was ist ein "Edge"?</h3>
+          </div>
+          <div class="card-content">
+            <p>
+              Ein <strong>Edge</strong> (englisch fuer "Kante" oder "Vorteil") bedeutet:
+              <em>Du weisst etwas, das der Markt noch nicht richtig eingepreist hat.</em>
+            </p>
+            <p>
+              <strong>Beispiel:</strong> Ein Markt bewertet "CDU gewinnt die Wahl" mit 45%.
+              Aber die neueste Umfrage zeigt 52%. Der Edge ist +7% - der Markt hinkt hinterher.
+            </p>
+            <p>
+              Je groesser der Edge, desto interessanter die Gelegenheit. Edgy Alpha zeigt dir
+              den Edge in Prozent an - ab 5% wird es spannend.
+            </p>
+          </div>
+        </div>
 
-      <h3>Time Delay Engine</h3>
-      <p>
-        Polymarket-Preise reagieren nicht sofort auf neue Informationen.
-        Diese Engine erkennt, wenn News-Quellen oder Umfragen schneller
-        aktualisiert werden als der Marktpreis.
-      </p>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon" style="background: rgba(0, 204, 255, 0.15);">&#128202;</div>
+            <h3 class="card-title">Was ist ein "Signal"?</h3>
+          </div>
+          <div class="card-content">
+            <p>
+              Ein <strong>Signal</strong> ist eine Handelsempfehlung von Edgy Alpha.
+              Es sagt dir: "Hier ist eine Gelegenheit, schau sie dir an!"
+            </p>
+            <p>Jedes Signal enthaelt:</p>
+            <ul>
+              <li><strong>Die Frage:</strong> Worauf wird gewettet? (z.B. "Wird Merz Kanzler?")</li>
+              <li><strong>Die Richtung:</strong> JA oder NEIN kaufen?</li>
+              <li><strong>Der Edge:</strong> Wie gross ist der Vorteil?</li>
+              <li><strong>Die Konfidenz:</strong> Wie sicher ist das System?</li>
+              <li><strong>Die empfohlene Groesse:</strong> Wie viel solltest du maximal setzen?</li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>Drift Detection</h3>
-      <p>
-        Analysiert Preis-Momentum und Volumen-Trends. Erkennt wenn
-        institutionelle Trader grosse Positionen aufbauen.
-      </p>
-    </section>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon" style="background: rgba(255, 170, 0, 0.15);">&#128176;</div>
+            <h3 class="card-title">Was bedeutet "Kelly"?</h3>
+          </div>
+          <div class="card-content">
+            <p>
+              Das <strong>Kelly Criterion</strong> ist eine mathematische Formel, die dir sagt:
+              "Wenn du diesen Vorteil hast, setze genau so viel."
+            </p>
+            <p>
+              Die Idee: Je groesser dein Vorteil und je sicherer du bist, desto mehr kannst du setzen.
+              Aber nie zu viel - sonst riskierst du, alles zu verlieren.
+            </p>
+            <p>
+              <strong>Edgy Alpha nutzt "Quarter Kelly"</strong> - also nur ein Viertel der
+              mathematisch optimalen Groesse. Das ist sicherer und schuetzt vor Fehleinschaetzungen.
+            </p>
+          </div>
+        </div>
+      </section>
 
-    <!-- Section 7: Risk Management -->
-    <section class="section" id="risk">
-      <h2 class="section-title">[ 7. RISIKO-MANAGEMENT ]</h2>
+      <!-- Erste Schritte -->
+      <section class="content-section" id="erste-schritte">
+        <div class="section-header">
+          <h2 class="section-title">Loslegen</h2>
+          <p class="section-subtitle">So startest du mit Edgy Alpha</p>
+        </div>
 
-      <div class="ascii-box warning">
-+-- WICHTIG ------------------------------------------------------------------+
-|                                                                              |
-|  EDGY ALPHA ist ein Werkzeug, keine Garantie fuer Gewinne!                   |
-|                                                                              |
-|  - Investiere nur Geld das du verlieren kannst                               |
-|  - Folge den Positionsgroessen-Empfehlungen                                  |
-|  - Nutze den Kill-Switch bei Unsicherheit                                    |
-|  - Ueberpruefe Signale manuell bei grossen Positionen                        |
-|                                                                              |
-+------------------------------------------------------------------------------+
-      </div>
+        <div class="info-box tip">
+          <div class="info-box-icon">&#128161;</div>
+          <div class="info-box-content">
+            <h4>Tipp fuer Anfaenger</h4>
+            <p>
+              Starte im "Shadow Mode" - da werden alle Signale geloggt, aber keine echten Trades gemacht.
+              So kannst du das System erst kennenlernen, bevor du echtes Geld einsetzt.
+            </p>
+          </div>
+        </div>
 
-      <h3>Risk Dashboard</h3>
-      <div class="ascii-box">
-┌─ RISK DASHBOARD ────────────────────────────────────────────────────┐
-│                                                                     │
-│  DAILY P&L                           LIMITS                         │
-│  ═══════════                         ══════                         │
-│  Today:     +$127.50                 Max Loss:    $200.00           │
-│  Win Rate:  62.5% (5W/3L)            Remaining:   $327.50           │
-│  Best:      +$45.00                  Max Pos:     10                 │
-│  Worst:     -$23.00                  Current:     3                  │
-│                                                                     │
-│  POSITIONS                           EXPOSURE                       │
-│  ═════════                           ════════                       │
-│  Open:      3 / 10                   Total:       $450.00           │
-│  Largest:   $180.00                  Per Market:  $150.00 max       │
-│  Avg Size:  $150.00                  Utilization: 45%               │
-│                                                                     │
-│  EXECUTION MODE: [SHADOW] ←── Keine echten Trades                   │
-│  KILL SWITCH:    [OFF]    ←── Trading erlaubt                       │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-      </div>
+        <h3>1. Dashboard erkunden</h3>
+        <p>
+          Nach dem Login siehst du das Dashboard. Hier findest du:
+        </p>
+        <ul>
+          <li><strong>Status-Anzeige:</strong> Ist das System aktiv? Wie viele Scans wurden gemacht?</li>
+          <li><strong>Aktive Signale:</strong> Aktuelle Handelsgelegenheiten</li>
+          <li><strong>Risk Dashboard:</strong> Deine aktuelle Performance und offene Positionen</li>
+          <li><strong>Kill-Switch:</strong> Notausschalter fuer alle automatischen Trades</li>
+        </ul>
 
-      <h3>Execution Modes</h3>
-      <table>
-        <tr>
-          <th>Modus</th>
-          <th>Beschreibung</th>
-          <th>Echtes Geld?</th>
-        </tr>
-        <tr>
-          <td><code>PAPER</code></td>
-          <td>Simuliertes Trading, keine echten Orders</td>
-          <td>Nein</td>
-        </tr>
-        <tr>
-          <td><code>SHADOW</code></td>
-          <td>Signale werden geloggt, keine Ausfuehrung</td>
-          <td>Nein</td>
-        </tr>
-        <tr>
-          <td><code>LIVE</code></td>
-          <td>Echte Orders werden ausgefuehrt</td>
-          <td>Ja!</td>
-        </tr>
-      </table>
+        <h3>2. Telegram verbinden (optional)</h3>
+        <p>
+          Der Telegram Bot schickt dir Signale direkt aufs Handy.
+          Suche in Telegram nach dem Bot und starte mit <code>/start</code>.
+        </p>
 
-      <h3>Automatische Limits</h3>
-      <ul>
-        <li><strong>Daily Loss Limit:</strong> Stoppt Trading wenn Tagesverlust erreicht</li>
-        <li><strong>Max Positions:</strong> Begrenzt Anzahl gleichzeitiger Trades</li>
-        <li><strong>Max per Market:</strong> Kein Klumpenrisiko in einem Markt</li>
-        <li><strong>Volume Check:</strong> Keine Trades in illiquiden Maerkten</li>
-      </ul>
-    </section>
+        <h3>3. Signale beobachten</h3>
+        <p>
+          Schau dir die Signale an, die generiert werden. Lerne die verschiedenen Typen kennen
+          und verstehe, warum das System bestimmte Gelegenheiten erkennt.
+        </p>
+      </section>
 
-    <!-- Section 8: Kelly Criterion -->
-    <section class="section" id="kelly">
-      <h2 class="section-title">[ 8. KELLY CRITERION ]</h2>
+      <!-- Signale verstehen -->
+      <section class="content-section" id="signale">
+        <div class="section-header">
+          <h2 class="section-title">Signale verstehen</h2>
+          <p class="section-subtitle">Die verschiedenen Signal-Typen und was sie bedeuten</p>
+        </div>
 
-      <p>
-        Das <strong>Kelly Criterion</strong> ist eine mathematische Formel
-        zur Berechnung der optimalen Wettgroesse. Es maximiert langfristiges
-        Wachstum bei gegebenem Vorteil (Edge).
-      </p>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <span class="signal-badge mispricing">MISPRICING</span>
+            <div class="feature-title" style="margin-top: 16px;">Fehlbepreisung</div>
+            <div class="feature-desc">
+              Der Marktpreis weicht stark von externen Quellen ab (Umfragen, Wettquoten, Expertenanalysen).
+              Beispiel: Umfragen sagen 55%, Markt sagt 45% - das ist eine Fehlbepreisung.
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="signal-badge time-delay">TIME DELAY</span>
+            <div class="feature-title" style="margin-top: 16px;">Verzoegerung</div>
+            <div class="feature-desc">
+              Neue Informationen sind verfuegbar, aber der Markt hat noch nicht reagiert.
+              Beispiel: Eine wichtige Nachricht ist gerade rausgekommen, der Preis ist noch der alte.
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="signal-badge meta">META</span>
+            <div class="feature-title" style="margin-top: 16px;">Kombiniertes Signal</div>
+            <div class="feature-desc">
+              Mehrere Analyse-Engines kommen zum gleichen Ergebnis.
+              Das ist besonders zuverlaessig - wenn verschiedene Methoden uebereinstimmen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="signal-badge llm">LLM</span>
+            <div class="feature-title" style="margin-top: 16px;">KI-Analyse</div>
+            <div class="feature-desc">
+              Eine kuenstliche Intelligenz hat Nachrichten analysiert und eine Einschaetzung gegeben.
+              Besonders nuetzlich bei komplexen Themen.
+            </div>
+          </div>
+        </div>
 
-      <h3>Die Formel</h3>
-      <div class="ascii-box">
-  ╔═══════════════════════════════════════════════════════════════════╗
-  ║                                                                   ║
-  ║   KELLY FRACTION fuer Prediction Markets:                         ║
-  ║                                                                   ║
-  ║                     p - q                                         ║
-  ║            f* =  ─────────                                        ║
-  ║                      b                                            ║
-  ║                                                                   ║
-  ║   Wobei:                                                          ║
-  ║   p = Geschaetzte Gewinnwahrscheinlichkeit                        ║
-  ║   q = 1 - p (Verlustwahrscheinlichkeit)                           ║
-  ║   b = Gewinnquote = (1/Preis) - 1                                 ║
-  ║                                                                   ║
-  ║   BEISPIEL:                                                       ║
-  ║   Preis = $0.40, Geschaetzt = 50%                                 ║
-  ║   b = (1/0.40) - 1 = 1.5                                          ║
-  ║   f* = (0.50 - 0.50) / 1.5 = 0%  ←── Kein Edge!                   ║
-  ║                                                                   ║
-  ║   Preis = $0.40, Geschaetzt = 60%                                 ║
-  ║   f* = (0.60 - 0.40) / 1.5 = 13.3%  ←── Edge!                     ║
-  ║                                                                   ║
-  ╚═══════════════════════════════════════════════════════════════════╝
-      </div>
+        <h3>Signal-Staerke verstehen</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Staerke</th>
+                <th>Edge</th>
+                <th>Konfidenz</th>
+                <th>Was bedeutet das?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong style="color: var(--accent);">SEHR STARK</strong></td>
+                <td>15%+</td>
+                <td>75%+</td>
+                <td>Seltene Top-Gelegenheit - genau hinschauen!</td>
+              </tr>
+              <tr>
+                <td><strong style="color: var(--info);">STARK</strong></td>
+                <td>10-15%</td>
+                <td>65%+</td>
+                <td>Gute Handelschance</td>
+              </tr>
+              <tr>
+                <td><strong style="color: var(--warning);">MITTEL</strong></td>
+                <td>5-10%</td>
+                <td>55%+</td>
+                <td>Solide Gelegenheit, normale Groesse</td>
+              </tr>
+              <tr>
+                <td><strong style="color: var(--fg-muted);">SCHWACH</strong></td>
+                <td>unter 5%</td>
+                <td>unter 55%</td>
+                <td>Besser beobachten statt handeln</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <h3>Fractional Kelly</h3>
-      <p>
-        EDGY ALPHA verwendet <strong>Quarter-Kelly</strong> (25% der berechneten
-        Kelly-Groesse). Das reduziert Volatilitaet und schuetzt vor Schaetzfehlern.
-      </p>
+      <!-- Almanien-Modus -->
+      <section class="content-section" id="almanien">
+        <div class="section-header">
+          <h2 class="section-title">Almanien: Dein Deutschland-Vorteil</h2>
+          <p class="section-subtitle">Warum deutsche Nutzer einen Informationsvorsprung haben</p>
+        </div>
 
-      <div class="ascii-box diagram">
-  KELLY SIZING PYRAMIDE
-  ═════════════════════
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon">&#127465;&#127466;</div>
+            <h3 class="card-title">Was ist Almanien?</h3>
+          </div>
+          <div class="card-content">
+            <p>
+              <strong>Almanien</strong> ist der interne Name fuer unseren Deutschland-Modus.
+              Bei Maerkten, die Deutschland betreffen, hast du als deutscher Nutzer einen natuerlichen Vorteil:
+            </p>
+            <ul>
+              <li>Du verstehst deutsche Nachrichten schneller und besser</li>
+              <li>Deutsche Quellen werden international oft verzoegert wahrgenommen</li>
+              <li>Lokale Umfragen und Daten sind dir frueher zugaenglich</li>
+            </ul>
+          </div>
+        </div>
 
-     ▲
-     │   100% Kelly  ──── Maximales Wachstum, hohes Risiko
-     │       │
-     │   50% Kelly   ──── Reduzierte Volatilitaet
-     │       │
-     │   25% Kelly   ◄─── EDGY ALPHA Standard (konservativ)
-     │       │
-     │   10% Kelly   ──── Ultra-konservativ
-     │
-     └──────────────────────────────────────────────────▶
-                    Risiko-Toleranz
-      </div>
+        <h3>Unsere Deutschland-Quellen</h3>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">&#128202;</div>
+            <div class="feature-title">Dawum Umfragen</div>
+            <div class="feature-desc">
+              Aggregierte Wahlumfragen von allen grossen Instituten -
+              aktueller als das, was internationale Maerkte sehen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#127963;</div>
+            <div class="feature-title">Bundestag API</div>
+            <div class="feature-desc">
+              Offizielle Daten zu Gesetzgebung, Abstimmungen und politischen Prozessen -
+              direkt von der Quelle.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128240;</div>
+            <div class="feature-title">Deutsche RSS-Feeds</div>
+            <div class="feature-desc">
+              Nachrichten von Tagesschau, FAZ, Spiegel und anderen -
+              oft Stunden bevor sie international Beachtung finden.
+            </div>
+          </div>
+        </div>
 
-      <h3>Adaptive Scaling</h3>
-      <p>
-        Die Positionsgroesse wird automatisch angepasst basierend auf:
-      </p>
-      <ul>
-        <li><strong>Drawdown:</strong> Weniger Risiko nach Verlusten</li>
-        <li><strong>Win Streak:</strong> Langsame Erhoehung nach Gewinnen</li>
-        <li><strong>Volatilitaet:</strong> Kleinere Positionen in volatilen Phasen</li>
-        <li><strong>Confidence:</strong> Groessere Positionen bei hoher Sicherheit</li>
-      </ul>
-    </section>
+        <div class="info-box info">
+          <div class="info-box-icon">&#128161;</div>
+          <div class="info-box-content">
+            <h4>Praxisbeispiel</h4>
+            <p>
+              Eine wichtige Umfrage zur Bundestagswahl wird um 18 Uhr veroeffentlicht.
+              Deutsche Medien berichten sofort, internationale Quellen brauchen oft 2-4 Stunden.
+              In dieser Zeit kann der Markt falsch bewertet sein - und das ist deine Chance.
+            </p>
+          </div>
+        </div>
+      </section>
 
-    <!-- Section 9: Backtesting -->
-    <section class="section" id="backtest">
-      <h2 class="section-title">[ 9. BACKTESTING ]</h2>
+      <!-- Telegram -->
+      <section class="content-section" id="telegram">
+        <div class="section-header">
+          <h2 class="section-title">Telegram Bot</h2>
+          <p class="section-subtitle">Signale auf dem Handy empfangen und handeln</p>
+        </div>
 
-      <p>
-        Mit dem <strong>Backtest-Modul</strong> kannst du Strategien auf
-        historischen Daten testen, bevor du echtes Geld riskierst.
-      </p>
+        <p>
+          Der Telegram Bot haelt dich ueberall auf dem Laufenden.
+          Du bekommst Signale direkt aufs Handy und kannst mit einem Klick handeln.
+        </p>
 
-      <h3>Backtest starten</h3>
-      <div class="ascii-box">
-┌─ BACKTEST KONFIGURATOR ─────────────────────────────────────────────┐
-│                                                                     │
-│  Engine:        [▼ Mispricing]   ←── Welche Strategie testen?       │
-│                                                                     │
-│  Zeitraum:      [2024-01-01] bis [2024-12-31]                       │
-│                                                                     │
-│  Bankroll:      [$1000.00]       ←── Startkapital                   │
-│                                                                     │
-│  Slippage:      [✓ Aktiviert]    ←── Realistische Kosten            │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                  [BACKTEST STARTEN]                          │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-      </div>
+        <h3>Verfuegbare Befehle</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Befehl</th>
+                <th>Beschreibung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>/start</code></td>
+                <td>Bot aktivieren und registrieren</td>
+              </tr>
+              <tr>
+                <td><code>/status</code></td>
+                <td>Aktuellen System-Status anzeigen</td>
+              </tr>
+              <tr>
+                <td><code>/signals</code></td>
+                <td>Alle aktiven Signale anzeigen</td>
+              </tr>
+              <tr>
+                <td><code>/balance</code></td>
+                <td>Dein aktuelles Guthaben pruefen</td>
+              </tr>
+              <tr>
+                <td><code>/risk</code></td>
+                <td>Risk Dashboard mit Performance-Daten</td>
+              </tr>
+              <tr>
+                <td><code>/killswitch</code></td>
+                <td>Notausschalter aktivieren/deaktivieren</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <h3>Ergebnis-Metriken</h3>
-      <table>
-        <tr>
-          <th>Metrik</th>
-          <th>Beschreibung</th>
-          <th>Gut wenn...</th>
-        </tr>
-        <tr>
-          <td><code>Win Rate</code></td>
-          <td>Prozent gewonnene Trades</td>
-          <td>&gt; 50%</td>
-        </tr>
-        <tr>
-          <td><code>Sharpe Ratio</code></td>
-          <td>Risikoadjustierte Rendite</td>
-          <td>&gt; 1.0</td>
-        </tr>
-        <tr>
-          <td><code>Max Drawdown</code></td>
-          <td>Groesster Verlust vom Peak</td>
-          <td>&lt; 20%</td>
-        </tr>
-        <tr>
-          <td><code>Profit Factor</code></td>
-          <td>Gewinn / Verlust Ratio</td>
-          <td>&gt; 1.5</td>
-        </tr>
-        <tr>
-          <td><code>Brier Score</code></td>
-          <td>Kalibrierungsqualitaet</td>
-          <td>&lt; 0.25</td>
-        </tr>
-      </table>
+        <div class="info-box tip">
+          <div class="info-box-icon">&#128241;</div>
+          <div class="info-box-content">
+            <h4>1-Klick Trading</h4>
+            <p>
+              Bei jedem Signal siehst du Buttons fuer "JA kaufen" und "NEIN kaufen".
+              Ein Tippen genuegt - der Trade wird mit optimaler Groesse ausgefuehrt.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <h3>Equity Curve</h3>
-      <div class="ascii-box diagram">
-  EQUITY CURVE (Kumulierter PnL)
-  ══════════════════════════════
+      <!-- Auto-Trading -->
+      <section class="content-section" id="auto-trading">
+        <div class="section-header">
+          <h2 class="section-title">Auto-Trading</h2>
+          <p class="section-subtitle">Das System fuer dich handeln lassen</p>
+        </div>
 
-  $1400 │                                              ╭──
-        │                                          ╭───╯
-  $1300 │                                      ╭───╯
-        │                              ╭───╭───╯
-  $1200 │                          ╭───╯   │
-        │                      ╭───╯       │
-  $1100 │              ╭───╭───╯           │
-        │          ╭───╯   │               │
-  $1000 │──────────╯       │               │
-        │                  ╰─── Drawdown   │
-   $900 │                                  │
-        └──────────────────────────────────────────────────▶
-         Jan    Feb    Mar    Apr    May    Jun    Jul    Aug
-      </div>
-    </section>
+        <div class="info-box warning">
+          <div class="info-box-icon">&#9888;</div>
+          <div class="info-box-content">
+            <h4>Wichtige Warnung</h4>
+            <p>
+              Auto-Trading bedeutet echte Trades mit echtem Geld.
+              Stelle sicher, dass du die Risiken verstehst und nur Geld einsetzt, das du verlieren kannst.
+            </p>
+          </div>
+        </div>
 
-    <!-- Section 10: LLM Engine -->
-    <section class="section" id="llm">
-      <h2 class="section-title">[ 10. LLM ALPHA ENGINE ]</h2>
+        <h3>Die drei Modi</h3>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">&#128065;</div>
+            <div class="feature-title">Shadow Mode</div>
+            <div class="feature-desc">
+              <strong>Empfohlen fuer Anfaenger.</strong>
+              Alle Signale werden geloggt, aber keine echten Trades gemacht.
+              Perfekt zum Lernen und Testen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128196;</div>
+            <div class="feature-title">Paper Mode</div>
+            <div class="feature-desc">
+              Simuliertes Trading mit virtuellem Geld.
+              Du siehst, wie das System performen wuerde - ohne Risiko.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128176;</div>
+            <div class="feature-title">Live Mode</div>
+            <div class="feature-desc">
+              <strong>Echte Trades mit echtem Geld.</strong>
+              Nur aktivieren, wenn du das System gut kennst und die Risiken verstehst.
+            </div>
+          </div>
+        </div>
 
-      <p>
-        Die <strong>Perplexity LLM Engine</strong> nutzt kuenstliche Intelligenz
-        fuer semantische News-Analyse und Signal-Generierung.
-      </p>
+        <h3>Sicherheitsmassnahmen</h3>
+        <ul>
+          <li><strong>Kill-Switch:</strong> Stoppt sofort alle automatischen Trades</li>
+          <li><strong>Tages-Verlust-Limit:</strong> Trading stoppt bei zu hohen Verlusten</li>
+          <li><strong>Max Positionen:</strong> Begrenzte Anzahl gleichzeitiger Trades</li>
+          <li><strong>Volumen-Check:</strong> Keine Trades in illiquiden Maerkten</li>
+        </ul>
+      </section>
 
-      <div class="ascii-box diagram">
-                    ┌─────────────────────────────────┐
-                    │     PERPLEXITY LLM ENGINE       │
-                    └─────────────────────────────────┘
-                                   │
-         ┌─────────────────────────┼─────────────────────────┐
-         │                         │                         │
-         ▼                         ▼                         ▼
-  ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-  │   BROWSER    │        │    QUERY     │        │   RESPONSE   │
-  │  AUTOMATION  │───────▶│  BUILDING    │───────▶│   PARSING    │
-  │  (Playwright)│        │              │        │              │
-  └──────────────┘        └──────────────┘        └──────────────┘
-         │                                                │
-         │                                                │
-         ▼                                                ▼
-  ┌──────────────┐                              ┌──────────────┐
-  │  PERPLEXITY  │                              │    SIGNAL    │
-  │     PRO      │                              │  GENERATION  │
-  │   Session    │                              │              │
-  └──────────────┘                              └──────────────┘
-      </div>
+      <!-- Risiken -->
+      <section class="content-section" id="risiko">
+        <div class="section-header">
+          <h2 class="section-title">Risiken verstehen</h2>
+          <p class="section-subtitle">Ehrliche Worte ueber die Gefahren</p>
+        </div>
 
-      <h3>Wie funktioniert es?</h3>
-      <ol>
-        <li>Browser wird automatisch gestartet (Playwright)</li>
-        <li>Perplexity Pro wird im Browser geoeffnet</li>
-        <li>Fuer jeden relevanten Markt wird eine Analyse-Query erstellt</li>
-        <li>Die AI-Antwort wird geparst und in ein Signal umgewandelt</li>
-        <li>Signale mit hoher Konfidenz werden ausgegeben</li>
-      </ol>
+        <div class="info-box warning">
+          <div class="info-box-icon">&#9888;</div>
+          <div class="info-box-content">
+            <h4>Keine Garantie fuer Gewinne</h4>
+            <p>
+              Prediction Markets sind spekulativ. Auch mit den besten Tools und Strategien
+              kannst du Geld verlieren. Investiere nur Geld, das du komplett verlieren kannst.
+            </p>
+          </div>
+        </div>
 
-      <h3>LLM Signal</h3>
-      <div class="ascii-box">
-┌─ LLM SIGNAL ────────────────────────────────────────────────────────┐
-│                                                                     │
-│  [LLM] 🤖                                                           │
-│                                                                     │
-│  "Wird Friedrich Merz Bundeskanzler?"                               │
-│                                                                     │
-│  Direction:     YES                                                 │
-│  Confidence:    78%                                                 │
-│  Est. Prob:     65.2%                                               │
-│  Current:       $0.52                                               │
-│  Price Gap:     +13.2%                                              │
-│  Strength:      STRONG                                              │
-│                                                                     │
-│  News Context:                                                      │
-│  - "Aktuelle Umfragen sehen CDU/CSU bei 30%..."                     │
-│  - "Koalitionsverhandlungen mit SPD wahrscheinlich..."              │
-│                                                                     │
-│  Sources: Spiegel, FAZ, Tagesschau                                  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-      </div>
+        <h3>Die wichtigsten Risiken</h3>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">&#128200;</div>
+            <div class="feature-title">Marktrisiko</div>
+            <div class="feature-desc">
+              Selbst mit einem statistischen Vorteil gibt es Verlustphasen.
+              Der Markt kann laenger irrational bleiben als dein Kapital reicht.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128295;</div>
+            <div class="feature-title">Technisches Risiko</div>
+            <div class="feature-desc">
+              Software kann Fehler haben, APIs koennen ausfallen,
+              Internet-Verbindungen koennen unterbrechen.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128272;</div>
+            <div class="feature-title">Modellrisiko</div>
+            <div class="feature-desc">
+              Unsere Schaetzungen sind nicht perfekt.
+              Was wie ein Edge aussieht, kann auch ein Fehler im Modell sein.
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">&#128176;</div>
+            <div class="feature-title">Liquiditaetsrisiko</div>
+            <div class="feature-desc">
+              In kleinen Maerkten kann es schwierig sein,
+              zu guten Preisen zu kaufen oder verkaufen.
+            </div>
+          </div>
+        </div>
 
-      <h3>Aktivierung</h3>
-      <p>
-        Die LLM Engine muss manuell gestartet werden (Browser-Login erforderlich).
-        Im Dashboard unter <code>Settings > LLM Engine > Start</code>.
-      </p>
+        <h3>Wie du dich schuetzt</h3>
+        <ul>
+          <li><strong>Setze nie mehr als du verlieren kannst</strong> - das ist die goldene Regel</li>
+          <li><strong>Starte im Shadow Mode</strong> - lerne das System erst kennen</li>
+          <li><strong>Folge den Kelly-Empfehlungen</strong> - sie begrenzen dein Risiko mathematisch</li>
+          <li><strong>Nutze den Kill-Switch</strong> bei Unsicherheit - lieber einmal zu oft</li>
+          <li><strong>Diversifiziere</strong> - nicht alles auf einen Markt setzen</li>
+        </ul>
+      </section>
 
-      <div class="ascii-box warning">
-  HINWEIS: LLM Engine benoetigt Perplexity Pro Account!
+      <!-- FAQ -->
+      <section class="content-section" id="faq">
+        <div class="section-header">
+          <h2 class="section-title">Haeufige Fragen</h2>
+          <p class="section-subtitle">Antworten auf die wichtigsten Fragen</p>
+        </div>
 
-  Der Browser startet im sichtbaren Modus fuer den ersten Login.
-  Nach dem Login kann auf headless-Modus gewechselt werden.
-      </div>
-    </section>
+        <div class="faq-list">
+          <div class="faq-item">
+            <button class="faq-question">Wie viel Geld brauche ich zum Starten?</button>
+            <div class="faq-answer">
+              <p>
+                Theoretisch kannst du mit jedem Betrag starten. Praktisch empfehlen wir
+                <strong>mindestens 100-500 USD</strong>, um sinnvolle Positionsgroessen zu ermoeglichen.
+              </p>
+              <p>
+                Bei sehr kleinem Kapital (unter 100 USD) fressen die Transaktionsgebuehren
+                einen zu grossen Teil deines potenziellen Gewinns.
+              </p>
+            </div>
+          </div>
 
-    <!-- Section 11: Glossary -->
-    <section class="section" id="glossary">
-      <h2 class="section-title">[ 11. GLOSSAR ]</h2>
+          <div class="faq-item">
+            <button class="faq-question">Ist das legal?</button>
+            <div class="faq-answer">
+              <p>
+                Polymarket operiert als dezentrale Plattform. Die rechtliche Lage haengt von
+                deinem Wohnort ab und kann sich aendern.
+              </p>
+              <p>
+                <strong>In Deutschland:</strong> Prediction Markets befinden sich in einer
+                rechtlichen Grauzone. Es gibt keine expliziten Verbote, aber auch keine
+                klare Regulierung. Informiere dich ueber die aktuelle Rechtslage und
+                versteuere eventuelle Gewinne korrekt.
+              </p>
+              <p>
+                <strong>Wichtig:</strong> Dies ist keine Rechtsberatung. Im Zweifel
+                konsultiere einen Anwalt oder Steuerberater.
+              </p>
+            </div>
+          </div>
 
-      <table>
-        <tr>
-          <th>Begriff</th>
-          <th>Erklaerung</th>
-        </tr>
-        <tr>
-          <td><strong>Alpha</strong></td>
-          <td>Vorteil gegenueber dem Markt, Ueberrendite</td>
-        </tr>
-        <tr>
-          <td><strong>Edge</strong></td>
-          <td>Differenz zwischen geschaetzter und Markt-Wahrscheinlichkeit</td>
-        </tr>
-        <tr>
-          <td><strong>Kelly Criterion</strong></td>
-          <td>Mathematische Formel fuer optimale Wettgroesse</td>
-        </tr>
-        <tr>
-          <td><strong>Bankroll</strong></td>
-          <td>Gesamtes Trading-Kapital</td>
-        </tr>
-        <tr>
-          <td><strong>Drawdown</strong></td>
-          <td>Verlust vom Hoechststand, maximaler Rueckgang</td>
-        </tr>
-        <tr>
-          <td><strong>Sharpe Ratio</strong></td>
-          <td>Rendite pro Risikoeinheit (hoeher = besser)</td>
-        </tr>
-        <tr>
-          <td><strong>Slippage</strong></td>
-          <td>Differenz zwischen gewuenschtem und ausgefuehrtem Preis</td>
-        </tr>
-        <tr>
-          <td><strong>CLOB</strong></td>
-          <td>Central Limit Order Book - Polymarkets Order-System</td>
-        </tr>
-        <tr>
-          <td><strong>Prediction Market</strong></td>
-          <td>Markt der auf Ereigniswahrscheinlichkeiten wettet</td>
-        </tr>
-        <tr>
-          <td><strong>Kill Switch</strong></td>
-          <td>Notausschalter der alles Trading stoppt</td>
-        </tr>
-      </table>
-    </section>
+          <div class="faq-item">
+            <button class="faq-question">Was sind die Risiken?</button>
+            <div class="faq-answer">
+              <p>Die wichtigsten Risiken sind:</p>
+              <ul>
+                <li><strong>Totalverlust:</strong> Du kannst dein gesamtes eingesetztes Kapital verlieren</li>
+                <li><strong>Volatilitaet:</strong> Auch mit einem Edge gibt es Verlustphasen</li>
+                <li><strong>Technische Probleme:</strong> Plattformen koennen ausfallen oder gehackt werden</li>
+                <li><strong>Rechtsunsicherheit:</strong> Regulierung kann sich aendern</li>
+              </ul>
+              <p>
+                <strong>Goldene Regel:</strong> Setze nur Geld ein, das du vollstaendig verlieren kannst,
+                ohne dass es deinen Lebensstil beeintraechtigt.
+              </p>
+            </div>
+          </div>
 
-    <!-- Section 12: FAQ -->
-    <section class="section" id="faq">
-      <h2 class="section-title">[ 12. FAQ ]</h2>
+          <div class="faq-item">
+            <button class="faq-question">Wie genau sind die Signale?</button>
+            <div class="faq-answer">
+              <p>
+                Die historische Gewinnquote liegt bei etwa <strong>55-65%</strong>,
+                abhaengig von der Signal-Engine und Marktbedingungen.
+              </p>
+              <p>
+                Das klingt nicht nach viel, aber in Kombination mit korrekter Positionsgroessenberechnung
+                (Kelly Criterion) ergibt das langfristig einen positiven Erwartungswert.
+              </p>
+              <p>
+                <strong>Wichtig:</strong> Vergangene Ergebnisse garantieren keine zukuenftigen Gewinne.
+              </p>
+            </div>
+          </div>
 
-      <h3>Wie genau sind die Signale?</h3>
-      <p>
-        Die historische Win-Rate liegt bei ca. 55-65% je nach Engine.
-        Das klingt nicht nach viel, aber bei korrekter Positionsgroesse
-        (Kelly) fuehrt das zu positivem Erwartungswert.
-      </p>
+          <div class="faq-item">
+            <button class="faq-question">Wie oft werden Signale generiert?</button>
+            <div class="faq-answer">
+              <p>
+                Der Scanner laeuft alle <strong>5-15 Minuten</strong>. Signale werden generiert,
+                sobald eine interessante Gelegenheit gefunden wird.
+              </p>
+              <p>
+                Hochwertige Signale (STARK oder SEHR STARK) sind selten - erwarte etwa
+                <strong>2-5 pro Tag</strong>. Das ist normal und gut - wir wollen Qualitaet, nicht Quantitaet.
+              </p>
+            </div>
+          </div>
 
-      <h3>Kann ich Geld verlieren?</h3>
-      <p>
-        <strong>Ja!</strong> Prediction Markets sind spekulativ. Auch mit
-        einem statistischen Vorteil gibt es Verlustphasen. Investiere
-        nur Geld das du verlieren kannst.
-      </p>
+          <div class="faq-item">
+            <button class="faq-question">Was ist der Unterschied zwischen Edge und Konfidenz?</button>
+            <div class="faq-answer">
+              <p>
+                <strong>Edge</strong> sagt dir, WIE GROSS der potenzielle Vorteil ist.
+                Ein Edge von 10% bedeutet, dass der Marktpreis um 10% von unserer Schaetzung abweicht.
+              </p>
+              <p>
+                <strong>Konfidenz</strong> sagt dir, WIE SICHER wir uns bei dieser Schaetzung sind.
+                Eine Konfidenz von 80% bedeutet, dass unsere Datenquellen konsistent und zuverlaessig sind.
+              </p>
+              <p>
+                Ideal ist ein hoher Edge UND hohe Konfidenz. Ein hoher Edge mit niedriger Konfidenz
+                koennte auch ein Fehler im Modell sein.
+              </p>
+            </div>
+          </div>
 
-      <h3>Warum Quarter-Kelly statt Full-Kelly?</h3>
-      <p>
-        Unsere Wahrscheinlichkeitsschaetzungen sind nicht perfekt.
-        Quarter-Kelly ist robuster gegen Schaetzfehler und reduziert
-        die Portfoliovolatilitaet erheblich.
-      </p>
+          <div class="faq-item">
+            <button class="faq-question">Warum nur "Quarter Kelly" statt "Full Kelly"?</button>
+            <div class="faq-answer">
+              <p>
+                Full Kelly wuerde das mathematisch optimale Wachstum maximieren - WENN unsere
+                Wahrscheinlichkeitsschaetzungen perfekt waeren. Das sind sie aber nicht.
+              </p>
+              <p>
+                Quarter Kelly (25% der Kelly-Empfehlung) ist <strong>robuster gegen Schaetzfehler</strong>
+                und reduziert die Portfoliovolatilitaet erheblich. Du verdienst etwas weniger bei Gewinnen,
+                aber verlierst auch weniger bei Verlusten.
+              </p>
+              <p>
+                Studien zeigen, dass Quarter Kelly nahe am optimalen Verhaeltnis von Rendite zu Risiko liegt.
+              </p>
+            </div>
+          </div>
 
-      <h3>Wie oft werden Signale generiert?</h3>
-      <p>
-        Der Scanner laeuft alle 5-15 Minuten. Hochwertige Signale
-        (Strong/Very Strong) sind selten - vielleicht 2-5 pro Tag.
-      </p>
+          <div class="faq-item">
+            <button class="faq-question">Was passiert, wenn ich den Kill-Switch aktiviere?</button>
+            <div class="faq-answer">
+              <p>
+                Der Kill-Switch stoppt <strong>sofort alle automatischen Trades</strong>.
+                Das bedeutet:
+              </p>
+              <ul>
+                <li>Keine neuen automatischen Positionen werden eroeffnet</li>
+                <li>Bestehende Positionen bleiben unveraendert (werden nicht geschlossen)</li>
+                <li>Signale werden weiterhin generiert und angezeigt</li>
+                <li>Du kannst jederzeit manuell handeln</li>
+              </ul>
+              <p>Im Zweifel: Kill-Switch aktivieren! Besser einmal zu vorsichtig als einmal zu spaet.</p>
+            </div>
+          </div>
 
-      <h3>Funktioniert das auch mit kleinem Kapital?</h3>
-      <p>
-        Ja, aber mit Einschraenkungen. Mindestens $100-500 werden
-        empfohlen um sinnvolle Positionsgroessen zu ermoeglichen.
-        Bei sehr kleinem Kapital fressen Gebuehren den Edge auf.
-      </p>
+          <div class="faq-item">
+            <button class="faq-question">Kann ich das System auch mobil nutzen?</button>
+            <div class="faq-answer">
+              <p>
+                Ja! Das Web-Dashboard ist fuer mobile Geraete optimiert.
+                Zusaetzlich gibt es den Telegram Bot, der Signale direkt aufs Handy schickt
+                und 1-Klick Trading ermoeglicht.
+              </p>
+            </div>
+          </div>
 
-      <h3>Was ist der Deutschland-Modus?</h3>
-      <p>
-        EDGY ALPHA hat spezielle Quellen fuer deutsche Politik:
-        Dawum-Umfragen, Bundestag-API, deutsche RSS-Feeds.
-        Das gibt einen Informationsvorsprung bei Deutschland-Maerkten.
-      </p>
-    </section>
+          <div class="faq-item">
+            <button class="faq-question">Wie werden meine Daten geschuetzt?</button>
+            <div class="faq-answer">
+              <p>
+                Deine Wallet-Daten werden nur lokal auf dem Server gespeichert.
+                Wir uebertragen keine sensiblen Daten an Dritte.
+                Der Zugang zum Dashboard ist passwortgeschuetzt.
+              </p>
+              <p>
+                <strong>Empfehlung:</strong> Verwende eine separate Wallet nur fuer Trading -
+                nicht deine Haupt-Wallet mit deinen wichtigsten Assets.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <!-- Footer ASCII -->
-    <div class="ascii-box success">
-+==============================================================================+
-|                                                                              |
-|   Fragen? Probleme? Feedback?                                                |
-|                                                                              |
-|   GitHub: https://github.com/tobsiberlin/edgyalpha                           |
-|   Telegram: @edgyalpha_support                                               |
-|                                                                              |
-|   Happy Trading! 🎯                                                          |
-|                                                                              |
-+==============================================================================+
-    </div>
-  </main>
+      <!-- Glossar -->
+      <section class="content-section" id="glossar">
+        <div class="section-header">
+          <h2 class="section-title">Glossar</h2>
+          <p class="section-subtitle">Alle wichtigen Begriffe einfach erklaert</p>
+        </div>
+
+        <div class="glossary-grid">
+          <div class="glossary-item">
+            <div class="glossary-term">Alpha</div>
+            <div class="glossary-def">
+              Ueberrendite gegenueber dem Markt. Wenn du Alpha hast, verdienst du mehr als der Durchschnitt.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Edge</div>
+            <div class="glossary-def">
+              Dein Vorteil gegenueber dem Markt - die Differenz zwischen deiner Schaetzung und dem Marktpreis.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Kelly Criterion</div>
+            <div class="glossary-def">
+              Mathematische Formel zur Berechnung der optimalen Wettgroesse basierend auf deinem Edge und der Wahrscheinlichkeit.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Konfidenz</div>
+            <div class="glossary-def">
+              Wie sicher das System bei seiner Schaetzung ist. Hohe Konfidenz = zuverlaessige Datenquellen.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Signal</div>
+            <div class="glossary-def">
+              Eine Handelsempfehlung des Systems mit Richtung, Edge, Konfidenz und empfohlener Groesse.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Bankroll</div>
+            <div class="glossary-def">
+              Dein gesamtes Trading-Kapital. Die Positionsgroessen werden als Prozentsatz davon berechnet.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Drawdown</div>
+            <div class="glossary-def">
+              Verlust vom Hoechststand. Wenn du 100 USD hattest und jetzt 80 USD hast, ist dein Drawdown 20%.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Prediction Market</div>
+            <div class="glossary-def">
+              Ein Markt, auf dem man auf die Wahrscheinlichkeit zukuenftiger Ereignisse wetten kann.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Kill-Switch</div>
+            <div class="glossary-def">
+              Notausschalter, der alle automatischen Trades sofort stoppt.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Slippage</div>
+            <div class="glossary-def">
+              Preisdifferenz zwischen gewuenschtem und tatsaechlich ausgefuehrtem Preis - typisch in illiquiden Maerkten.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Sharpe Ratio</div>
+            <div class="glossary-def">
+              Rendite pro Risikoeinheit. Hoehere Werte bedeuten besseres Risiko-Rendite-Verhaeltnis. Gut: ueber 1.0.
+            </div>
+          </div>
+          <div class="glossary-item">
+            <div class="glossary-term">Almanien</div>
+            <div class="glossary-def">
+              Unser Deutschland-Modus mit speziellen Quellen (Umfragen, Bundestag, deutsche Nachrichten) fuer einen Informationsvorsprung.
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <footer class="footer">
-    <div class="ascii-box" style="display: inline-block; text-align: left;">
-  ╔═══════════════════════════════════════════════════════════════╗
-  ║  EDGY ALPHA v3.0 - Die Cash-Machine                           ║
-  ║  (c) 2024-2026 - Made with ♥ and lots of ☕                    ║
-  ║                                                               ║
-  ║  "In Alpha We Trust"                                          ║
-  ╚═══════════════════════════════════════════════════════════════╝
+    <div class="footer-content">
+      <div class="footer-logo">EDGY ALPHA v3.0</div>
+      <p class="footer-text">
+        Intelligentes Trading fuer Prediction Markets
+      </p>
+      <div class="footer-links">
+        <a href="/">Dashboard</a>
+        <a href="#faq">FAQ</a>
+        <a href="#glossar">Glossar</a>
+      </div>
     </div>
-    <p style="margin-top: 20px;">
-      <a href="/">← Zurueck zum Dashboard</a>
-    </p>
   </footer>
 
-  <a href="#" class="back-to-top">↑ TOP</a>
+  <button class="back-to-top" id="back-to-top" onclick="scrollToTop()">&#8593;</button>
 
   <script>
     // Theme Toggle
@@ -1218,46 +1681,167 @@
       const next = current === 'light' ? 'dark' : 'light';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      document.getElementById('theme-btn').textContent = next === 'light' ? '☀️ LIGHT' : '🌙 DARK';
+      document.getElementById('theme-icon').textContent = next === 'light' ? 'Hell' : 'Dunkel';
     }
 
-    // Init theme from localStorage
+    // Init theme
     (function() {
       const saved = localStorage.getItem('theme');
       if (saved === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
+        document.getElementById('theme-icon').textContent = 'Hell';
       }
     })();
 
-    // Smooth scroll for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // FAQ Accordion
+    document.querySelectorAll('.faq-question').forEach(button => {
+      button.addEventListener('click', () => {
+        const item = button.parentElement;
+        const wasOpen = item.classList.contains('open');
+
+        // Close all
+        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+
+        // Open clicked if it was closed
+        if (!wasOpen) {
+          item.classList.add('open');
         }
       });
     });
 
-    // Back to top visibility
-    const backToTop = document.querySelector('.back-to-top');
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+          // Update active sidebar link
+          document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+          this.classList.add('active');
+        }
+      });
+    });
+
+    // Back to top button
+    const backToTopBtn = document.getElementById('back-to-top');
+
     window.addEventListener('scroll', () => {
       if (window.scrollY > 500) {
-        backToTop.style.display = 'block';
+        backToTopBtn.classList.add('visible');
       } else {
-        backToTop.style.display = 'none';
+        backToTopBtn.classList.remove('visible');
       }
     });
-    backToTop.style.display = 'none';
 
-    // Update theme button on load
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('theme-btn');
-      if (btn) {
-        btn.textContent = localStorage.getItem('theme') === 'light' ? '☀️ LIGHT' : '🌙 DARK';
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Search functionality
+    const searchInput = document.getElementById('search-input');
+    const content = document.getElementById('content');
+    const allSections = document.querySelectorAll('.content-section');
+
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+
+      if (query.length < 2) {
+        // Show all sections
+        allSections.forEach(section => {
+          section.style.display = 'block';
+        });
+        // Remove highlights
+        removeHighlights();
+        return;
+      }
+
+      // Search and filter
+      allSections.forEach(section => {
+        const text = section.textContent.toLowerCase();
+        if (text.includes(query)) {
+          section.style.display = 'block';
+          highlightText(section, query);
+        } else {
+          section.style.display = 'none';
+        }
+      });
+    });
+
+    function highlightText(element, query) {
+      // Remove existing highlights first
+      removeHighlights();
+
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+      const textNodes = [];
+
+      while(walker.nextNode()) {
+        if (walker.currentNode.textContent.toLowerCase().includes(query)) {
+          textNodes.push(walker.currentNode);
+        }
+      }
+
+      textNodes.forEach(node => {
+        const text = node.textContent;
+        const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+        const parts = text.split(regex);
+
+        if (parts.length > 1) {
+          const fragment = document.createDocumentFragment();
+          parts.forEach(part => {
+            if (part.toLowerCase() === query.toLowerCase()) {
+              const mark = document.createElement('mark');
+              mark.className = 'highlight';
+              mark.textContent = part;
+              fragment.appendChild(mark);
+            } else {
+              fragment.appendChild(document.createTextNode(part));
+            }
+          });
+          node.parentNode.replaceChild(fragment, node);
+        }
+      });
+    }
+
+    function removeHighlights() {
+      document.querySelectorAll('.highlight').forEach(mark => {
+        const text = mark.textContent;
+        mark.parentNode.replaceChild(document.createTextNode(text), mark);
+      });
+    }
+
+    function escapeRegex(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Keyboard shortcut for search
+    document.addEventListener('keydown', function(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInput.focus();
+      }
+      if (e.key === 'Escape' && document.activeElement === searchInput) {
+        searchInput.blur();
+        searchInput.value = '';
+        allSections.forEach(section => section.style.display = 'block');
+        removeHighlights();
       }
     });
+
+    // Update sidebar active state on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          document.querySelectorAll('.sidebar-nav a').forEach(a => {
+            a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+          });
+        }
+      });
+    }, { threshold: 0.3, rootMargin: '-100px 0px -60% 0px' });
+
+    allSections.forEach(section => observer.observe(section));
   </script>
 </body>
 </html>

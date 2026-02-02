@@ -7,6 +7,23 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.17] - 2026-02-02
+
+### Geaendert
+- **Benutzerhandbuch komplett ueberarbeitet** (Task #44)
+  - Modernes, sauberes Design mit Inter-Schriftart statt ASCII-Art
+  - Laienfreundliche Sprache fuer alle Begriffe (Edge, Signal, Kelly, etc.)
+  - Neue Suchfunktion mit Echtzeit-Filterung und Highlighting
+  - Sticky Sidebar-Navigation mit Scroll-Tracking
+  - Interaktives FAQ-Akkordeon mit 10 wichtigen Fragen
+  - Erweitertes Glossar mit 12 Begriffen in Card-Grid-Layout
+  - Neue Sektion "Almanien" erklaert den Deutschland-Vorteil
+  - Responsive Design fuer Desktop und Mobile
+  - Dark/Light Theme-Toggle
+  - Keine technischen Setup-Anleitungen mehr (gehoeren in README)
+
+---
+
 ## [3.0.16] - 2026-02-02
 
 ### Hinzugefuegt
