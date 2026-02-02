@@ -28,11 +28,14 @@ export interface RiskState {
 }
 
 export interface RiskConfig {
-  maxDailyLoss: number;    // Default: 100 USDC
-  maxPositions: number;    // Default: 10
-  maxPerMarket: number;    // Default: 50 USDC
-  minLiquidity: number;    // Default: 0.3
-  maxSpread: number;       // Default: 0.05
+  maxDailyLoss: number;         // Default: 100 USDC
+  maxPositions: number;         // Default: 10
+  maxPerMarket: number;         // Default: 50 USDC
+  maxPerMarketPercent: number;  // Default: 0.10 (10% of bankroll)
+  minLiquidity: number;         // Default: 0.3
+  maxSpread: number;            // Default: 0.05
+  maxSlippagePercent: number;   // Default: 0.02 (2%)
+  minOrderbookDepth: number;    // Default: 2x Trade Size (Liquidität)
 }
 
 export interface RiskCheckResult {
@@ -49,8 +52,11 @@ export const DEFAULT_RISK_CONFIG: RiskConfig = {
   maxDailyLoss: 100,
   maxPositions: 10,
   maxPerMarket: 50,
+  maxPerMarketPercent: 0.10, // 10% of bankroll
   minLiquidity: 0.3,
   maxSpread: 0.05,
+  maxSlippagePercent: 0.02,  // 2%
+  minOrderbookDepth: 2,      // 2x Trade Size
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -68,6 +74,10 @@ let riskState: RiskState = {
 
 // Flag ob State bereits aus DB geladen wurde
 let stateInitialized = false;
+
+// Consecutive Failure Tracker für Auto-Kill-Switch
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = parseInt(process.env.CONSECUTIVE_FAILURES_KILL || '3', 10);
 
 /**
  * Lädt den Risk State aus SQLite (beim ersten Zugriff)
@@ -448,8 +458,208 @@ export function isRiskStateInitialized(): boolean {
   return stateInitialized;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//          CONSECUTIVE FAILURE TRACKING (Auto Kill-Switch)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Registriert einen erfolgreichen Trade - setzt den Failure Counter zurück
+ */
+export function recordTradeSuccess(): void {
+  if (consecutiveFailures > 0) {
+    logger.info(`[RISK] Trade erfolgreich - Consecutive Failures zurückgesetzt (war: ${consecutiveFailures})`);
+    consecutiveFailures = 0;
+  }
+}
+
+/**
+ * Registriert einen fehlgeschlagenen Trade
+ * Aktiviert Kill-Switch automatisch nach N Fehlern in Folge
+ */
+export function recordTradeFailure(reason: string): void {
+  consecutiveFailures++;
+
+  logger.warn(`[RISK] Trade fehlgeschlagen (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}): ${reason}`);
+
+  if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    const killReason = `${consecutiveFailures} fehlgeschlagene Trades in Folge - Letzter Fehler: ${reason}`;
+    activateKillSwitch(killReason);
+
+    logger.error(`[RISK] 🚨 AUTO-KILL-SWITCH AKTIVIERT nach ${consecutiveFailures} Fehlern!`);
+
+    // Audit Log für Auto-Kill
+    if (isDatabaseInitialized()) {
+      try {
+        writeAuditLog({
+          eventType: 'kill_switch',
+          actor: 'system',
+          action: `AUTO-KILL: ${killReason}`,
+          details: {
+            consecutiveFailures,
+            maxAllowed: MAX_CONSECUTIVE_FAILURES,
+            lastError: reason,
+            autoTriggered: true,
+          },
+        });
+      } catch {
+        // Audit Log Fehler ignorieren
+      }
+    }
+  }
+}
+
+/**
+ * Gibt die aktuelle Anzahl aufeinanderfolgender Fehler zurück
+ */
+export function getConsecutiveFailures(): number {
+  return consecutiveFailures;
+}
+
+/**
+ * Setzt den Failure Counter manuell zurück (z.B. nach manuellem Review)
+ */
+export function resetConsecutiveFailures(): void {
+  const previous = consecutiveFailures;
+  consecutiveFailures = 0;
+  logger.info(`[RISK] Consecutive Failures manuell zurückgesetzt (war: ${previous})`);
+}
+
+/**
+ * Prüft ob FORCE_PAPER_MODE aktiv ist (Hardware Kill-Switch via ENV)
+ */
+export function isForcePaperModeActive(): boolean {
+  return process.env.FORCE_PAPER_MODE === 'true';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//          SLIPPAGE & ORDERBOOK DEPTH CHECK
+// ═══════════════════════════════════════════════════════════════
+
+export interface OrderbookDepthCheck {
+  passed: boolean;
+  reason?: string;
+  availableLiquidity: number;
+  requiredLiquidity: number;
+  estimatedSlippage: number;
+  maxSlippage: number;
+}
+
+/**
+ * Prüft Orderbook-Tiefe und schätzt Slippage
+ * @param orderbook - Bid/Ask Arrays
+ * @param tradeSize - Trade-Größe in USDC
+ * @param side - BUY oder SELL
+ * @param config - Risk Config
+ */
+export function checkOrderbookDepth(
+  orderbook: { bids: Array<{ price: number; size: number }>; asks: Array<{ price: number; size: number }> },
+  tradeSize: number,
+  side: 'BUY' | 'SELL',
+  config: RiskConfig = DEFAULT_RISK_CONFIG
+): OrderbookDepthCheck {
+  const relevantOrders = side === 'BUY' ? orderbook.asks : orderbook.bids;
+
+  if (!relevantOrders || relevantOrders.length === 0) {
+    return {
+      passed: false,
+      reason: 'Keine Orders im Orderbook',
+      availableLiquidity: 0,
+      requiredLiquidity: tradeSize * config.minOrderbookDepth,
+      estimatedSlippage: 1, // 100%
+      maxSlippage: config.maxSlippagePercent,
+    };
+  }
+
+  // Berechne verfügbare Liquidität und durchschnittlichen Preis
+  let cumulativeSize = 0;
+  let weightedPriceSum = 0;
+  const bestPrice = relevantOrders[0].price;
+
+  for (const order of relevantOrders) {
+    const orderValue = order.price * order.size;
+    cumulativeSize += orderValue;
+    weightedPriceSum += order.price * orderValue;
+
+    if (cumulativeSize >= tradeSize * config.minOrderbookDepth) {
+      break;
+    }
+  }
+
+  const availableLiquidity = cumulativeSize;
+  const requiredLiquidity = tradeSize * config.minOrderbookDepth;
+
+  // Durchschnittlicher Fill-Preis
+  const avgFillPrice = cumulativeSize > 0 ? weightedPriceSum / cumulativeSize : bestPrice;
+  const estimatedSlippage = Math.abs(avgFillPrice - bestPrice) / bestPrice;
+
+  const passed = availableLiquidity >= requiredLiquidity && estimatedSlippage <= config.maxSlippagePercent;
+
+  let reason: string | undefined;
+  if (!passed) {
+    if (availableLiquidity < requiredLiquidity) {
+      reason = `Unzureichende Liquidität: $${availableLiquidity.toFixed(2)} < $${requiredLiquidity.toFixed(2)} (${config.minOrderbookDepth}x Trade)`;
+    } else {
+      reason = `Slippage zu hoch: ${(estimatedSlippage * 100).toFixed(2)}% > ${(config.maxSlippagePercent * 100).toFixed(2)}%`;
+    }
+  }
+
+  return {
+    passed,
+    reason,
+    availableLiquidity,
+    requiredLiquidity,
+    estimatedSlippage,
+    maxSlippage: config.maxSlippagePercent,
+  };
+}
+
+/**
+ * Erweiterte Risk-Check mit Bankroll-Prozent und Slippage
+ */
+export function checkExtendedRiskGates(
+  sizeUsdc: number,
+  marketId: string,
+  quality: MarketQuality,
+  bankroll: number,
+  orderbook?: { bids: Array<{ price: number; size: number }>; asks: Array<{ price: number; size: number }> },
+  side?: 'BUY' | 'SELL',
+  config: RiskConfig = DEFAULT_RISK_CONFIG
+): RiskCheckResult & { orderbookCheck?: OrderbookDepthCheck } {
+  // Standard Risk Gates
+  const baseResult = checkRiskGates(sizeUsdc, marketId, quality, config);
+
+  // Zusätzlich: Bankroll-Prozent Check
+  const maxByPercent = bankroll * config.maxPerMarketPercent;
+  const perMarketPercentOk = sizeUsdc <= maxByPercent;
+
+  if (!perMarketPercentOk) {
+    baseResult.passed = false;
+    baseResult.failedReasons.push(
+      `Überschreitet ${(config.maxPerMarketPercent * 100).toFixed(0)}% Bankroll: $${sizeUsdc.toFixed(2)} > $${maxByPercent.toFixed(2)}`
+    );
+  }
+
+  // Optional: Orderbook Depth Check
+  let orderbookCheck: OrderbookDepthCheck | undefined;
+  if (orderbook && side) {
+    orderbookCheck = checkOrderbookDepth(orderbook, sizeUsdc, side, config);
+
+    if (!orderbookCheck.passed) {
+      baseResult.passed = false;
+      baseResult.failedReasons.push(orderbookCheck.reason || 'Orderbook Check fehlgeschlagen');
+    }
+  }
+
+  return {
+    ...baseResult,
+    orderbookCheck,
+  };
+}
+
 export default {
   checkRiskGates,
+  checkExtendedRiskGates,
+  checkOrderbookDepth,
   updateRiskState,
   resetDailyRisk,
   activateKillSwitch,
@@ -461,4 +671,10 @@ export default {
   initializeRiskState,
   isRiskStateInitialized,
   DEFAULT_RISK_CONFIG,
+  // Consecutive Failure Tracking
+  recordTradeSuccess,
+  recordTradeFailure,
+  getConsecutiveFailures,
+  resetConsecutiveFailures,
+  isForcePaperModeActive,
 };

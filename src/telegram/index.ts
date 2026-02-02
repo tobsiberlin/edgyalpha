@@ -565,10 +565,38 @@ ${dashboard.canTrade.allowed ? '✅ Trading erlaubt' : `⚠️ ${dashboard.canTr
       await this.sendMessage(message, chatId);
     });
 
-    // /positions - Offene Positionen (Placeholder)
+    // /positions - Offene Positionen (echte CLOB-Daten)
     this.bot.onText(/\/positions/, async (msg) => {
       const chatId = msg.chat.id.toString();
       const dashboard = runtimeState.getRiskDashboard();
+
+      // Versuche echte Positionen vom CLOB zu holen
+      let positionsText = '_Keine offenen Positionen._';
+      let openOrdersText = '';
+
+      try {
+        const [positions, openOrders] = await Promise.all([
+          tradingClient.getPositions(),
+          tradingClient.getOpenOrders(),
+        ]);
+
+        if (positions.length > 0) {
+          positionsText = positions.slice(0, 5).map(p => {
+            const pnlEmoji = p.unrealizedPnl >= 0 ? '🟢' : '🔴';
+            const question = p.marketQuestion.substring(0, 25);
+            return `${pnlEmoji} ${question}...\n   ${p.shares.toFixed(2)} @ $${p.avgPrice.toFixed(2)} → $${p.currentPrice.toFixed(2)}`;
+          }).join('\n\n');
+        }
+
+        if (openOrders.length > 0) {
+          openOrdersText = `\n\n📋 *OFFENE ORDERS:* ${openOrders.length}\n` +
+            openOrders.slice(0, 3).map(o =>
+              `• ${o.side} ${o.size.toFixed(2)} @ $${o.price.toFixed(4)}`
+            ).join('\n');
+        }
+      } catch (err) {
+        positionsText = '_Fehler beim Abrufen der Positionen._';
+      }
 
       const message = `${this.HEADER}
 
@@ -583,7 +611,61 @@ ${this.DIVIDER}
 └─────────────────────────────────┘
 \`\`\`
 
-${dashboard.positions.open === 0 ? '_Keine offenen Positionen._' : '_Details kommen in nächstem Update._'}`;
+${positionsText}${openOrdersText}`;
+
+      await this.sendMessage(message, chatId);
+    });
+
+    // /health - System Health Check
+    this.bot.onText(/\/health/, async (msg) => {
+      const chatId = msg.chat.id.toString();
+      const dashboard = runtimeState.getRiskDashboard();
+
+      // System-Checks
+      const checks = {
+        wallet: !!WALLET_PRIVATE_KEY,
+        clob: tradingClient.isClobReady(),
+        killSwitch: !dashboard.isKillSwitchActive,
+        trading: config.trading.enabled,
+        telegram: config.telegram.enabled,
+      };
+
+      const allGood = Object.values(checks).every(Boolean);
+
+      // Balance abrufen
+      let balanceText = 'N/A';
+      try {
+        const balance = await tradingClient.getWalletBalance();
+        balanceText = `$${balance.usdc.toFixed(2)} USDC, ${balance.matic.toFixed(4)} MATIC`;
+      } catch {
+        balanceText = '❌ Fehler';
+      }
+
+      const checkEmoji = (ok: boolean) => ok ? '✅' : '❌';
+
+      const message = `${this.HEADER}
+
+🏥 *SYSTEM HEALTH*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  KOMPONENTEN-STATUS             │
+├─────────────────────────────────┤
+│  ${checkEmoji(checks.wallet)} Wallet           ${checks.wallet ? 'OK' : 'MISSING'}       │
+│  ${checkEmoji(checks.clob)} CLOB Client      ${checks.clob ? 'READY' : 'INIT...'}      │
+│  ${checkEmoji(checks.killSwitch)} Kill-Switch      ${checks.killSwitch ? 'OK' : 'ACTIVE!'}      │
+│  ${checkEmoji(checks.trading)} Trading          ${checks.trading ? 'ENABLED' : 'DISABLED'}   │
+│  ${checkEmoji(checks.telegram)} Telegram         ${checks.telegram ? 'OK' : 'DISABLED'}      │
+├─────────────────────────────────┤
+│  Mode: ${config.executionMode.toUpperCase().padEnd(8)}              │
+│  Balance: ${balanceText.padEnd(18)}   │
+│  Failures: ${String(dashboard.consecutiveFailures).padStart(2)}/3               │
+└─────────────────────────────────┘
+\`\`\`
+
+${allGood ? '✅ Alle Systeme nominal' : '⚠️ Probleme erkannt - prüfen!'}`;
 
       await this.sendMessage(message, chatId);
     });

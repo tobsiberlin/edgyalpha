@@ -151,8 +151,10 @@ export interface Config {
   // Feature Flags
   alphaEngine: AlphaEngine;
   executionMode: ExecutionMode;
+  forcePaperMode: boolean;  // Hardware-Kill-Switch: Erzwingt Paper-Mode
   sqlitePath: string;
   backtestMode: boolean;
+  consecutiveFailuresKill: number;  // Kill-Switch nach N fehlgeschlagenen Trades
   // Auto-Trading bei Breaking News
   autoTrade: {
     enabled: boolean;

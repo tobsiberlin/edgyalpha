@@ -17,6 +17,9 @@ const envSchema = z.object({
 
   // Trading
   POLYGON_RPC_URL: z.string().default('https://polygon-rpc.com'),
+  // Proxy für Polymarket API (bei Geo-Block z.B. aus Deutschland)
+  // Beispiel: http://localhost:8888 (SOCKS5 Proxy) oder https://your-proxy.com
+  POLYMARKET_PROXY_URL: z.string().optional(),
   WALLET_PRIVATE_KEY: z.string().optional(),
   WALLET_ADDRESS: z.string().optional(),
   MAX_BANKROLL_USDC: z.string().default('1000'),
@@ -52,8 +55,12 @@ const envSchema = z.object({
   // Feature Flags
   ALPHA_ENGINE: z.enum(['timeDelay', 'mispricing', 'meta']).default('meta'),
   EXECUTION_MODE: z.enum(['paper', 'shadow', 'live']).default('paper'),  // Default: paper (kein echtes Trading)
+  FORCE_PAPER_MODE: z.string().default('false'),  // HARDWARE KILL-SWITCH: Erzwingt Paper-Mode unabhängig von EXECUTION_MODE
   SQLITE_PATH: z.string().default('./data/edgyalpha.db'),
   BACKTEST_MODE: z.string().default('false'),
+
+  // Risk Management Hardening
+  CONSECUTIVE_FAILURES_KILL: z.string().default('3'),  // Kill-Switch nach N fehlgeschlagenen Trades
 
   // Auto-Trading bei Breaking News (GEFÄHRLICH - default: false)
   AUTO_TRADE_ENABLED: z.string().default('false'),
@@ -119,9 +126,13 @@ export const config: Config = {
   },
   // Feature Flags
   alphaEngine: env.ALPHA_ENGINE as AlphaEngine,
-  executionMode: env.EXECUTION_MODE as ExecutionMode,
+  // FORCE_PAPER_MODE ist ein Hardware-Kill-Switch - überschreibt EXECUTION_MODE
+  executionMode: env.FORCE_PAPER_MODE === 'true' ? 'paper' as ExecutionMode : env.EXECUTION_MODE as ExecutionMode,
+  forcePaperMode: env.FORCE_PAPER_MODE === 'true',
   sqlitePath: env.SQLITE_PATH,
   backtestMode: env.BACKTEST_MODE === 'true',
+  // Risk Management
+  consecutiveFailuresKill: parseInt(env.CONSECUTIVE_FAILURES_KILL, 10),
   // Auto-Trading bei Breaking News
   autoTrade: {
     enabled: env.AUTO_TRADE_ENABLED === 'true',

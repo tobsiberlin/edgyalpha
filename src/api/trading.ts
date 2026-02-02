@@ -4,7 +4,15 @@ import { config, WALLET_PRIVATE_KEY, WALLET_ADDRESS, POLYGON_RPC_URL } from '../
 import logger from '../utils/logger.js';
 import { AlphaSignal, TradeRecommendation, TradeExecution, Position, ExecutionMode } from '../types/index.js';
 import { Decision, Execution, MarketQuality, RiskChecks } from '../alpha/types.js';
-import { checkRiskGates, updateRiskState, getRiskState, RiskCheckResult } from '../alpha/riskGates.js';
+import {
+  checkRiskGates,
+  updateRiskState,
+  getRiskState,
+  RiskCheckResult,
+  recordTradeSuccess,
+  recordTradeFailure,
+  isForcePaperModeActive,
+} from '../alpha/riskGates.js';
 import { calculatePositionSize, estimateSlippage, SizingResult } from '../alpha/sizing.js';
 import { polymarketClient } from './polymarket.js';
 import { v4 as uuid } from 'uuid';
@@ -650,6 +658,195 @@ export class TradingClient extends EventEmitter {
     return this.wallet?.address || null;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //              POSITION TRACKING & SYNC
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Holt alle offenen Orders vom CLOB
+   */
+  async getOpenOrders(): Promise<Array<{
+    orderId: string;
+    tokenId: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    size: number;
+    sizeMatched: number;
+    status: string;
+    createdAt: Date;
+  }>> {
+    if (!this.clobClient || !this.clobInitialized) {
+      logger.warn('[CLOB] Client nicht initialisiert für getOpenOrders');
+      return [];
+    }
+
+    try {
+      const response = await this.clobClient.getOpenOrders();
+      const orders = Array.isArray(response) ? response : [];
+
+      return orders.map(order => ({
+        orderId: order.id,
+        tokenId: order.asset_id,
+        side: order.side === 'BUY' ? 'BUY' as const : 'SELL' as const,
+        price: parseFloat(order.price || '0'),
+        size: parseFloat(order.original_size || '0'),
+        sizeMatched: parseFloat(order.size_matched || '0'),
+        status: order.status,
+        createdAt: new Date(order.created_at * 1000),
+      }));
+    } catch (err) {
+      logger.error(`[CLOB] getOpenOrders Fehler: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Holt abgeschlossene Trades vom CLOB
+   */
+  async getRecentTrades(limit: number = 50): Promise<Array<{
+    tradeId: string;
+    orderId: string;
+    tokenId: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    size: number;
+    fee: number;
+    timestamp: Date;
+  }>> {
+    if (!this.clobClient || !this.clobInitialized) {
+      logger.warn('[CLOB] Client nicht initialisiert für getRecentTrades');
+      return [];
+    }
+
+    try {
+      const trades = await this.clobClient.getTrades();
+      const limited = trades.slice(0, limit);
+
+      return limited.map(trade => ({
+        tradeId: trade.id,
+        orderId: trade.taker_order_id,
+        tokenId: trade.asset_id,
+        side: trade.side === 'BUY' ? 'BUY' as const : 'SELL' as const,
+        price: parseFloat(trade.price || '0'),
+        size: parseFloat(trade.size || '0'),
+        fee: parseFloat(trade.fee_rate_bps || '0') / 10000,
+        timestamp: new Date(trade.match_time),
+      }));
+    } catch (err) {
+      logger.error(`[CLOB] getRecentTrades Fehler: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Synchronisiert lokalen State mit CLOB
+   * Gibt Mismatch-Informationen zurück
+   */
+  async syncPositions(): Promise<{
+    synced: boolean;
+    openOrders: number;
+    positions: number;
+    mismatches: string[];
+  }> {
+    const mismatches: string[] = [];
+
+    try {
+      // 1. Offene Orders vom CLOB holen
+      const openOrders = await this.getOpenOrders();
+      logger.info(`[SYNC] ${openOrders.length} offene Orders gefunden`);
+
+      // 2. Positionen von Gamma API holen
+      const positions = await this.getPositions();
+      logger.info(`[SYNC] ${positions.length} Positionen gefunden`);
+
+      // 3. Pending Executions prüfen (lokaler State)
+      const pendingLocal = this.getPendingTrades();
+      for (const pending of pendingLocal) {
+        const matchingOrder = openOrders.find(o =>
+          o.tokenId === pending.signal?.market?.outcomes?.[0]?.id
+        );
+
+        if (!matchingOrder && pending.status === 'pending') {
+          mismatches.push(`Lokale pending Execution ${pending.id} hat keine offene Order`);
+        }
+      }
+
+      // 4. Risk State aktualisieren basierend auf echten Positionen
+      const totalExposure = positions.reduce((sum, p) => sum + (p.shares * p.currentPrice), 0);
+      logger.info(`[SYNC] Gesamt-Exposure: $${totalExposure.toFixed(2)}`);
+
+      return {
+        synced: true,
+        openOrders: openOrders.length,
+        positions: positions.length,
+        mismatches,
+      };
+    } catch (err) {
+      logger.error(`[SYNC] Position Sync fehlgeschlagen: ${(err as Error).message}`);
+      return {
+        synced: false,
+        openOrders: 0,
+        positions: 0,
+        mismatches: [`Sync Fehler: ${(err as Error).message}`],
+      };
+    }
+  }
+
+  /**
+   * Berechnet echten PnL aus CLOB Trades
+   */
+  async calculateRealizedPnL(since?: Date): Promise<{
+    totalPnL: number;
+    trades: number;
+    winners: number;
+    losers: number;
+  }> {
+    const trades = await this.getRecentTrades(100);
+    const sinceTime = since?.getTime() || Date.now() - 24 * 60 * 60 * 1000; // Default: 24h
+
+    const relevantTrades = trades.filter(t => t.timestamp.getTime() > sinceTime);
+
+    // Vereinfachte PnL-Berechnung (echte Berechnung braucht Entry/Exit Matching)
+    // TODO: Entry/Exit Matching für exakte PnL
+    let totalPnL = 0;
+    let winners = 0;
+    let losers = 0;
+
+    // Gruppiere Trades nach Token
+    const byToken = new Map<string, typeof relevantTrades>();
+    for (const trade of relevantTrades) {
+      const existing = byToken.get(trade.tokenId) || [];
+      existing.push(trade);
+      byToken.set(trade.tokenId, existing);
+    }
+
+    // Für jeden Token: Entry vs Exit berechnen
+    for (const [tokenId, tokenTrades] of byToken) {
+      const buys = tokenTrades.filter(t => t.side === 'BUY');
+      const sells = tokenTrades.filter(t => t.side === 'SELL');
+
+      if (buys.length > 0 && sells.length > 0) {
+        const avgBuyPrice = buys.reduce((s, t) => s + t.price * t.size, 0) / buys.reduce((s, t) => s + t.size, 0);
+        const avgSellPrice = sells.reduce((s, t) => s + t.price * t.size, 0) / sells.reduce((s, t) => s + t.size, 0);
+        const pnl = (avgSellPrice - avgBuyPrice) * Math.min(
+          buys.reduce((s, t) => s + t.size, 0),
+          sells.reduce((s, t) => s + t.size, 0)
+        );
+
+        totalPnL += pnl;
+        if (pnl > 0) winners++;
+        else if (pnl < 0) losers++;
+      }
+    }
+
+    return {
+      totalPnL,
+      trades: relevantTrades.length,
+      winners,
+      losers,
+    };
+  }
+
   async getWalletBalance(): Promise<{ usdc: number; matic: number }> {
     if (!this.wallet || !this.usdcContract || !this.provider) {
       return { usdc: 0, matic: 0 };
@@ -884,17 +1081,27 @@ export class TradingClient extends EventEmitter {
   ): Promise<Execution> {
     const executionId = uuid();
 
-    logger.info(`[${executionId}] Execute with mode: ${mode}`, {
+    // FORCE_PAPER_MODE ist ein Hardware-Kill-Switch via ENV
+    // Überschreibt JEDEN Mode auf paper
+    let effectiveMode = mode;
+    if (isForcePaperModeActive() && mode !== 'paper') {
+      logger.warn(`[${executionId}] FORCE_PAPER_MODE aktiv - ${mode} → paper`);
+      effectiveMode = 'paper';
+    }
+
+    logger.info(`[${executionId}] Execute with mode: ${effectiveMode}`, {
       decisionId: decision.decisionId,
       action: decision.action,
       sizeUsdc: decision.sizeUsdc,
+      requestedMode: mode,
+      effectiveMode,
     });
 
     // Base Execution Object
     const baseExecution: Execution = {
       executionId,
       decisionId: decision.decisionId,
-      mode,
+      mode: effectiveMode,
       status: 'pending',
       fillPrice: null,
       fillSize: null,
@@ -906,7 +1113,7 @@ export class TradingClient extends EventEmitter {
     };
 
     try {
-      switch (mode) {
+      switch (effectiveMode) {
         case 'paper':
           return await this.executePaper(decision, baseExecution);
 
@@ -917,12 +1124,17 @@ export class TradingClient extends EventEmitter {
           return await this.executeLive(decision, baseExecution);
 
         default:
-          logger.warn(`Unbekannter ExecutionMode: ${mode}, fallback zu paper`);
+          logger.warn(`Unbekannter ExecutionMode: ${effectiveMode}, fallback zu paper`);
           return await this.executePaper(decision, baseExecution);
       }
     } catch (err) {
       const error = err as Error;
       logger.error(`[${executionId}] Execution fehlgeschlagen: ${error.message}`);
+
+      // Bei Live-Mode: Failure tracken für Auto-Kill-Switch
+      if (effectiveMode === 'live') {
+        recordTradeFailure(error.message);
+      }
 
       return {
         ...baseExecution,
@@ -1187,11 +1399,14 @@ export class TradingClient extends EventEmitter {
           };
 
           updateRiskState(0, decision.signalId, orderResult.fillSize || 0);
+          recordTradeSuccess(); // Reset consecutive failures
           this.emit('live_trade', partialExecution);
 
           return partialExecution;
         }
 
+        // Trade fehlgeschlagen - Failure tracken
+        recordTradeFailure(orderResult.error || 'Order failed');
         return { ...execution, status: 'failed' };
       }
 
@@ -1219,12 +1434,18 @@ export class TradingClient extends EventEmitter {
         direction: marketDirection,
       });
 
+      // Trade erfolgreich - Reset consecutive failures
+      recordTradeSuccess();
+
       this.emit('live_trade', filledExecution);
 
       return filledExecution;
     } catch (err) {
       const error = err as Error;
       const classified = this.classifyError(error);
+
+      // Trade fehlgeschlagen - Failure tracken für Auto-Kill-Switch
+      recordTradeFailure(error.message);
 
       logger.error(`[LIVE] Trade-Ausführung fehlgeschlagen (${classified.errorType}): ${error.message}`);
 

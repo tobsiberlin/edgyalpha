@@ -10,7 +10,7 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [3.1.0] - 2026-02-02
 
 ### Hinzugefuegt
-- **CLOB Order Execution Validierung** - Kritisch fuer Live-Trading
+- **CLOB Order Execution Validierung** (Phase 1.1)
   - `getOrderStatus(orderId)`: Holt aktuellen Order-Status vom CLOB
   - `cancelOrder(orderId)`: Storniert offene Orders
   - `waitForFill(orderId, options)`: Polling mit Timeout und Auto-Cancel
@@ -22,11 +22,27 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   - `price_moved`: Wiederholbar (mit neuem Preis)
   - `rate_limited`: Wiederholbar (mit Backoff)
   - `network_error`: Wiederholbar
-- **Order-Status-Types**: `pending`, `open`, `filled`, `partial`, `cancelled`, `expired`, `failed`
+- **Position Tracking & Sync** (Phase 1.2)
+  - `getOpenOrders()`: Alle offenen Orders vom CLOB
+  - `getRecentTrades()`: Abgeschlossene Trades fuer PnL
+  - `syncPositions()`: CLOB → Local DB Sync mit Mismatch Detection
+  - `calculateRealizedPnL()`: Echte PnL aus CLOB Fills
+- **Kill-Switch Hardening** (Phase 1.3)
+  - `FORCE_PAPER_MODE` ENV-Variable (Hardware Kill-Switch)
+  - `CONSECUTIVE_FAILURES_KILL` ENV-Variable (default: 3)
+  - Auto Kill-Switch bei 3+ fehlgeschlagenen Trades
+  - `recordTradeSuccess()` / `recordTradeFailure()` Tracking
+- **Risk Management Hardening** (Phase 2)
+  - `maxPerMarketPercent`: 10% Bankroll pro Markt
+  - `maxSlippagePercent`: 2% Slippage Limit
+  - `minOrderbookDepth`: 2x Trade Size Liquiditaet
+  - `checkOrderbookDepth()`: Slippage-Schaetzung vor Trade
+  - `checkExtendedRiskGates()`: Erweiterte Checks mit Orderbook
+- **Observability** (Phase 3)
+  - `/health` Telegram Command - System Status Check
+  - `/positions` erweitert mit echten CLOB-Daten und Open Orders
+  - `consecutiveFailures` im RiskDashboard
 - **Test-Script**: `npm run test:clob` fuer Order-Flow-Tests
-  - Dry-Run Modus (default): Testet CLOB Client, Balance, Orderbook
-  - Live Modus (`--live`): Platziert echte Mini-Order (0.01 USDC)
-  - Konfigurierbarer Betrag (`--amount=X`)
 
 ### Geaendert
 - **`executeLive()`** nutzt jetzt `executeOrderWithTracking()`:

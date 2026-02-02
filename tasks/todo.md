@@ -206,13 +206,32 @@ Speed ist essentiell für Zeitvorsprung!
 - [x] ethers v6 → v5 Kompatibilitäts-Wrapper (`_signTypedData`)
 - [ ] End-to-End Live-Test mit 0.01 USDC (benötigt gefundetes Wallet)
 
-### Phase 1.2: Position Tracking & Sync
-- [ ] `getOpenOrders()` Integration
-- [ ] Position Sync bei Startup
-- [ ] Mismatch Detection
+### Phase 1.2: Position Tracking & Sync ✅
+- [x] `getOpenOrders()` Integration
+- [x] `getRecentTrades()` für PnL-Berechnung
+- [x] `syncPositions()` mit Mismatch Detection
+- [x] `calculateRealizedPnL()` aus echten CLOB Fills
 
-### Phase 1.3: Kill-Switch Hardening
-- [ ] ENV-basierter Force-Paper-Mode
-- [ ] Kill-Switch bei 3+ fehlgeschlagenen Trades
+### Phase 1.3: Kill-Switch Hardening ✅
+- [x] `FORCE_PAPER_MODE` ENV-Variable (Hardware Kill-Switch)
+- [x] `CONSECUTIVE_FAILURES_KILL` ENV-Variable (default: 3)
+- [x] Auto Kill-Switch bei 3+ fehlgeschlagenen Trades
+- [x] `recordTradeSuccess()` / `recordTradeFailure()` Tracking
+- [x] `isForcePaperModeActive()` Check in executeWithMode
 
-### Status: IN ARBEIT
+### Phase 2: Risk Management Hardening ✅
+- [x] `maxPerMarketPercent` - 10% Bankroll Limit
+- [x] `maxSlippagePercent` - 2% Slippage Limit
+- [x] `minOrderbookDepth` - 2x Trade Size Liquidität
+- [x] `checkOrderbookDepth()` - Slippage-Schätzung
+- [x] `checkExtendedRiskGates()` - Erweiterte Checks mit Orderbook
+
+### Phase 3: Observability ✅
+- [x] `/health` Telegram Command - System Status
+- [x] `/positions` erweitert mit echten CLOB-Daten
+- [x] `consecutiveFailures` im RiskDashboard
+- [x] Error-Tracking in executeLive()
+
+### Status: ✅ PRODUCTION READY (außer Live-Test)
+
+**Nächster Schritt:** Live-Test mit echtem Wallet (VPN erforderlich für Deutschland)

@@ -20,6 +20,7 @@ import {
   type PersistedRiskState,
   type AuditLogEntry,
 } from '../storage/repositories/riskState.js';
+import { getConsecutiveFailures } from '../alpha/riskGates.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                         INTERFACES
@@ -944,6 +945,8 @@ class RuntimeStateManager extends EventEmitter {
     positions: { open: number; max: number; totalExposure: number };
     limits: { dailyLossLimit: number; dailyLossRemaining: number; positionLimit: number };
     canTrade: { allowed: boolean; reason: string };
+    consecutiveFailures: number;
+    isKillSwitchActive: boolean;
   } {
     const winRate = this.state.dailyTrades > 0
       ? (this.state.dailyWins / this.state.dailyTrades) * 100
@@ -974,6 +977,9 @@ class RuntimeStateManager extends EventEmitter {
         positionLimit: this.state.maxPositions - this.state.openPositions,
       },
       canTrade: this.canTrade(),
+      // Phase 3 Observability
+      consecutiveFailures: getConsecutiveFailures(),
+      isKillSwitchActive: this.state.killSwitchActive,
     };
   }
 }
