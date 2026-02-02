@@ -9,7 +9,8 @@ import { scanner } from '../scanner/index.js';
 import { germanySources } from '../germany/index.js';
 import { tradingClient } from '../api/trading.js';
 import { newsTicker, TickerEvent } from '../ticker/index.js';
-import { AlphaSignal, ScanResult, SystemStatus } from '../types/index.js';
+import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode } from '../types/index.js';
+import { runtimeState, StateChangeEvent } from '../runtime/state.js';
 
 // Use process.cwd() for paths (works with both ESM and CJS)
 const publicPath = join(process.cwd(), 'src', 'web', 'public');
@@ -315,6 +316,161 @@ app.post('/api/trade/:signalId', requireAuth, async (req: Request, res: Response
 });
 
 // ═══════════════════════════════════════════════════════════════
+//                    RUNTIME CONTROL API
+// ═══════════════════════════════════════════════════════════════
+
+// API: Risk Dashboard (Daily PnL, Positions, Limits, Kill-Switch)
+app.get('/api/risk/dashboard', requireAuth, (_req: Request, res: Response) => {
+  res.json(runtimeState.getRiskDashboard());
+});
+
+// API: Kill-Switch Toggle
+app.post('/api/risk/killswitch', requireAuth, (req: Request, res: Response) => {
+  const { action, reason } = req.body;
+
+  if (action === 'activate') {
+    runtimeState.activateKillSwitch(reason || 'Manuell via Web aktiviert', 'web');
+    res.json({
+      success: true,
+      killSwitchActive: true,
+      message: 'Kill-Switch aktiviert. Alle Trades gestoppt.',
+    });
+  } else if (action === 'deactivate') {
+    runtimeState.deactivateKillSwitch('web');
+    res.json({
+      success: true,
+      killSwitchActive: false,
+      message: 'Kill-Switch deaktiviert. Trading wieder möglich.',
+    });
+  } else if (action === 'toggle') {
+    const newState = runtimeState.toggleKillSwitch('web');
+    res.json({
+      success: true,
+      killSwitchActive: newState,
+      message: newState ? 'Kill-Switch aktiviert' : 'Kill-Switch deaktiviert',
+    });
+  } else {
+    res.status(400).json({ error: 'action muss "activate", "deactivate" oder "toggle" sein' });
+  }
+});
+
+// API: Execution Mode ändern (paper/shadow/live)
+app.post('/api/execution/mode', requireAuth, (req: Request, res: Response) => {
+  const { mode } = req.body as { mode: ExecutionMode };
+
+  if (!['paper', 'shadow', 'live'].includes(mode)) {
+    res.status(400).json({ error: 'mode muss "paper", "shadow" oder "live" sein' });
+    return;
+  }
+
+  const result = runtimeState.setExecutionMode(mode, 'web');
+
+  if (result.success) {
+    res.json({
+      success: true,
+      mode: runtimeState.getExecutionMode(),
+      message: result.message,
+    });
+  } else {
+    res.status(400).json({
+      success: false,
+      mode: runtimeState.getExecutionMode(),
+      error: result.message,
+    });
+  }
+});
+
+// API: Aktuellen Execution Mode abrufen
+app.get('/api/execution/mode', requireAuth, (_req: Request, res: Response) => {
+  const canTrade = runtimeState.canTrade();
+  res.json({
+    mode: runtimeState.getExecutionMode(),
+    canTrade: canTrade.allowed,
+    reason: canTrade.reason,
+  });
+});
+
+// API: Runtime Settings ändern
+app.post('/api/settings', requireAuth, (req: Request, res: Response) => {
+  const {
+    maxBetUsdc,
+    riskPerTradePercent,
+    minEdge,
+    minAlpha,
+    minVolumeUsd,
+    maxDailyLoss,
+    maxPositions,
+    maxPerMarket,
+  } = req.body;
+
+  const updates: Record<string, number> = {};
+
+  if (maxBetUsdc !== undefined) updates.maxBetUsdc = Number(maxBetUsdc);
+  if (riskPerTradePercent !== undefined) updates.riskPerTradePercent = Number(riskPerTradePercent);
+  if (minEdge !== undefined) updates.minEdge = Number(minEdge);
+  if (minAlpha !== undefined) updates.minAlpha = Number(minAlpha);
+  if (minVolumeUsd !== undefined) updates.minVolumeUsd = Number(minVolumeUsd);
+  if (maxDailyLoss !== undefined) updates.maxDailyLoss = Number(maxDailyLoss);
+  if (maxPositions !== undefined) updates.maxPositions = Number(maxPositions);
+  if (maxPerMarket !== undefined) updates.maxPerMarket = Number(maxPerMarket);
+
+  runtimeState.updateSettings(updates, 'web');
+
+  res.json({
+    success: true,
+    message: 'Einstellungen aktualisiert',
+    settings: runtimeState.getState(),
+  });
+});
+
+// API: Runtime State (vollständig)
+app.get('/api/runtime', requireAuth, (_req: Request, res: Response) => {
+  res.json(runtimeState.toJSON());
+});
+
+// API: Pipeline Health
+app.get('/api/pipelines/health', requireAuth, (_req: Request, res: Response) => {
+  const state = runtimeState.getState();
+  const now = new Date();
+
+  // Stale-Berechnung (älter als 10 Minuten = stale)
+  const staleThreshold = 10 * 60 * 1000;
+
+  const pipelines = Object.entries(state.pipelineHealth).map(([name, health]) => {
+    const lastSuccessAgo = health.lastSuccess
+      ? now.getTime() - health.lastSuccess.getTime()
+      : null;
+    const isStale = lastSuccessAgo !== null && lastSuccessAgo > staleThreshold;
+
+    return {
+      name,
+      healthy: health.healthy && !isStale,
+      lastSuccess: health.lastSuccess,
+      lastSuccessAgo: lastSuccessAgo ? Math.round(lastSuccessAgo / 1000) : null,
+      errorCount: health.errorCount,
+      status: isStale ? 'stale' : health.healthy ? 'ok' : 'error',
+    };
+  });
+
+  res.json({
+    pipelines,
+    overall: pipelines.every(p => p.healthy),
+    lastScan: state.lastScanAt,
+    lastSignal: state.lastSignalAt,
+  });
+});
+
+// API: Daily Reset (manuell)
+app.post('/api/risk/reset', requireAuth, (_req: Request, res: Response) => {
+  runtimeState.resetDaily();
+  res.json({
+    success: true,
+    message: 'Täglicher Risk-Reset durchgeführt',
+    dashboard: runtimeState.getRiskDashboard(),
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
 //                        WEBSOCKET
 // ═══════════════════════════════════════════════════════════════
 
@@ -371,6 +527,36 @@ newsTicker.on('tick', (event: TickerEvent) => {
 // Ticker starten wenn Server startet
 newsTicker.start().catch(err => {
   logger.error(`Ticker Start Fehler: ${err.message}`);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    RUNTIME STATE EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+// State-Changes an alle Clients broadcasten
+runtimeState.on('stateChange', (event: StateChangeEvent) => {
+  io.emit('runtime_state_change', event);
+});
+
+runtimeState.on('killSwitchActivated', (data: { reason: string; source: string }) => {
+  io.emit('kill_switch', { active: true, ...data });
+});
+
+runtimeState.on('killSwitchDeactivated', (data: { previousReason: string; source: string }) => {
+  io.emit('kill_switch', { active: false, ...data });
+});
+
+runtimeState.on('tradeRecorded', (data: { pnl: number; marketId: string; dailyPnL: number }) => {
+  io.emit('trade_recorded', data);
+  io.emit('risk_update', runtimeState.getRiskDashboard());
+});
+
+runtimeState.on('dailyReset', () => {
+  io.emit('daily_reset', runtimeState.getRiskDashboard());
+});
+
+runtimeState.on('pipelineUnhealthy', (data: { pipeline: string; errorCount: number }) => {
+  io.emit('pipeline_alert', data);
 });
 
 // ═══════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 import TelegramBot, { InlineKeyboardButton, InlineKeyboardMarkup } from 'node-telegram-bot-api';
 import { config, WALLET_PRIVATE_KEY } from '../utils/config.js';
 import logger from '../utils/logger.js';
-import { AlphaSignal, TradeRecommendation, ScanResult } from '../types/index.js';
+import { AlphaSignal, TradeRecommendation, ScanResult, ExecutionMode } from '../types/index.js';
 import { scanner } from '../scanner/index.js';
 import { tradingClient } from '../api/trading.js';
 import { germanySources, BreakingNewsEvent } from '../germany/index.js';
@@ -17,6 +17,7 @@ import {
   getPolymarketUrl,
   buildTelegramAlert,
 } from '../alpha/index.js';
+import { runtimeState } from '../runtime/state.js';
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
@@ -133,6 +134,10 @@ ${this.DIVIDER}
   // ═══════════════════════════════════════════════════════════════
 
   private getMainMenu(): InlineKeyboardMarkup {
+    const state = runtimeState.getState();
+    const killSwitchEmoji = state.killSwitchActive ? '🔴' : '🟢';
+    const modeEmoji = state.executionMode === 'live' ? '🚀' : state.executionMode === 'shadow' ? '👻' : '📝';
+
     return {
       inline_keyboard: [
         [
@@ -149,7 +154,11 @@ ${this.DIVIDER}
         ],
         [
           { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
-          { text: '⚙️ Einstellungen', callback_data: 'action:settings' },
+          { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
+        ],
+        [
+          { text: `${modeEmoji} Mode: ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
+          { text: '⚙️ Settings', callback_data: 'action:settings' },
         ],
       ],
     };
@@ -307,6 +316,12 @@ ${this.DIVIDER}
           case 'noop':
             // Nichts tun - dekorative Buttons
             break;
+          case 'setmode':
+            await this.handleSetMode(params[0] as ExecutionMode, chatId, query.message?.message_id);
+            break;
+          case 'killswitch':
+            await this.handleKillSwitchAction(params[0], chatId, query.message?.message_id);
+            break;
         }
       } catch (err) {
         const error = err as Error;
@@ -343,6 +358,15 @@ ${this.DIVIDER}
         break;
       case 'settings':
         await this.handleSettings(chatId, messageId);
+        break;
+      case 'risk':
+        await this.handleRiskDashboard(chatId, messageId);
+        break;
+      case 'mode':
+        await this.handleModeSelect(chatId, messageId);
+        break;
+      case 'killswitch':
+        await this.handleKillSwitchToggle(chatId, messageId);
         break;
     }
   }
@@ -829,24 +853,33 @@ _Tippe den neuen Wert ein:_`;
     // Wert setzen
     (runtimeSettings as Record<string, number>)[this.editingField] = numValue;
 
-    // Config auch updaten
+    // Runtime State auch updaten
+    const updates: Record<string, number> = {};
     switch (this.editingField) {
       case 'maxBet':
         config.trading.maxBetUsdc = numValue;
+        updates.maxBetUsdc = numValue;
         break;
       case 'risk':
         config.trading.riskPerTradePercent = numValue;
+        updates.riskPerTradePercent = numValue;
         break;
       case 'minEdge':
         config.germany.minEdge = numValue / 100;
+        updates.minEdge = numValue;
         break;
       case 'minAlpha':
         config.trading.minAlphaForTrade = numValue / 100;
+        updates.minAlpha = numValue;
         break;
       case 'minVolume':
         config.scanner.minVolumeUsd = numValue;
+        updates.minVolumeUsd = numValue;
         break;
     }
+
+    // Runtime State synchronisieren
+    runtimeState.updateSettings(updates, 'telegram');
 
     this.editingField = null;
 
@@ -855,6 +888,228 @@ _Tippe den neuen Wert ein:_`;
 
     // Zurück zu Settings
     await this.handleSettings(chatId);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                   RISK DASHBOARD & CONTROLS
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleRiskDashboard(chatId: string, messageId?: number): Promise<void> {
+    const dashboard = runtimeState.getRiskDashboard();
+    const state = runtimeState.getState();
+
+    // Kill-Switch Status
+    const killSwitchStatus = dashboard.killSwitch.active
+      ? `🔴 AKTIV (${dashboard.killSwitch.reason || 'Manuell'})`
+      : '🟢 Inaktiv';
+
+    // Mode Badge
+    const modeBadge: Record<string, string> = {
+      paper: '📝 PAPER',
+      shadow: '👻 SHADOW',
+      live: '🚀 LIVE',
+    };
+
+    // PnL Farbe
+    const pnlEmoji = dashboard.daily.pnl >= 0 ? '🟢' : '🔴';
+    const pnlSign = dashboard.daily.pnl >= 0 ? '+' : '';
+
+    // Win Rate Bar
+    const winRateBar = this.progressBar(dashboard.daily.winRate, 100, 8);
+
+    // Daily Loss Remaining Bar
+    const lossRemainingPct = (dashboard.limits.dailyLossRemaining / dashboard.limits.dailyLossLimit) * 100;
+    const lossBar = this.progressBar(Math.max(0, lossRemainingPct), 100, 8);
+
+    const message = `${this.HEADER}
+
+🛡️ *RISK DASHBOARD*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  MODE: ${modeBadge[dashboard.mode].padEnd(24)}│
+│  KILL-SWITCH: ${(dashboard.killSwitch.active ? '🔴 AN' : '🟢 AUS').padEnd(17)}│
+├─────────────────────────────────┤
+│  TÄGLICHE PERFORMANCE           │
+├─────────────────────────────────┤
+│  PnL:      ${pnlEmoji} ${pnlSign}$${dashboard.daily.pnl.toFixed(2).padStart(8)}       │
+│  Trades:   ${String(dashboard.daily.trades).padStart(4)}                 │
+│  Wins:     ${String(dashboard.daily.wins).padStart(4)} (${dashboard.daily.winRate.toFixed(0)}%)           │
+│  Losses:   ${String(dashboard.daily.losses).padStart(4)}                 │
+│  Win-Rate: ${winRateBar}      │
+├─────────────────────────────────┤
+│  LIMITS                         │
+├─────────────────────────────────┤
+│  Daily Loss: $${dashboard.limits.dailyLossRemaining.toFixed(0).padStart(4)}/$${dashboard.limits.dailyLossLimit.toFixed(0).padStart(4)}    │
+│  Remaining: ${lossBar}       │
+│  Positions: ${String(dashboard.positions.open).padStart(2)}/${String(dashboard.positions.max).padStart(2)}              │
+│  Exposure:  $${dashboard.positions.totalExposure.toFixed(2).padStart(8)}        │
+└─────────────────────────────────┘
+\`\`\`
+
+${dashboard.canTrade.allowed ? '✅ Trading erlaubt' : `⚠️ ${dashboard.canTrade.reason}`}`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: dashboard.killSwitch.active ? '🔴 KILL-SWITCH AUS' : '⚠️ KILL-SWITCH AN',
+            callback_data: dashboard.killSwitch.active ? 'killswitch:off' : 'killswitch:on',
+          },
+        ],
+        [
+          { text: '🔄 Aktualisieren', callback_data: 'action:risk' },
+          { text: '🗑️ Daily Reset', callback_data: 'killswitch:reset' },
+        ],
+        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  private async handleModeSelect(chatId: string, messageId?: number): Promise<void> {
+    const currentMode = runtimeState.getExecutionMode();
+
+    const modeDescriptions: Record<string, string> = {
+      paper: 'Simuliert Trades ohne echtes Geld',
+      shadow: 'Trackt Preise, führt keine Trades aus',
+      live: 'Echte Trades mit echtem Geld!',
+    };
+
+    const message = `${this.HEADER}
+
+⚙️ *EXECUTION MODE*
+
+${this.DIVIDER}
+
+Aktueller Modus: *${currentMode.toUpperCase()}*
+_${modeDescriptions[currentMode]}_
+
+${this.DIVIDER}
+
+Wähle den Modus:`;
+
+    const modes: ExecutionMode[] = ['paper', 'shadow', 'live'];
+    const modeEmojis: Record<string, string> = {
+      paper: '📝',
+      shadow: '👻',
+      live: '🚀',
+    };
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        ...modes.map((mode) => [
+          {
+            text: `${modeEmojis[mode]} ${mode.toUpperCase()}${currentMode === mode ? ' ✓' : ''}`,
+            callback_data: `setmode:${mode}`,
+          },
+        ]),
+        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  private async handleSetMode(mode: ExecutionMode, chatId: string, messageId?: number): Promise<void> {
+    const result = runtimeState.setExecutionMode(mode, 'telegram');
+
+    if (result.success) {
+      const message = `${this.HEADER}
+
+✅ *MODE GEÄNDERT*
+
+${result.message}
+
+${mode === 'live' ? '⚠️ *ACHTUNG: LIVE MODE!*\nEchte Trades werden ausgeführt!' : ''}`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+      }
+
+      // Nach 2 Sekunden zurück zum Menü
+      await this.sleep(2000);
+      await this.sendMainMenu(chatId);
+    } else {
+      const message = `${this.HEADER}
+
+❌ *MODE NICHT GEÄNDERT*
+
+${result.message}`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+      }
+    }
+  }
+
+  private async handleKillSwitchToggle(chatId: string, messageId?: number): Promise<void> {
+    await this.handleRiskDashboard(chatId, messageId);
+  }
+
+  private async handleKillSwitchAction(action: string, chatId: string, messageId?: number): Promise<void> {
+    if (action === 'on') {
+      runtimeState.activateKillSwitch('Manuell via Telegram aktiviert', 'telegram');
+
+      const message = `${this.HEADER}
+
+🔴 *KILL-SWITCH AKTIVIERT*
+
+Alle Trades wurden gestoppt.
+_Um fortzufahren, deaktiviere den Kill-Switch._`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      }
+
+      await this.sleep(1500);
+      await this.handleRiskDashboard(chatId);
+    } else if (action === 'off') {
+      runtimeState.deactivateKillSwitch('telegram');
+
+      const message = `${this.HEADER}
+
+🟢 *KILL-SWITCH DEAKTIVIERT*
+
+Trading wieder möglich.`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      }
+
+      await this.sleep(1500);
+      await this.handleRiskDashboard(chatId);
+    } else if (action === 'reset') {
+      runtimeState.resetDaily();
+
+      const message = `${this.HEADER}
+
+🗑️ *DAILY RESET*
+
+Tägliche Statistiken wurden zurückgesetzt.`;
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, this.getBackButton());
+      }
+
+      await this.sleep(1500);
+      await this.handleRiskDashboard(chatId);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

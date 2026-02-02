@@ -92,9 +92,28 @@
 
 ### Interfaces
 
-- **Terminal-Dashboard** - Matrix-Style Web-UI (JetBrains Mono, Green on Black)
-- **Telegram Bot** - Inline-Buttons, 1-Click Trading
-- **REST API** - WebSocket-Support für Live-Updates
+- **Trading Desk Console** - Bloomberg/Palantir-Style UI (Dark-First, Three-Column Layout)
+- **Telegram Bot** - Inline-Buttons, 1-Click Trading, Runtime Controls
+- **REST API** - WebSocket-Support für Live-Updates + Runtime State Events
+
+### Runtime Controls (NEU!)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║               R U N T I M E   C O N T R O L S                     ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  KILL-SWITCH    [████████████] Web + Telegram steuerbar          ║
+║  MODE TOGGLE    [████████████] paper → shadow → live (no restart)║
+║  RISK DASHBOARD [████████████] Daily PnL, Positions, Limits      ║
+║  STATE SYNC     [████████████] WebSocket Real-Time Broadcast     ║
+║                                                                   ║
+║  > Kein Terminal/CLI nötig - alles via Web & Telegram            ║
+║  > Automatischer Kill-Switch bei -20% Daily Loss                 ║
+║  > Mode-Wechsel ohne Server-Neustart                             ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
@@ -349,6 +368,11 @@ RSS_FEEDS_ENABLED=true
 | `/api/germany/polls` | `GET` | Dawum-Umfragen |
 | `/api/germany/news` | `GET` | RSS-News |
 | `/api/trade/:id` | `POST` | Trade ausführen |
+| `/api/risk/dashboard` | `GET` | Risk Dashboard (NEU!) |
+| `/api/risk/killswitch` | `POST` | Kill-Switch Toggle (NEU!) |
+| `/api/execution/mode` | `GET/POST` | Execution Mode (NEU!) |
+| `/api/runtime` | `GET` | Vollständiger Runtime-State (NEU!) |
+| `/api/settings` | `POST` | Settings Update (NEU!) |
 
 ### WebSocket Events
 
@@ -359,6 +383,10 @@ RSS_FEEDS_ENABLED=true
 | `signal_found` | Client | Neues Alpha-Signal |
 | `trade_executed` | Client | Trade ausgeführt |
 | `ticker` | Client | Live News Ticker Event |
+| `runtime_state_change` | Client | State-Änderung (NEU!) |
+| `kill_switch` | Client | Kill-Switch Event (NEU!) |
+| `risk_update` | Client | Risk-Limit Update (NEU!) |
+| `daily_reset` | Client | 00:00 UTC Reset (NEU!) |
 
 ### Ticker Event Typen
 
@@ -377,7 +405,10 @@ RSS_FEEDS_ENABLED=true
 ```
 edgyalpha/
 ├── src/
-│   ├── alpha/            # Alpha Engines V2 (NEU!)
+│   ├── runtime/          # Runtime State Manager (NEU!)
+│   │   ├── index.ts      # Exports
+│   │   └── state.ts      # Zentrale State-Verwaltung
+│   ├── alpha/            # Alpha Engines V2
 │   │   ├── types.ts      # AlphaSignalV2, Features, Decision
 │   │   ├── timeDelayEngine.ts   # TIME_DELAY Engine
 │   │   ├── mispricingEngine.ts  # MISPRICING Engine
@@ -386,16 +417,16 @@ edgyalpha/
 │   │   ├── riskGates.ts  # Risk-Management
 │   │   ├── sizing.ts     # Kelly-Sizing
 │   │   └── telemetry.ts  # Observability
-│   ├── storage/          # SQLite Storage (NEU!)
+│   ├── storage/          # SQLite Storage
 │   │   ├── db.ts         # Database Singleton
 │   │   ├── schema.sql    # 8 Tabellen
 │   │   └── repositories/ # Typsichere CRUD
-│   ├── backtest/         # Backtesting (NEU!)
+│   ├── backtest/         # Backtesting
 │   │   ├── simulator.ts  # Trade-Simulation
 │   │   ├── metrics.ts    # PnL, Sharpe, Drawdown
 │   │   ├── calibration.ts # Brier-Score
 │   │   └── report.ts     # Markdown/JSON Output
-│   ├── data/polydata/    # poly_data Import (NEU!)
+│   ├── data/polydata/    # poly_data Import
 │   ├── api/              # API-Clients
 │   │   ├── polymarket.ts # Gamma + CLOB API
 │   │   └── trading.ts    # Gestufte Execution
@@ -406,7 +437,7 @@ edgyalpha/
 │   ├── scanner/          # Legacy Scanner
 │   ├── ticker/           # Live News Ticker
 │   ├── telegram/         # Telegram Bot V2
-│   ├── web/              # Express + Frontend
+│   ├── web/              # Express + Bloomberg UI
 │   ├── types/            # TypeScript Types
 │   └── utils/            # Config, Logger
 ├── scripts/              # CLI-Tools (NEU!)

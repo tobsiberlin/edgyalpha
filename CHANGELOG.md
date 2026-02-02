@@ -7,6 +7,61 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [2.1.0] - 2026-02-02
+
+### Hinzugefügt
+- **Runtime State Manager** (`src/runtime/state.ts`)
+  - Zentrale Verwaltung aller zur Laufzeit änderbaren Zustände
+  - Kein Server-Neustart mehr nötig für Mode-Wechsel
+  - EventEmitter für Real-Time State-Synchronisation
+  - Thread-Safe State-Updates mit Audit-Trail
+
+- **Kill-Switch System**
+  - Aktivierbar via Web UI UND Telegram
+  - Automatische Aktivierung bei Daily-Loss-Limit (-20%)
+  - Source-Tracking (wer hat aktiviert?)
+  - WebSocket-Broadcast an alle Clients
+
+- **Execution Mode Runtime-Toggle**
+  - Umschalten zwischen `paper`, `shadow`, `live` ohne Restart
+  - Mode-Validierung (live nur mit Wallet-Credentials)
+  - Mode-Anzeige in Telegram Menu und Web UI
+
+- **Risk Dashboard API**
+  - `GET /api/risk/dashboard` - Vollständiges Risk-Dashboard
+  - `POST /api/risk/killswitch` - Kill-Switch Toggle
+  - `POST /api/execution/mode` - Mode-Wechsel
+  - `GET /api/runtime` - Kompletter Runtime-State
+  - `POST /api/risk/reset` - Manueller Daily-Reset
+
+- **Bloomberg/Palantir-Style Trading Desk UI**
+  - Radikales UI-Redesign: Dark-Terminal-Ästhetik
+  - Three-Column Layout: Nav (180px) | Main | Drilldown (320px)
+  - Design-Tokens in CSS-Variablen
+  - JetBrains Mono / Fira Code Typografie
+  - Blinkende Cursor-Animation
+  - Views: SIGNALS, CONSOLE, RISK, TICKER, ALMANIEN, MARKETS, BACKTEST, HISTORY
+
+- **Telegram Runtime Controls**
+  - 🛑 Kill-Switch Toggle im Hauptmenü
+  - 📊 Risk-Dashboard Ansicht
+  - ⚙️ Mode-Selector (paper/shadow/live)
+  - Dynamische Status-Indikatoren
+
+- **WebSocket Events für State-Changes**
+  - `runtime_state_change` - Alle State-Änderungen
+  - `kill_switch` - Kill-Switch Events
+  - `trade_recorded` - Paper-Trades
+  - `risk_update` - Risk-Limit Updates
+  - `daily_reset` - 00:00 UTC Resets
+
+### Geändert
+- Web UI komplett neu geschrieben (Bloomberg/Palantir-Style)
+- Telegram Bot zeigt jetzt Runtime-Status im Menü
+- API-Server unterstützt jetzt Runtime-State Events
+
+---
+
 ## [Unreleased] - Alpha Engines V2
 
 ### Hinzugefügt
