@@ -30,6 +30,49 @@ export class RiskGatesFailedError extends Error {
   }
 }
 
+// Spezifische CLOB-Fehler für gezielte Behandlung
+export type ClobErrorType =
+  | 'insufficient_balance'
+  | 'market_closed'
+  | 'price_moved'
+  | 'order_not_found'
+  | 'rate_limited'
+  | 'network_error'
+  | 'unknown';
+
+export class ClobOrderError extends Error {
+  constructor(
+    message: string,
+    public readonly errorType: ClobErrorType,
+    public readonly isRetryable: boolean,
+    public readonly originalError?: Error
+  ) {
+    super(message);
+    this.name = 'ClobOrderError';
+  }
+}
+
+// Order-Status vom CLOB
+export type OrderStatus =
+  | 'pending'
+  | 'open'
+  | 'filled'
+  | 'partial'
+  | 'cancelled'
+  | 'expired'
+  | 'failed';
+
+export interface OrderStatusResult {
+  orderId: string;
+  status: OrderStatus;
+  sizeMatched: number;
+  originalSize: number;
+  fillPercent: number;
+  price: number;
+  createdAt: Date;
+  trades: string[];
+}
+
 // ERC20 ABI (minimal)
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
@@ -40,6 +83,22 @@ const ERC20_ABI = [
 // Polymarket CLOB Config
 const CLOB_HOST = 'https://clob.polymarket.com';
 const POLYGON_CHAIN_ID = 137;
+
+/**
+ * Wrapper für ethers v6 Wallet um v5-kompatible Methoden bereitzustellen
+ * Der @polymarket/clob-client erwartet ethers v5 Signaturen
+ */
+function createV5CompatibleWallet(wallet: ethers.Wallet): ethers.Wallet {
+  return new Proxy(wallet, {
+    get(target, prop, receiver) {
+      if (prop === '_signTypedData') {
+        // ethers v5 nutzt _signTypedData, v6 nutzt signTypedData
+        return target.signTypedData.bind(target);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
 
 export class TradingClient extends EventEmitter {
   private provider: ethers.JsonRpcProvider | null = null;
@@ -85,12 +144,15 @@ export class TradingClient extends EventEmitter {
     }
 
     try {
+      // ethers v6 → v5 Kompatibilitäts-Wrapper
+      const v5Wallet = createV5CompatibleWallet(this.wallet);
+
       // Temporärer Client für API Key Derivation
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tempClient = new ClobClient(
         CLOB_HOST,
         POLYGON_CHAIN_ID,
-        this.wallet as any // Type cast für ethers v6 → v5 Kompatibilität
+        v5Wallet as any // Type cast für ethers v6 → v5 Kompatibilität
       );
 
       // API Credentials erstellen oder derivieren
@@ -108,7 +170,7 @@ export class TradingClient extends EventEmitter {
       this.clobClient = new ClobClient(
         CLOB_HOST,
         POLYGON_CHAIN_ID,
-        this.wallet as any, // Type cast für ethers v6 → v5 Kompatibilität
+        v5Wallet as any, // Type cast für ethers v6 → v5 Kompatibilität
         apiCreds
       );
 
@@ -247,6 +309,341 @@ export class TradingClient extends EventEmitter {
       logger.error(`[CLOB] Market Order Fehler: ${error.message}`);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Klassifiziert CLOB-Fehler für gezielte Behandlung
+   */
+  private classifyError(error: Error): ClobOrderError {
+    const msg = error.message.toLowerCase();
+
+    if (msg.includes('insufficient') || msg.includes('balance') || msg.includes('not enough')) {
+      return new ClobOrderError(error.message, 'insufficient_balance', false, error);
+    }
+    if (msg.includes('closed') || msg.includes('not active') || msg.includes('market not found')) {
+      return new ClobOrderError(error.message, 'market_closed', false, error);
+    }
+    if (msg.includes('price') || msg.includes('slippage') || msg.includes('stale')) {
+      return new ClobOrderError(error.message, 'price_moved', true, error);
+    }
+    if (msg.includes('not found') || msg.includes('order')) {
+      return new ClobOrderError(error.message, 'order_not_found', false, error);
+    }
+    if (msg.includes('rate') || msg.includes('limit') || msg.includes('429') || msg.includes('too many')) {
+      return new ClobOrderError(error.message, 'rate_limited', true, error);
+    }
+    if (msg.includes('network') || msg.includes('timeout') || msg.includes('econnreset') || msg.includes('socket')) {
+      return new ClobOrderError(error.message, 'network_error', true, error);
+    }
+
+    return new ClobOrderError(error.message, 'unknown', false, error);
+  }
+
+  /**
+   * Holt den aktuellen Status einer Order
+   */
+  async getOrderStatus(orderId: string): Promise<OrderStatusResult | null> {
+    if (!this.clobClient || !this.clobInitialized) {
+      logger.warn('[CLOB] Client nicht initialisiert für getOrderStatus');
+      return null;
+    }
+
+    try {
+      const order = await this.clobClient.getOrder(orderId);
+
+      if (!order) {
+        return null;
+      }
+
+      // Status-Mapping
+      let status: OrderStatus = 'pending';
+      const orderStatus = (order.status || '').toLowerCase();
+
+      if (orderStatus === 'matched' || orderStatus === 'filled') {
+        status = 'filled';
+      } else if (orderStatus === 'open' || orderStatus === 'live') {
+        // Prüfe auf Partial Fill
+        const sizeMatched = parseFloat(order.size_matched || '0');
+        const originalSize = parseFloat(order.original_size || '0');
+        status = sizeMatched > 0 && sizeMatched < originalSize ? 'partial' : 'open';
+      } else if (orderStatus === 'cancelled' || orderStatus === 'canceled') {
+        status = 'cancelled';
+      } else if (orderStatus === 'expired') {
+        status = 'expired';
+      }
+
+      const sizeMatched = parseFloat(order.size_matched || '0');
+      const originalSize = parseFloat(order.original_size || '0');
+
+      return {
+        orderId: order.id,
+        status,
+        sizeMatched,
+        originalSize,
+        fillPercent: originalSize > 0 ? (sizeMatched / originalSize) * 100 : 0,
+        price: parseFloat(order.price || '0'),
+        createdAt: new Date(order.created_at * 1000),
+        trades: order.associate_trades || [],
+      };
+    } catch (err) {
+      const classified = this.classifyError(err as Error);
+      logger.error(`[CLOB] getOrderStatus Fehler (${classified.errorType}): ${classified.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Storniert eine offene Order
+   */
+  async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+    if (!this.clobClient || !this.clobInitialized) {
+      return { success: false, error: 'CLOB Client nicht initialisiert' };
+    }
+
+    try {
+      logger.info(`[CLOB] Storniere Order: ${orderId}`);
+      await this.clobClient.cancelOrder({ orderID: orderId });
+      logger.info(`[CLOB] Order ${orderId} erfolgreich storniert`);
+      return { success: true };
+    } catch (err) {
+      const classified = this.classifyError(err as Error);
+      logger.error(`[CLOB] cancelOrder Fehler (${classified.errorType}): ${classified.message}`);
+      return { success: false, error: classified.message };
+    }
+  }
+
+  /**
+   * Wartet auf Order-Fill mit Polling und optionalem Timeout
+   */
+  async waitForFill(
+    orderId: string,
+    options: {
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+      cancelOnTimeout?: boolean;
+    } = {}
+  ): Promise<{
+    status: OrderStatus;
+    fillPercent: number;
+    sizeMatched: number;
+    price: number;
+    timedOut: boolean;
+    cancelled: boolean;
+  }> {
+    const { timeoutMs = 30000, pollIntervalMs = 1000, cancelOnTimeout = true } = options;
+    const startTime = Date.now();
+
+    logger.info(`[CLOB] Warte auf Fill für Order ${orderId} (Timeout: ${timeoutMs}ms)`);
+
+    let lastStatus: OrderStatusResult | null = null;
+    let timedOut = false;
+    let cancelled = false;
+
+    while (Date.now() - startTime < timeoutMs) {
+      lastStatus = await this.getOrderStatus(orderId);
+
+      if (!lastStatus) {
+        // Order nicht gefunden - könnte bereits gefüllt oder abgebrochen sein
+        logger.warn(`[CLOB] Order ${orderId} nicht gefunden`);
+        break;
+      }
+
+      // Terminal States
+      if (lastStatus.status === 'filled') {
+        logger.info(`[CLOB] Order ${orderId} vollständig gefüllt (${lastStatus.fillPercent.toFixed(1)}%)`);
+        return {
+          status: 'filled',
+          fillPercent: lastStatus.fillPercent,
+          sizeMatched: lastStatus.sizeMatched,
+          price: lastStatus.price,
+          timedOut: false,
+          cancelled: false,
+        };
+      }
+
+      if (lastStatus.status === 'cancelled' || lastStatus.status === 'expired') {
+        logger.warn(`[CLOB] Order ${orderId} ist ${lastStatus.status}`);
+        return {
+          status: lastStatus.status,
+          fillPercent: lastStatus.fillPercent,
+          sizeMatched: lastStatus.sizeMatched,
+          price: lastStatus.price,
+          timedOut: false,
+          cancelled: lastStatus.status === 'cancelled',
+        };
+      }
+
+      // Log Progress bei Partial Fills
+      if (lastStatus.status === 'partial') {
+        logger.info(`[CLOB] Order ${orderId} teilweise gefüllt: ${lastStatus.fillPercent.toFixed(1)}%`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+
+    // Timeout erreicht
+    timedOut = true;
+    logger.warn(`[CLOB] Order ${orderId} Timeout nach ${timeoutMs}ms`);
+
+    // Optional: Order stornieren bei Timeout
+    if (cancelOnTimeout && lastStatus && (lastStatus.status === 'open' || lastStatus.status === 'partial')) {
+      const cancelResult = await this.cancelOrder(orderId);
+      cancelled = cancelResult.success;
+      logger.info(`[CLOB] Order ${orderId} nach Timeout storniert: ${cancelled}`);
+    }
+
+    return {
+      status: lastStatus?.status || 'failed',
+      fillPercent: lastStatus?.fillPercent || 0,
+      sizeMatched: lastStatus?.sizeMatched || 0,
+      price: lastStatus?.price || 0,
+      timedOut,
+      cancelled,
+    };
+  }
+
+  /**
+   * Führt eine Order mit Retry-Logik aus (für transiente Fehler)
+   */
+  async placeOrderWithRetry(
+    params: {
+      tokenId: string;
+      side: 'BUY' | 'SELL';
+      price: number;
+      size: number;
+      orderType?: OrderType;
+    },
+    options: {
+      maxRetries?: number;
+      baseDelayMs?: number;
+    } = {}
+  ): Promise<{ success: boolean; orderId?: string; error?: string; attempts: number }> {
+    const { maxRetries = 3, baseDelayMs = 1000 } = options;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.info(`[CLOB] Order-Versuch ${attempt}/${maxRetries}: ${params.side} ${params.size} @ ${params.price}`);
+
+        const result = await this.placeOrder(params);
+
+        if (result.success) {
+          return { ...result, attempts: attempt };
+        }
+
+        // Fehler klassifizieren
+        const dummyError = new Error(result.error || 'Unknown error');
+        const classified = this.classifyError(dummyError);
+
+        // Nicht-wiederholbare Fehler sofort abbrechen
+        if (!classified.isRetryable) {
+          logger.error(`[CLOB] Nicht-wiederholbarer Fehler (${classified.errorType}): ${result.error}`);
+          return { success: false, error: result.error, attempts: attempt };
+        }
+
+        // Exponentielles Backoff vor Retry
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1);
+          logger.info(`[CLOB] Retry in ${delay}ms... (${classified.errorType})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (err) {
+        const classified = this.classifyError(err as Error);
+
+        if (!classified.isRetryable || attempt === maxRetries) {
+          return { success: false, error: classified.message, attempts: attempt };
+        }
+
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    return { success: false, error: 'Max Retries erreicht', attempts: maxRetries };
+  }
+
+  /**
+   * Führt einen vollständigen Trade aus: Order → Polling → Fill/Cancel
+   */
+  async executeOrderWithTracking(params: {
+    tokenId: string;
+    side: 'BUY' | 'SELL';
+    amount: number;
+    maxSlippagePercent?: number;
+    timeoutMs?: number;
+  }): Promise<{
+    success: boolean;
+    orderId?: string;
+    status: OrderStatus;
+    fillPrice?: number;
+    fillSize?: number;
+    slippage?: number;
+    error?: string;
+  }> {
+    const { maxSlippagePercent = 2, timeoutMs = 30000 } = params;
+
+    // 1. Orderbook für Preisbestimmung holen
+    const orderbook = await this.getOrderbook(params.tokenId);
+    if (!orderbook) {
+      return { success: false, status: 'failed', error: 'Orderbook nicht verfügbar' };
+    }
+
+    // Beste Seite des Orderbooks
+    const bestPrice = params.side === 'BUY'
+      ? orderbook.asks[0]?.price
+      : orderbook.bids[0]?.price;
+
+    if (!bestPrice) {
+      return { success: false, status: 'failed', error: 'Kein Preis im Orderbook' };
+    }
+
+    // 2. Slippage-toleranten Preis berechnen
+    const slippageMultiplier = params.side === 'BUY'
+      ? (1 + maxSlippagePercent / 100)
+      : (1 - maxSlippagePercent / 100);
+    const limitPrice = bestPrice * slippageMultiplier;
+
+    // 3. Size berechnen
+    const size = params.amount / bestPrice;
+
+    logger.info(`[CLOB] ExecuteOrderWithTracking: ${params.side} $${params.amount} → ${size.toFixed(2)} Shares @ ${bestPrice} (Limit: ${limitPrice.toFixed(4)})`);
+
+    // 4. Order mit Retry platzieren (GTC für Partial Fill Unterstützung)
+    const orderResult = await this.placeOrderWithRetry({
+      tokenId: params.tokenId,
+      side: params.side,
+      price: limitPrice,
+      size,
+      orderType: OrderType.GTC,
+    });
+
+    if (!orderResult.success || !orderResult.orderId) {
+      return {
+        success: false,
+        status: 'failed',
+        error: orderResult.error,
+      };
+    }
+
+    // 5. Auf Fill warten mit Polling
+    const fillResult = await this.waitForFill(orderResult.orderId, {
+      timeoutMs,
+      cancelOnTimeout: true,
+    });
+
+    // 6. Ergebnis aufbereiten
+    const actualSlippage = fillResult.price > 0
+      ? Math.abs(fillResult.price - bestPrice) / bestPrice
+      : 0;
+
+    return {
+      success: fillResult.status === 'filled' || (fillResult.status === 'partial' && fillResult.fillPercent > 50),
+      orderId: orderResult.orderId,
+      status: fillResult.status,
+      fillPrice: fillResult.price || bestPrice,
+      fillSize: fillResult.sizeMatched,
+      slippage: actualSlippage,
+      error: fillResult.timedOut ? 'Order Timeout' : undefined,
+    };
   }
 
   getWalletAddress(): string | null {
@@ -747,18 +1144,54 @@ export class TradingClient extends EventEmitter {
       return { ...execution, status: 'failed' };
     }
 
-    // 8. ECHTE CLOB ORDER PLATZIEREN
+    // 8. ECHTE CLOB ORDER MIT TRACKING PLATZIEREN
     try {
-      logger.info(`[LIVE] Platziere echte CLOB Order...`);
+      logger.info(`[LIVE] Platziere echte CLOB Order mit Tracking...`);
 
-      const orderResult = await this.placeMarketOrder({
+      // Nutze die neue executeOrderWithTracking für:
+      // - Retry-Logik bei transienten Fehlern
+      // - Order-Status-Polling
+      // - Partial Fill Handling
+      // - Automatische Cancellation bei Timeout
+      const orderResult = await this.executeOrderWithTracking({
         tokenId,
         side: 'BUY', // Kaufe immer den Token (YES oder NO)
         amount: decision.sizeUsdc || 0,
+        maxSlippagePercent: 2, // Max 2% Slippage
+        timeoutMs: 30000, // 30s Timeout
       });
 
       if (!orderResult.success) {
-        logger.error(`[LIVE] CLOB Order fehlgeschlagen: ${orderResult.error}`);
+        const classified = this.classifyError(new Error(orderResult.error || 'Unknown'));
+
+        logger.error(`[LIVE] CLOB Order fehlgeschlagen`, {
+          orderId: orderResult.orderId,
+          status: orderResult.status,
+          errorType: classified.errorType,
+          error: orderResult.error,
+        });
+
+        // Bei Partial Fill: trotzdem als teilweise erfolgreich behandeln
+        if (orderResult.status === 'partial' && orderResult.fillSize && orderResult.fillSize > 0) {
+          logger.warn(`[LIVE] Partial Fill: ${orderResult.fillSize} von ${decision.sizeUsdc}`);
+
+          const partialExecution: Execution = {
+            ...execution,
+            status: 'filled', // Als filled markieren, aber mit reduzierter Size
+            fillPrice: orderResult.fillPrice || quote.price,
+            fillSize: orderResult.fillSize,
+            slippage: orderResult.slippage || 0,
+            fees: (orderResult.fillSize || 0) * 0.002,
+            txHash: orderResult.orderId || `clob_partial_${execution.executionId.slice(0, 8)}`,
+            filledAt: new Date(),
+          };
+
+          updateRiskState(0, decision.signalId, orderResult.fillSize || 0);
+          this.emit('live_trade', partialExecution);
+
+          return partialExecution;
+        }
+
         return { ...execution, status: 'failed' };
       }
 
@@ -766,21 +1199,23 @@ export class TradingClient extends EventEmitter {
         ...execution,
         status: 'filled',
         fillPrice: orderResult.fillPrice || quote.price,
-        fillSize: decision.sizeUsdc,
-        slippage: orderResult.fillPrice ? Math.abs(orderResult.fillPrice - quote.price) / quote.price : 0.001,
-        fees: (decision.sizeUsdc || 0) * 0.002, // 0.2% Taker Fee
+        fillSize: orderResult.fillSize || decision.sizeUsdc,
+        slippage: orderResult.slippage || 0,
+        fees: (orderResult.fillSize || decision.sizeUsdc || 0) * 0.002, // 0.2% Taker Fee
         txHash: orderResult.orderId || `clob_${execution.executionId.slice(0, 8)}`,
         filledAt: new Date(),
       };
 
       // Risk State aktualisieren
-      updateRiskState(0, decision.signalId, decision.sizeUsdc || 0);
+      updateRiskState(0, decision.signalId, orderResult.fillSize || decision.sizeUsdc || 0);
 
       logger.info(`[LIVE] 🎯 ECHTE ORDER ERFOLGREICH`, {
         executionId: execution.executionId,
         orderId: orderResult.orderId,
+        status: orderResult.status,
         fillPrice: filledExecution.fillPrice,
         fillSize: filledExecution.fillSize,
+        slippage: filledExecution.slippage,
         direction: marketDirection,
       });
 
@@ -789,7 +1224,9 @@ export class TradingClient extends EventEmitter {
       return filledExecution;
     } catch (err) {
       const error = err as Error;
-      logger.error(`[LIVE] Trade-Ausführung fehlgeschlagen: ${error.message}`);
+      const classified = this.classifyError(error);
+
+      logger.error(`[LIVE] Trade-Ausführung fehlgeschlagen (${classified.errorType}): ${error.message}`);
 
       return {
         ...execution,

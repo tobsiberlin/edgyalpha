@@ -185,3 +185,34 @@ Speed ist essentiell für Zeitvorsprung!
 - [x] Runtime-Settings erweitern
 
 ### Status: ABGESCHLOSSEN (2026-02-02)
+
+---
+
+## Task #47: PRODUCTION READY - CLOB Order Execution
+
+> Ohne diese Tasks → Kein Live-Trading möglich
+
+### Phase 1.1: CLOB Order Execution Validierung
+
+**Problem:** `placeOrder()` und `placeMarketOrder()` sind implementiert, aber NICHT end-to-end getestet.
+
+- [x] Order-Status-Polling implementieren (`getOrderStatus()`)
+- [x] Partial Fill Handling
+- [x] Order Cancellation bei Timeout (30s default)
+- [x] Error-Type-Unterscheidung (insufficient_balance, market_closed, price_moved)
+- [x] Retry-Logik bei transienten Fehlern (3 Versuche, exponential backoff)
+- [x] Test-Script für Mini-Trade erstellen (`npm run test:clob`)
+- [x] Dry-Run Test erfolgreich (CLOB Client, Balance, Orderbook)
+- [x] ethers v6 → v5 Kompatibilitäts-Wrapper (`_signTypedData`)
+- [ ] End-to-End Live-Test mit 0.01 USDC (benötigt gefundetes Wallet)
+
+### Phase 1.2: Position Tracking & Sync
+- [ ] `getOpenOrders()` Integration
+- [ ] Position Sync bei Startup
+- [ ] Mismatch Detection
+
+### Phase 1.3: Kill-Switch Hardening
+- [ ] ENV-basierter Force-Paper-Mode
+- [ ] Kill-Switch bei 3+ fehlgeschlagenen Trades
+
+### Status: IN ARBEIT

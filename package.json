@@ -22,7 +22,8 @@
     "generate:backtest": "tsx scripts/generate-backtest-data.ts",
     "resolve:demo": "tsx scripts/resolve-demo-markets.ts",
     "rss": "tsx scripts/rss.ts",
-    "backtest": "tsx scripts/backtest.ts"
+    "backtest": "tsx scripts/backtest.ts",
+    "test:clob": "tsx scripts/test-clob-order.ts"
   },
   "keywords": [
     "polymarket",

@@ -7,6 +7,46 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.1.0] - 2026-02-02
+
+### Hinzugefuegt
+- **CLOB Order Execution Validierung** - Kritisch fuer Live-Trading
+  - `getOrderStatus(orderId)`: Holt aktuellen Order-Status vom CLOB
+  - `cancelOrder(orderId)`: Storniert offene Orders
+  - `waitForFill(orderId, options)`: Polling mit Timeout und Auto-Cancel
+  - `placeOrderWithRetry(params, options)`: Retry-Logik mit exponentiellem Backoff
+  - `executeOrderWithTracking()`: Vollstaendiger Trade-Flow mit Status-Tracking
+- **Error-Type-Klassifizierung** (`ClobOrderError`)
+  - `insufficient_balance`: Nicht wiederholbar
+  - `market_closed`: Nicht wiederholbar
+  - `price_moved`: Wiederholbar (mit neuem Preis)
+  - `rate_limited`: Wiederholbar (mit Backoff)
+  - `network_error`: Wiederholbar
+- **Order-Status-Types**: `pending`, `open`, `filled`, `partial`, `cancelled`, `expired`, `failed`
+- **Test-Script**: `npm run test:clob` fuer Order-Flow-Tests
+  - Dry-Run Modus (default): Testet CLOB Client, Balance, Orderbook
+  - Live Modus (`--live`): Platziert echte Mini-Order (0.01 USDC)
+  - Konfigurierbarer Betrag (`--amount=X`)
+
+### Geaendert
+- **`executeLive()`** nutzt jetzt `executeOrderWithTracking()`:
+  - Order-Status-Polling statt Annahme "success = filled"
+  - Partial Fill Handling (>50% = Erfolg)
+  - Automatische Cancellation bei 30s Timeout
+  - Detailliertes Logging mit Error-Type
+
+### Behoben
+- **Live-Trading fehlte Order-Status-Tracking** - Orders wurden blind platziert
+- **Keine Retry-Logik** bei transienten Fehlern (Rate Limits, Network)
+- **Kein Timeout/Cancellation** fuer haengende Orders
+- **ethers v6 → v5 Kompatibilitaet**: `_signTypedData` Proxy-Wrapper fuer CLOB Client
+
+### Technische Hinweise
+- Test-Script ist standalone wegen p-limit Bug in Node v24 mit tsx
+- Echter E2E-Test benoetigt gefundetes Wallet ($0.01+ USDC, MATIC fuer Gas)
+
+---
+
 ## [3.0.25] - 2026-02-02
 
 ### Hinzugefuegt
