@@ -7,6 +7,46 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.24] - 2026-02-02
+
+### Hinzugefuegt
+- **Signal Reasoning - zeigt WARUM ein Signal interessant ist**
+  - Neues `structuredReasoning` Feld im AlphaSignal Interface
+  - `SignalReasoning` Interface mit: summary, factors[], newsMatch
+  - Faktoren: Match-Score, Quellen, Timing, Sentiment - jeweils mit Erklaerung
+  - News-Match: Titel, Quelle und Confidence des besten News-Treffers
+  - Web-Frontend: Neue "WARUM INTERESSANT?" Sektion im Signal-Drilldown
+  - Telegram Bot: Formatiertes Reasoning bei Signal-Details und Alerts
+  - Faktoren nach Wert sortiert (hoechster zuerst)
+  - Automatische Summary-Generierung aus besten Faktoren
+
+---
+
+## [3.0.23] - 2026-02-02
+
+### Hinzugefuegt
+- **Backtest Demo-Data Generator** (`scripts/generate-backtest-data.ts`)
+  - Neues Script fuer realistische Backtest-Daten direkt in SQLite
+  - `npm run generate:backtest` - 50 Markets, 90 Tage Historie
+  - `npm run generate:backtest -- --markets 100 --days 180 --clear`
+  - Generiert realistische Market-Fragen (Politik, Wirtschaft, Geopolitik, Tech)
+  - Preisbewegungen mit Drift-Richtung basierend auf Outcome
+  - 80% der Markets werden als resolved generiert
+  - ~1000 Trades pro Market ueber 90 Tage
+  - Outcome-Logik: "reach target" Fragen scheitern oefters
+  - Keine CSV-Dateien noetig - direkt in Datenbank
+
+### Geaendert
+- `package.json`: Neues Script `generate:backtest` hinzugefuegt
+
+### Behoben
+- **Backtest zeigte "Keine Daten"**
+  - Problem: Es gab keine historischen Trades/Markets in der Datenbank
+  - Vorheriges Demo-System war CSV-basiert und kompliziert
+  - Jetzt: Ein Befehl generiert alle Daten fuer sofortiges Backtesting
+
+---
+
 ## [3.0.22] - 2026-02-02
 
 ### Verbessert

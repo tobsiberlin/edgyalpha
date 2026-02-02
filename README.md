@@ -302,15 +302,24 @@ npm run backtest -- --engine meta --from 2024-01-01 # Backtesting
 ### Historische Daten für Backtest
 
 ```bash
-# Option 1: Demo-Daten generieren (für Tests)
+# EMPFOHLEN: Backtest-Daten direkt generieren (schnell und einfach)
+npm run generate:backtest                          # 50 Markets, 90 Tage, ~50k Trades
+npm run generate:backtest -- --markets 100 --days 180  # Mehr Daten
+npm run generate:backtest -- --clear               # Alte Daten erst loeschen
+
+# ALTERNATIVE: CSV-basierter Import
+# Option A: Demo-Daten generieren
 npm run generate:demo -- --markets 100 --trades 100
 npm run resolve:demo  # Markets mit Outcomes versehen
 npm run import:polydata -- --all
 
-# Option 2: Echte poly_data CSVs
+# Option B: Echte poly_data CSVs
 # 1. Lade markets.csv und trades.csv von poly_data
 # 2. Kopiere nach ./data/polydata/
 # 3. npm run import:polydata -- --all
+
+# Backtest ausfuehren
+npm run backtest
 ```
 
 ### Feature-Flags

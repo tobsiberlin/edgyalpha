@@ -19,6 +19,7 @@
     "dawum": "tsx scripts/dawum.ts",
     "import:polydata": "tsx scripts/import-polydata.ts",
     "generate:demo": "tsx scripts/generate-demo-data.ts",
+    "generate:backtest": "tsx scripts/generate-backtest-data.ts",
     "resolve:demo": "tsx scripts/resolve-demo-markets.ts",
     "rss": "tsx scripts/rss.ts",
     "backtest": "tsx scripts/backtest.ts"
