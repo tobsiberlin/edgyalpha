@@ -7,6 +7,19 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.1] - 2026-02-02
+
+### Geändert
+- **Branding:** "Almanien-Vorsprung" → "Alman Heimvorteil" (weniger boomer)
+- Telegram Bot, Web-Login, README aktualisiert
+
+### Behoben
+- **DB-Init beim Startup:** `initDatabase()` wird jetzt automatisch beim App-Start aufgerufen
+- Behebt `SqliteError: no such table: news_candidates` auf dem Server
+- Rate-Limiting für Telegram-Notifications funktioniert jetzt korrekt
+
+---
+
 ## [3.0.0] - 2026-02-02 - CASH-MACHINE V2.0
 
 ### Hinzugefügt

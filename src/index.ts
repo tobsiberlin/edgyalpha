@@ -6,6 +6,7 @@ import { scanner } from './scanner/index.js';
 import { telegramBot } from './telegram/index.js';
 import { startWebServer } from './web/server.js';
 import { germanySources } from './germany/index.js';
+import { initDatabase, isSqliteAvailable } from './storage/db.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                    POLYMARKET ALPHA SCANNER
@@ -30,6 +31,18 @@ async function main(): Promise<void> {
   logger.info('═══════════════════════════════════════════════════════');
   logger.info('  Polymarket Alpha Scanner wird gestartet...');
   logger.info('═══════════════════════════════════════════════════════');
+
+  // 0. Datenbank initialisieren (MUSS zuerst passieren!)
+  if (isSqliteAvailable()) {
+    try {
+      initDatabase();
+      logger.info('  SQLite Datenbank: ✅ Initialisiert');
+    } catch (err) {
+      logger.error(`  SQLite Datenbank: ❌ ${(err as Error).message}`);
+    }
+  } else {
+    logger.warn('  SQLite: Nicht verfügbar (Rate-Limiting deaktiviert)');
+  }
   logger.info(`  Environment: ${NODE_ENV}`);
   logger.info(`  Scan-Intervall: ${config.scanner.intervalMs / 1000}s`);
   logger.info(`  Min. Volume: $${config.scanner.minVolumeUsd.toLocaleString()}`);

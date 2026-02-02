@@ -28,7 +28,7 @@ import {
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
-//         Mit Almanien-Vorsprung | Kein Gelaber, nur Alpha
+//         Mit Alman Heimvorteil | Kein Gelaber, nur Alpha
 // ═══════════════════════════════════════════════════════════════
 
 // Runtime-Settings (änderbar via Telegram)
@@ -74,8 +74,8 @@ export class TelegramAlertBot extends EventEmitter {
     return `
 \`\`\`
 ╔══════════════════════════════════╗
-║      🔥 EDGY ALPHA 🔥            ║
-║   Almanien-Vorsprung aktiviert   ║
+║       EDGY ALPHA                 ║
+║     Alman Heimvorteil aktiviert  ║
 ╚══════════════════════════════════╝
 \`\`\``;
   }
@@ -115,7 +115,7 @@ export class TelegramAlertBot extends EventEmitter {
   private async sendWelcome(): Promise<void> {
     const message = `${this.HEADER}
 
-🟢 *Maschine läuft. Almanien-Vorsprung aktiviert.*
+🟢 *Maschine läuft. Alman Heimvorteil aktiviert.*
 
 ${this.DIVIDER}
 
@@ -125,7 +125,7 @@ ${this.DIVIDER}
 ├─────────────────────────────────┤
 │  Scan:     alle 5 Min           │
 │  Ziele:    Politik, Wirtschaft  │
-│  Almanien: Scharf geschaltet    │
+│  DE-Edge:  Scharf geschaltet    │
 │  Trading:  Ein Klick zum Geld   │
 └─────────────────────────────────┘
 \`\`\`
@@ -157,7 +157,7 @@ ${this.DIVIDER}
         ],
         [
           { text: '📡 LIVE TICKER', callback_data: 'action:ticker' },
-          { text: '📰 Almanien News', callback_data: 'action:news' },
+          { text: '📰 Alman News', callback_data: 'action:news' },
         ],
         [
           { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
@@ -276,7 +276,7 @@ ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  ⚠️ TRADING GESTOPPT            │
+│  TRADING GESTOPPT               │
 ├─────────────────────────────────┤
 │  Grund: ${reason.substring(0, 22).padEnd(22)}│
 │  Zeit:  ${new Date().toLocaleTimeString('de-DE').padEnd(22)}│
@@ -854,7 +854,7 @@ _Die Maschine rattert..._`;
     }
 
     // Progress updates
-    const phases = ['Polymarket wird durchsucht...', 'Almanien-Daten laden...', 'Dawum-Umfragen checken...', 'Edge berechnen...', 'Alpha identifizieren...'];
+    const phases = ['Polymarket wird durchsucht...', 'Alman-Daten laden...', 'Dawum-Umfragen checken...', 'Edge berechnen...', 'Alpha identifizieren...'];
     for (let i = 1; i <= 5; i++) {
       await this.sleep(400);
       const pct = i * 20;
@@ -899,7 +899,7 @@ ${this.DIVIDER}
 ┌─────────────────────────────────┐
 │  SCANNER                        │
 ├─────────────────────────────────┤
-│  Status:    ${status.isScanning ? '🟡 Scannt' : '🟢 Bereit'}            │
+│  Status:    ${(status.isScanning ? '[~] Scannt' : '[+] Bereit').padEnd(18)}│
 │  Uptime:    ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}               │
 │  Scans:     ${String(status.totalScans).padStart(4, ' ')}                  │
 │  Letzter:   ${lastScanTime}                 │
@@ -1026,7 +1026,7 @@ ${this.DIVIDER}
 
 \`\`\`
 ┌──────────────────────────┐
-│ ${statusEmoji} ${statusText.padEnd(22)}│
+│ ${statusText.padEnd(24)}│
 ├──────────────────────────┤
 │ USDC:  $${balance.usdc.toFixed(2).padStart(10)}    │
 │ MATIC: ${balance.matic.toFixed(4).padStart(11)}    │
@@ -1378,7 +1378,7 @@ ${this.DIVIDER}
 \`\`\`
 ┌─────────────────────────────────┐
 │  MODE: ${modeBadge[dashboard.mode].padEnd(24)}│
-│  KILL-SWITCH: ${(dashboard.killSwitch.active ? '🔴 AN' : '🟢 AUS').padEnd(17)}│
+│  KILL-SWITCH: ${(dashboard.killSwitch.active ? '[!] AN' : '[+] AUS').padEnd(16)}│
 ├─────────────────────────────────┤
 │  TÄGLICHE PERFORMANCE           │
 ├─────────────────────────────────┤

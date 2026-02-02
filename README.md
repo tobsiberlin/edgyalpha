@@ -28,7 +28,7 @@
 │  SYSTEM STATUS                                                    │
 ├──────────────────────────────────────────────────────────────────┤
 │  Polymarket API    [████████████████████████████████████] ONLINE │
-│  Almanien Modul    [████████████████████████████████████] AKTIV  │
+│  Alman Modul    [████████████████████████████████████] AKTIV  │
 │  WebSocket         [████████████████████████████████████] BEREIT │
 │  Trading Engine    [████████████████████████████████████] ARMED  │
 └──────────────────────────────────────────────────────────────────┘
@@ -71,7 +71,7 @@
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-### Almanien-Modul (Der Deutschland-Edge)
+### Alman-Modul (Der Deutschland-Edge)
 
 ```
 ╔═══════════════════════════════════════════════════════════════════╗
@@ -498,7 +498,7 @@ edgyalpha/
 │   ├── api/              # API-Clients
 │   │   ├── polymarket.ts # Gamma + CLOB API
 │   │   └── trading.ts    # Gestufte Execution
-│   ├── germany/          # Almanien-Modul
+│   ├── germany/          # Alman-Modul
 │   │   ├── index.ts      # Koordination
 │   │   ├── rss.ts        # 40 kuratierte Feeds
 │   │   └── dawum.ts      # Wahlumfragen
