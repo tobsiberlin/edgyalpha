@@ -7,6 +7,7 @@ import { telegramBot } from './telegram/index.js';
 import { startWebServer } from './web/server.js';
 import { germanySources } from './germany/index.js';
 import { initDatabase, isSqliteAvailable } from './storage/db.js';
+import { syncPositionsToRiskState } from './runtime/positionSync.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                    POLYMARKET ALPHA SCANNER
@@ -42,6 +43,19 @@ async function main(): Promise<void> {
     }
   } else {
     logger.warn('  SQLite: Nicht verfügbar (Rate-Limiting deaktiviert)');
+  }
+
+  // 0.5. Position-Tracking mit Polymarket synchronisieren (KRITISCH nach Restart!)
+  logger.info('Synchronisiere Positionen mit Polymarket...');
+  try {
+    const syncResult = await syncPositionsToRiskState();
+    if (syncResult.synced) {
+      logger.info(`  Positionen synchronisiert: ${syncResult.openPositions} offen, ${syncResult.totalExposure.toFixed(2)} USDC Exposure`);
+    } else {
+      logger.warn(`  Position-Sync übersprungen: ${syncResult.reason}`);
+    }
+  } catch (err) {
+    logger.warn(`  Position-Sync Fehler (non-fatal): ${(err as Error).message}`);
   }
   logger.info(`  Environment: ${NODE_ENV}`);
   logger.info(`  Scan-Intervall: ${config.scanner.intervalMs / 1000}s`);

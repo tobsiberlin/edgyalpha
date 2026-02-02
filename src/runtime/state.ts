@@ -166,12 +166,12 @@ class RuntimeStateManager extends EventEmitter {
       lastTradeAt: null,
       lastResetAt: new Date(),
 
-      // Pipeline Health - immer frisch starten
+      // Pipeline Health - starte mit UNKNOWN (nicht healthy ohne Daten!)
       pipelineHealth: {
-        polymarket: { healthy: true, lastSuccess: null, errorCount: 0 },
-        rss: { healthy: true, lastSuccess: null, errorCount: 0 },
-        dawum: { healthy: true, lastSuccess: null, errorCount: 0 },
-        telegram: { healthy: true, lastSuccess: null, errorCount: 0 },
+        polymarket: { healthy: false, lastSuccess: null, errorCount: 0 },
+        rss: { healthy: false, lastSuccess: null, errorCount: 0 },
+        dawum: { healthy: false, lastSuccess: null, errorCount: 0 },
+        telegram: { healthy: false, lastSuccess: null, errorCount: 0 },
       },
     };
 
@@ -610,6 +610,37 @@ class RuntimeStateManager extends EventEmitter {
     this.persistRiskState(marketId, { size: sizeUsdc, entryPrice, direction });
   }
 
+  /**
+   * Synchronisiert Positionen von der Polymarket API
+   * ERSETZT den kompletten Position State (kein Addieren!)
+   * Wird beim Server-Start aufgerufen
+   */
+  syncPositionsFromApi(
+    positionsPerMarket: Map<string, number>,
+    totalExposure: number
+  ): void {
+    const previousOpen = this.state.openPositions;
+    const previousExposure = this.state.totalExposure;
+
+    // Komplett ersetzen, nicht addieren!
+    this.state.positionsPerMarket = new Map(positionsPerMarket);
+    this.state.openPositions = positionsPerMarket.size;
+    this.state.totalExposure = totalExposure;
+
+    logger.info(`[RUNTIME] Positionen synchronisiert:`, {
+      vorher: { openPositions: previousOpen, totalExposure: previousExposure.toFixed(2) },
+      nachher: { openPositions: this.state.openPositions, totalExposure: this.state.totalExposure.toFixed(2) },
+    });
+
+    // PERSISTIEREN
+    this.persistRiskState();
+
+    this.emit('positionsSynced', {
+      openPositions: this.state.openPositions,
+      totalExposure: this.state.totalExposure,
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   // SETTINGS
   // ─────────────────────────────────────────────────────────────
@@ -650,19 +681,78 @@ class RuntimeStateManager extends EventEmitter {
   // ─────────────────────────────────────────────────────────────
 
   recordPipelineSuccess(pipeline: keyof RuntimeState['pipelineHealth']): void {
+    const now = new Date();
     this.state.pipelineHealth[pipeline].healthy = true;
-    this.state.pipelineHealth[pipeline].lastSuccess = new Date();
+    this.state.pipelineHealth[pipeline].lastSuccess = now;
     this.state.pipelineHealth[pipeline].errorCount = 0;
+    logger.debug(`[PIPELINE] ${pipeline}: Success at ${now.toISOString()}`);
   }
 
-  recordPipelineError(pipeline: keyof RuntimeState['pipelineHealth']): void {
+  recordPipelineError(pipeline: keyof RuntimeState['pipelineHealth'], errorMessage?: string): void {
     this.state.pipelineHealth[pipeline].errorCount += 1;
+    const errorCount = this.state.pipelineHealth[pipeline].errorCount;
 
     // Nach 3 Fehlern als unhealthy markieren
-    if (this.state.pipelineHealth[pipeline].errorCount >= 3) {
+    if (errorCount >= 3) {
       this.state.pipelineHealth[pipeline].healthy = false;
-      this.emit('pipelineUnhealthy', { pipeline, errorCount: this.state.pipelineHealth[pipeline].errorCount });
+      this.emit('pipelineUnhealthy', { pipeline, errorCount, errorMessage });
     }
+
+    logger.warn(`[PIPELINE] ${pipeline}: Error #${errorCount}${errorMessage ? ` - ${errorMessage}` : ''}`);
+  }
+
+  /**
+   * Prüft ob eine Pipeline als healthy gilt:
+   * - Muss mindestens einmal erfolgreich gelaufen sein (lastSuccess != null)
+   * - lastSuccess darf nicht älter als staleThreshold sein
+   * - Weniger als 3 aufeinanderfolgende Fehler
+   */
+  isPipelineHealthy(pipeline: keyof RuntimeState['pipelineHealth'], staleThresholdMs: number = 10 * 60 * 1000): boolean {
+    const health = this.state.pipelineHealth[pipeline];
+
+    // Nie erfolgreich gelaufen = unhealthy
+    if (!health.lastSuccess) {
+      return false;
+    }
+
+    // Zu viele Fehler = unhealthy
+    if (health.errorCount >= 3) {
+      return false;
+    }
+
+    // Stale-Check: Letzte Success älter als Threshold = unhealthy
+    const ageMs = Date.now() - health.lastSuccess.getTime();
+    if (ageMs > staleThresholdMs) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Gibt ehrlichen Pipeline-Health-Status zurück
+   */
+  getPipelineHealthStatus(pipeline: keyof RuntimeState['pipelineHealth']): 'healthy' | 'stale' | 'error' | 'unknown' {
+    const health = this.state.pipelineHealth[pipeline];
+
+    // Nie gelaufen = unknown
+    if (!health.lastSuccess) {
+      return 'unknown';
+    }
+
+    // Zu viele Fehler = error
+    if (health.errorCount >= 3) {
+      return 'error';
+    }
+
+    // Stale-Check: Letzte Success älter als 10 Minuten
+    const ageMs = Date.now() - health.lastSuccess.getTime();
+    const staleThresholdMs = 10 * 60 * 1000; // 10 Minuten
+    if (ageMs > staleThresholdMs) {
+      return 'stale';
+    }
+
+    return 'healthy';
   }
 
   recordScan(): void {

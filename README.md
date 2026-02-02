@@ -107,10 +107,12 @@
 ║  MODE TOGGLE    [████████████] paper → shadow → live (no restart)║
 ║  RISK DASHBOARD [████████████] Daily PnL, Positions, Limits      ║
 ║  STATE SYNC     [████████████] WebSocket Real-Time Broadcast     ║
+║  POSITION-SYNC  [████████████] Auto-Sync bei Restart (NEU!)      ║
 ║                                                                   ║
 ║  > Kein Terminal/CLI nötig - alles via Web & Telegram            ║
 ║  > Automatischer Kill-Switch bei -20% Daily Loss                 ║
 ║  > Mode-Wechsel ohne Server-Neustart                             ║
+║  > Position-Tracking ueberlebt Server-Neustarts                  ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
