@@ -1341,6 +1341,78 @@ body {
                 </div>
             </div>
 
+            <!-- SETTINGS VIEW -->
+            <div class="viewport-content" id="view-settings">
+                <div class="viewport-header">
+                    <div class="viewport-title">NOTIFICATION SETTINGS</div>
+                    <div class="viewport-actions">
+                        <button class="btn" onclick="testNotification()">TEST</button>
+                    </div>
+                </div>
+                <div style="padding: 16px; overflow-y: auto;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                        <div class="panel">
+                            <div class="panel-header">BROWSER NOTIFICATIONS</div>
+                            <div class="panel-body">
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Master-Schalter</span>
+                                    <button class="btn" id="notify-master" onclick="toggleNotifications()" style="min-width: 60px;">AUS</button>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0;">
+                                    <span class="data-label">Sound</span>
+                                    <button class="btn" id="notify-sound" onclick="toggleNotificationSound()" style="min-width: 60px;">AN</button>
+                                </div>
+                                <div style="margin-top: 12px; padding: 8px; background: var(--bg-input); border-radius: 4px; font-size: 10px; color: var(--text-muted);">
+                                    Browser Notifications erfordern einmalige Berechtigung. Nach Aktivierung werden wichtige Events als Desktop-Notification angezeigt.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header">EVENT-TYPEN</div>
+                            <div class="panel-body">
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">High-Alpha Signal (Edge >20%)</span>
+                                    <button class="btn active" id="notify-high-alpha" onclick="toggleNotificationType('highAlpha')" style="min-width: 50px; font-size: 10px;">AN</button>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Almanien Zeitvorsprung</span>
+                                    <button class="btn active" id="notify-almanien-edge" onclick="toggleNotificationType('almanienEdge')" style="min-width: 50px; font-size: 10px;">AN</button>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Trade ausgefuehrt</span>
+                                    <button class="btn active" id="notify-trade-executed" onclick="toggleNotificationType('tradeExecuted')" style="min-width: 50px; font-size: 10px;">AN</button>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Risk Warning (Kill-Switch, Limit)</span>
+                                    <button class="btn active" id="notify-risk-warning" onclick="toggleNotificationType('riskWarning')" style="min-width: 50px; font-size: 10px;">AN</button>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0;">
+                                    <span class="data-label">Pipeline Fehler</span>
+                                    <button class="btn active" id="notify-pipeline-error" onclick="toggleNotificationType('pipelineError')" style="min-width: 50px; font-size: 10px;">AN</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header">STATUS</div>
+                            <div class="panel-body">
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Browser Support</span>
+                                    <span class="data-value" id="notify-support">--</span>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0; border-bottom: 1px solid var(--border-dim);">
+                                    <span class="data-label">Permission</span>
+                                    <span class="data-value" id="notify-permission">--</span>
+                                </div>
+                                <div class="data-row" style="padding: 8px 0;">
+                                    <span class="data-label">WebSocket</span>
+                                    <span class="data-value" id="notify-ws-status">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- TICKER VIEW -->
             <div class="viewport-content" id="view-ticker">
                 <div class="viewport-header">
@@ -1737,6 +1809,193 @@ body {
                     <div class="viewport-title">TRADE HISTORY</div>
                 </div>
                 <div class="console-log" style="padding: 40px; text-align: center;">
+
+            <!-- SETTINGS VIEW -->
+            <div class="viewport-content" id="view-settings">
+                <div class="viewport-header">
+                    <div class="viewport-title">EINSTELLUNGEN</div>
+                    <div class="viewport-actions">
+                        <button class="btn" onclick="resetSettingsToDefaults()">DEFAULTS</button>
+                        <button class="btn primary" onclick="saveAllSettings()">SPEICHERN</button>
+                    </div>
+                </div>
+                <div style="padding: 16px; overflow-y: auto; height: calc(100% - 44px);">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+                        <!-- TRADING SETTINGS -->
+                        <div class="panel">
+                            <div class="panel-header">TRADING</div>
+                            <div class="panel-body">
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">EXECUTION MODE</label>
+                                    <select id="settings-execution-mode" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                        <option value="paper">PAPER - Nur Simulation</option>
+                                        <option value="shadow">SHADOW - Log ohne Trade</option>
+                                        <option value="live">LIVE - Echte Trades</option>
+                                    </select>
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Paper = sicher testen, Shadow = reale Signale ohne Risiko, Live = echtes Geld</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MAX DAILY LOSS ($)</label>
+                                    <input type="number" id="settings-max-daily-loss" value="100" min="10" max="10000" step="10" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Stop-Loss fuer den Tag. Trading stoppt automatisch bei Erreichen.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MAX POSITIONS</label>
+                                    <input type="number" id="settings-max-positions" value="10" min="1" max="50" step="1" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Maximale gleichzeitig offene Positionen.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MAX PRO MARKT ($)</label>
+                                    <input type="number" id="settings-max-per-market" value="50" min="5" max="1000" step="5" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Maximales Exposure pro einzelnem Markt.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">KELLY FRACTION (%)</label>
+                                    <input type="number" id="settings-kelly-fraction" value="25" min="5" max="100" step="5" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Anteil des Kelly-Kriteriums. 25% = konservativ, 50% = aggressiv.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">BANKROLL ($)</label>
+                                    <input type="number" id="settings-bankroll" value="1000" min="100" max="100000" step="100" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Gesamtes Trading-Kapital fuer Positionsgroessen-Berechnung.</div>
+                                </div>
+
+                                <div>
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MAX BET PRO TRADE ($)</label>
+                                    <input type="number" id="settings-max-bet" value="10" min="1" max="500" step="1" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Absolutes Maximum pro einzelnem Trade.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SIGNAL SETTINGS -->
+                        <div class="panel">
+                            <div class="panel-header">SIGNALE</div>
+                            <div class="panel-body">
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MIN ALPHA THRESHOLD (%)</label>
+                                    <input type="number" id="settings-min-alpha" value="15" min="1" max="50" step="1" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Minimales Alpha fuer Trade-Signale. Hoeherer Wert = weniger aber bessere Signale.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MIN EDGE (%)</label>
+                                    <input type="number" id="settings-min-edge" value="5" min="1" max="30" step="1" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Minimale Preisdifferenz (Edge) zum Marktpreis.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MIN VOLUMEN ($)</label>
+                                    <input type="number" id="settings-min-volume" value="10000" min="1000" max="1000000" step="1000" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 10px; font-family: var(--font-mono); font-size: 11px;">
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">Minimales Handelsvolumen des Marktes fuer Liquiditaet.</div>
+                                </div>
+
+                                <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-terminal); border: 1px solid var(--border-dim);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-auto-trade" style="accent-color: var(--green-profit); width: 16px; height: 16px;">
+                                        <span>Auto-Trade bei "breaking_confirmed"</span>
+                                    </label>
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">Automatisch traden wenn News als "breaking" bestaetigt wird. Vorsicht!</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NOTIFICATIONS SETTINGS -->
+                        <div class="panel">
+                            <div class="panel-header">BENACHRICHTIGUNGEN</div>
+                            <div class="panel-body">
+                                <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-terminal); border: 1px solid var(--border-dim);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-browser-notifications" style="accent-color: var(--green-profit); width: 16px; height: 16px;">
+                                        <span>Browser-Benachrichtigungen</span>
+                                    </label>
+                                    <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">Desktop-Notifications bei wichtigen Events.</div>
+                                </div>
+
+                                <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 8px;">EVENTS AUSWAEHLEN:</div>
+
+                                <div style="margin-bottom: 8px; padding: 8px; background: var(--bg-terminal);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-signal" checked style="accent-color: var(--green-profit);">
+                                        <span>Neues Signal gefunden</span>
+                                    </label>
+                                </div>
+
+                                <div style="margin-bottom: 8px; padding: 8px; background: var(--bg-terminal);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-trade" checked style="accent-color: var(--green-profit);">
+                                        <span>Trade ausgefuehrt</span>
+                                    </label>
+                                </div>
+
+                                <div style="margin-bottom: 8px; padding: 8px; background: var(--bg-terminal);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-killswitch" checked style="accent-color: var(--red-risk);">
+                                        <span>Kill-Switch aktiviert</span>
+                                    </label>
+                                </div>
+
+                                <div style="margin-bottom: 8px; padding: 8px; background: var(--bg-terminal);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-daily-reset" style="accent-color: var(--cyan-info);">
+                                        <span>Taeglicher Reset</span>
+                                    </label>
+                                </div>
+
+                                <div style="padding: 8px; background: var(--bg-terminal);">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-high-alpha" checked style="accent-color: var(--amber-watch);">
+                                        <span>High-Alpha Signal (>70%)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SYSTEM STATUS -->
+                        <div class="panel">
+                            <div class="panel-header">SYSTEM STATUS</div>
+                            <div class="panel-body">
+                                <div class="data-row">
+                                    <span class="data-label">Telegram Bot</span>
+                                    <span class="data-value" id="settings-telegram-status">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Wallet</span>
+                                    <span class="data-value" id="settings-wallet-status">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Deutschland-Modus</span>
+                                    <span class="data-value" id="settings-germany-status">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Dawum API</span>
+                                    <span class="data-value" id="settings-dawum-status">--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">RSS Feeds</span>
+                                    <span class="data-value" id="settings-rss-status">--</span>
+                                </div>
+
+                                <div style="margin-top: 16px; padding: 12px; background: var(--bg-terminal); border: 1px solid var(--border-dim); font-size: 10px; color: var(--text-muted);">
+                                    Einige Einstellungen (Telegram, Wallet, API-Keys) koennen nur ueber die .env Datei geaendert werden. Aenderungen erfordern einen Server-Neustart.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Save Status -->
+                    <div id="settings-save-status" style="margin-top: 16px; padding: 12px; background: var(--green-dark); border: 1px solid var(--green-dim); color: var(--green-profit); text-align: center; display: none;">
+                        Einstellungen gespeichert!
+                    </div>
+                </div>
+            </div>
                     <span style="color: var(--text-muted);">> History view coming soon...</span>
                     <span class="console-cursor"></span>
                 </div>
@@ -2115,6 +2374,11 @@ function showView(viewId) {
         // Reset Drilldown-Zustand beim Verlassen
         resetDrilldown();
     }
+
+    // View-spezifische Aktionen
+    if (viewId === 'almanien') {
+        loadAlmanienMatches();
+    }
 }
 
 // Drilldown schliessen und zuruecksetzen
@@ -2434,6 +2698,7 @@ function renderPolls(polls) {
 
 function renderNews(news) {
     const container = document.getElementById('news-data');
+    if (!container) return;
     if (!news?.length) {
         container.innerHTML = '<span style="color: var(--text-muted);">Keine News</span>';
         return;
@@ -2445,6 +2710,126 @@ function renderNews(news) {
             <div style="font-size: 11px; color: var(--text-secondary);">${item.title}</div>
         </div>
     `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        ALMANIEN MATCHES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadAlmanienMatches() {
+    const container = document.getElementById('almanien-matches');
+    const matchCount = document.getElementById('almanien-match-count');
+    const newsCount = document.getElementById('almanien-news-count');
+
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            <div style="font-size: 14px;">Lade Matches...</div>
+        </div>
+    `;
+
+    try {
+        const res = await fetch('/api/germany/matches', { credentials: 'include' }).then(r => r.json());
+
+        if (matchCount) matchCount.textContent = res.matchedNews || 0;
+        if (newsCount) newsCount.textContent = res.totalNews || 0;
+
+        if (!res.matches?.length) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <div style="font-size: 18px; margin-bottom: 12px;">Keine Matches gefunden</div>
+                    <div style="font-size: 10px;">${res.totalNews || 0} News geprueft, ${res.marketsChecked || 0} Maerkte</div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = res.matches.map(item => {
+            const bestMatch = item.marketMatches[0];
+            const confidencePercent = (bestMatch.confidence * 100).toFixed(0);
+            const confidenceColor = bestMatch.confidence >= 0.7 ? 'var(--green-profit)' :
+                                   bestMatch.confidence >= 0.4 ? 'var(--amber-watch)' : 'var(--text-muted)';
+
+            // Zeitvorsprung formatieren
+            let timeAdvantage = '';
+            if (bestMatch.timeAdvantageMinutes !== undefined) {
+                if (bestMatch.timeAdvantageMinutes < 60) {
+                    timeAdvantage = `${bestMatch.timeAdvantageMinutes}m`;
+                } else if (bestMatch.timeAdvantageMinutes < 1440) {
+                    timeAdvantage = `${Math.floor(bestMatch.timeAdvantageMinutes / 60)}h`;
+                } else {
+                    timeAdvantage = `${Math.floor(bestMatch.timeAdvantageMinutes / 1440)}d`;
+                }
+            }
+
+            // Confidence Bar
+            const barFilled = Math.round(confidencePercent / 10);
+            const bar = '█'.repeat(barFilled) + '░'.repeat(10 - barFilled);
+
+            return `
+                <div style="padding: 16px; border-bottom: 1px solid var(--border-mid); background: var(--bg-panel);">
+                    <!-- News Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 4px;">
+                                ${item.news.source} | ${new Date(item.news.publishedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                ${timeAdvantage ? `<span style="color: var(--green-profit); margin-left: 8px;">ZEIT: ${timeAdvantage}</span>` : ''}
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-primary); font-weight: 500;">
+                                ${item.news.url ? `<a href="${item.news.url}" target="_blank" style="color: inherit; text-decoration: none;">${item.news.title}</a>` : item.news.title}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Market Match -->
+                    <div style="background: var(--bg-terminal); padding: 12px; border-radius: 4px; margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="font-size: 10px; color: var(--cyan-info);">POLYMARKET MATCH</div>
+                            <div style="font-size: 10px; font-family: monospace; color: ${confidenceColor};">
+                                ${bar} ${confidencePercent}%
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                            ${bestMatch.question}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-size: 9px; color: var(--text-muted);">
+                                ${bestMatch.matchedEntities.length > 0 ? `<span style="color: var(--green-dim);">Entities: ${bestMatch.matchedEntities.slice(0, 3).join(', ')}</span>` : ''}
+                                ${bestMatch.matchedKeywords.length > 0 ? `<span style="margin-left: 8px;">Keywords: ${bestMatch.matchedKeywords.slice(0, 3).join(', ')}</span>` : ''}
+                            </div>
+                            <a href="${bestMatch.polymarketUrl}" target="_blank"
+                               style="background: var(--green-dim); color: var(--bg-terminal); padding: 4px 12px;
+                                      font-size: 10px; text-decoration: none; border-radius: 3px; font-weight: 600;">
+                                MARKT OEFFNEN
+                            </a>
+                        </div>
+                        ${bestMatch.currentPrice !== undefined ? `
+                            <div style="font-size: 9px; color: var(--text-muted); margin-top: 6px;">
+                                Aktueller Preis: <span style="color: var(--amber-watch);">${(bestMatch.currentPrice * 100).toFixed(1)}%</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    ${item.marketMatches.length > 1 ? `
+                        <div style="font-size: 9px; color: var(--text-muted); margin-top: 8px;">
+                            +${item.marketMatches.length - 1} weitere Matches
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+
+        addLog('success', `Almanien: ${res.matchedNews} Matches gefunden`);
+    } catch (err) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--red-risk);">
+                <div style="font-size: 14px;">Fehler beim Laden</div>
+                <div style="font-size: 10px; margin-top: 8px;">${err.message}</div>
+            </div>
+        `;
+        addLog('error', 'Almanien Matches: ' + err.message);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2953,13 +3338,37 @@ let pipelineReconnects = 0;
 
 async function loadPipelineHealth() {
     try {
-        const res = await fetch('/api/pipelines/health', { credentials: 'include' }).then(r => r.json());
+        const response = await fetch('/api/pipelines/health', { credentials: 'include' });
 
-        // Overall status
+        // JSON Parse Error abfangen (wenn HTML zurückkommt statt JSON)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned non-JSON response (possibly HTML error page)');
+        }
+
+        const res = await response.json();
+
+        // Overall status - jetzt mit overallStatus Feld
         const overallDot = document.getElementById('pipeline-overall-status');
         const overallText = document.getElementById('pipeline-overall-text');
-        overallDot.className = 'status-dot ' + (res.overall ? '' : 'error');
-        overallText.textContent = res.overall ? 'ALL HEALTHY' : 'ISSUES DETECTED';
+
+        // Ehrliches Status-Mapping
+        const statusText = {
+            'healthy': 'ALL HEALTHY',
+            'degraded': 'DEGRADED',
+            'error': 'ERRORS',
+            'unknown': 'INITIALIZING'
+        };
+        const statusClass = {
+            'healthy': '',
+            'degraded': 'warning',
+            'error': 'error',
+            'unknown': 'warning'
+        };
+
+        const overallStatus = res.overallStatus || (res.overall ? 'healthy' : 'error');
+        overallDot.className = 'status-dot ' + (statusClass[overallStatus] || 'error');
+        overallText.textContent = statusText[overallStatus] || 'UNKNOWN';
 
         // Update each pipeline
         res.pipelines.forEach(p => {
@@ -2967,11 +3376,13 @@ async function loadPipelineHealth() {
         });
 
         // Scanner specific
-        if (res.lastScan) {
-            document.getElementById('pl-scanner-last').textContent = formatTimeAgo(new Date(res.lastScan));
+        const scannerLast = document.getElementById('pl-scanner-last');
+        const scannerSignal = document.getElementById('pl-scanner-signal');
+        if (scannerLast) {
+            scannerLast.textContent = res.lastScan ? formatTimeAgo(new Date(res.lastScan)) : '--';
         }
-        if (res.lastSignal) {
-            document.getElementById('pl-scanner-signal').textContent = formatTimeAgo(new Date(res.lastSignal));
+        if (scannerSignal) {
+            scannerSignal.textContent = res.lastSignal ? formatTimeAgo(new Date(res.lastSignal)) : '--';
         }
 
         // WebSocket status
@@ -2983,6 +3394,7 @@ async function loadPipelineHealth() {
         addPipelineLog('info', 'Pipeline-Status aktualisiert');
     } catch (err) {
         addPipelineLog('error', 'Fehler beim Laden: ' + err.message);
+        console.error('Pipeline Health Error:', err);
     }
 }
 
@@ -2992,15 +3404,36 @@ function updatePipelineCard(name, data) {
     const lastEl = document.getElementById(`pl-${name}-last`);
     const errorsEl = document.getElementById(`pl-${name}-errors`);
 
+    // Ehrliches Status-Mapping inkl. 'unknown'
+    const statusTextMap = {
+        'ok': 'HEALTHY',
+        'stale': 'STALE',
+        'error': 'ERROR',
+        'unknown': 'NO DATA'
+    };
+    const statusClassMap = {
+        'ok': 'positive',
+        'stale': 'warning',
+        'error': 'negative',
+        'unknown': 'muted'
+    };
+    const dotClassMap = {
+        'ok': '',
+        'stale': 'warning',
+        'error': 'error',
+        'unknown': 'warning'
+    };
+
     if (statusEl) {
-        statusEl.textContent = data.status === 'ok' ? 'HEALTHY' : data.status === 'stale' ? 'STALE' : 'ERROR';
-        statusEl.className = 'data-value ' + (data.status === 'ok' ? 'positive' : data.status === 'stale' ? 'warning' : 'negative');
+        statusEl.textContent = statusTextMap[data.status] || 'UNKNOWN';
+        statusEl.className = 'data-value ' + (statusClassMap[data.status] || 'negative');
     }
     if (dotEl) {
-        dotEl.className = 'status-dot ' + (data.status === 'ok' ? '' : data.status === 'stale' ? 'warning' : 'error');
+        dotEl.className = 'status-dot ' + (dotClassMap[data.status] || 'error');
     }
-    if (lastEl && data.lastSuccess) {
-        lastEl.textContent = formatTimeAgo(new Date(data.lastSuccess));
+    if (lastEl) {
+        // Zeige '--' wenn keine lastSuccess vorhanden (ehrliches Reporting)
+        lastEl.textContent = data.lastSuccess ? formatTimeAgo(new Date(data.lastSuccess)) : '--';
     }
     if (errorsEl) {
         errorsEl.textContent = data.errorCount || 0;
@@ -3645,6 +4078,455 @@ setInterval(() => {
     loadEquityCurve();
     loadAuditLog();
 }, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        BROWSER NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const notificationSettings = {
+    enabled: localStorage.getItem('notifications_enabled') === 'true',
+    sound: localStorage.getItem('notifications_sound') !== 'false',
+    highAlpha: localStorage.getItem('notify_high_alpha') !== 'false',
+    almanienEdge: localStorage.getItem('notify_almanien_edge') !== 'false',
+    tradeExecuted: localStorage.getItem('notify_trade_executed') !== 'false',
+    riskWarning: localStorage.getItem('notify_risk_warning') !== 'false',
+    pipelineError: localStorage.getItem('notify_pipeline_error') !== 'false',
+};
+
+const notificationSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAQAp/XWhGwAJH/l0phlDC+M4MeJWABIoejAhEoAaqzsvXw8AFi36bRvMgBqxO+rbigAec3ypGIgAIvV9JpXFgCd3PaOSwwAsOP3gj0CAMTq94EyANLy+H0pAN35+HghAOj9+HIZAPn/9GwTAAD+8mYOAAH86WEJAAXz4FwFAAnq11cCAA3f0FIAEK3KTAAS0sVGABTHwEAAFry7OgAYr7Y0ABqkriwAG5ujJQAclpodAB2RlxYAHoyTDwAfh48IAB+DjAIAH3+JAAAfeoUAAB92ggAAHnJ+AAAeb3sAAB1regAAHWh3AAAcZXQAABtidAAAG19yAAAaXXAAABpbbQAAGlltAAAZV2oAABlVaAAAGVNmAAAYUWQAABhPYgAAF01gAAAXS14AABZJXAAAFkdaAAAVRVgAABVDVgAAFEFUAAAUP1IAABNAUAAAEz5OAAASPEwAABE6SgAAETlIAAAQN0YAABs1RAAAHTNCAAAuMUAAACQvPgAAGi09AAAYKzsAABUpOQAAEyc3AAARJTUAABMjMwAAECExAAAPHy8AAA0dLQAADxsrAAA=');
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        addLog('warn', 'Browser unterstuetzt keine Notifications');
+        return false;
+    }
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            notificationSettings.enabled = true;
+            localStorage.setItem('notifications_enabled', 'true');
+            addLog('success', 'Browser Notifications aktiviert');
+            return true;
+        }
+    }
+    addLog('warn', 'Browser Notifications verweigert');
+    return false;
+}
+
+function showBrowserNotification(data) {
+    if (!notificationSettings.enabled || Notification.permission !== 'granted') return;
+    const typeMap = {
+        'high_alpha': 'highAlpha',
+        'almanien_edge': 'almanienEdge',
+        'trade_executed': 'tradeExecuted',
+        'risk_warning': 'riskWarning',
+        'pipeline_error': 'pipelineError',
+    };
+    const settingKey = typeMap[data.type];
+    if (settingKey && !notificationSettings[settingKey]) return;
+
+    const notification = new Notification(data.title, {
+        body: data.body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: data.type + '-' + Date.now(),
+        requireInteraction: data.urgency === 'critical',
+        silent: !notificationSettings.sound,
+    });
+
+    if (notificationSettings.sound && data.urgency !== 'low') {
+        notificationSound.play().catch(() => {});
+    }
+
+    notification.onclick = () => {
+        window.focus();
+        if (data.type === 'high_alpha') showView('signals');
+        else if (data.type === 'risk_warning') showView('risk');
+        else if (data.type === 'pipeline_error') showView('markets');
+        notification.close();
+    };
+
+    if (data.urgency !== 'critical') {
+        setTimeout(() => notification.close(), 10000);
+    }
+}
+
+function toggleNotifications() {
+    if (!notificationSettings.enabled) {
+        requestNotificationPermission().then(granted => {
+            if (granted) {
+                notificationSettings.enabled = true;
+                localStorage.setItem('notifications_enabled', 'true');
+                updateNotificationUI();
+                addLog('success', 'Notifications aktiviert');
+            }
+        });
+    } else {
+        notificationSettings.enabled = false;
+        localStorage.setItem('notifications_enabled', 'false');
+        updateNotificationUI();
+        addLog('info', 'Notifications deaktiviert');
+    }
+}
+
+function toggleNotificationType(type) {
+    notificationSettings[type] = !notificationSettings[type];
+    localStorage.setItem('notify_' + type.replace(/([A-Z])/g, '_$1').toLowerCase(), notificationSettings[type]);
+    updateNotificationUI();
+}
+
+function toggleNotificationSound() {
+    notificationSettings.sound = !notificationSettings.sound;
+    localStorage.setItem('notifications_sound', notificationSettings.sound);
+    updateNotificationUI();
+}
+
+function updateNotificationUI() {
+    const masterToggle = document.getElementById('notify-master');
+    const soundToggle = document.getElementById('notify-sound');
+    if (masterToggle) {
+        masterToggle.classList.toggle('active', notificationSettings.enabled);
+        masterToggle.textContent = notificationSettings.enabled ? 'AN' : 'AUS';
+    }
+    if (soundToggle) {
+        soundToggle.classList.toggle('active', notificationSettings.sound);
+        soundToggle.textContent = notificationSettings.sound ? 'AN' : 'AUS';
+    }
+    ['highAlpha', 'almanienEdge', 'tradeExecuted', 'riskWarning', 'pipelineError'].forEach(type => {
+        const el = document.getElementById('notify-' + type.replace(/([A-Z])/g, '-$1').toLowerCase());
+        if (el) {
+            el.classList.toggle('active', notificationSettings[type]);
+            el.textContent = notificationSettings[type] ? 'AN' : 'AUS';
+        }
+    });
+    // Status-Anzeige
+    const supportEl = document.getElementById('notify-support');
+    const permissionEl = document.getElementById('notify-permission');
+    const wsEl = document.getElementById('notify-ws-status');
+    if (supportEl) {
+        supportEl.textContent = 'Notification' in window ? 'Ja' : 'Nein';
+        supportEl.className = 'data-value ' + ('Notification' in window ? 'positive' : 'negative');
+    }
+    if (permissionEl) {
+        const perm = 'Notification' in window ? Notification.permission : 'n/a';
+        permissionEl.textContent = perm === 'granted' ? 'Erteilt' : perm === 'denied' ? 'Verweigert' : 'Ausstehend';
+        permissionEl.className = 'data-value ' + (perm === 'granted' ? 'positive' : perm === 'denied' ? 'negative' : 'warning');
+    }
+    if (wsEl) {
+        const connected = socket && socket.connected;
+        wsEl.textContent = connected ? 'Verbunden' : 'Getrennt';
+        wsEl.className = 'data-value ' + (connected ? 'positive' : 'negative');
+    }
+}
+
+function testNotification() {
+    showBrowserNotification({
+        type: 'high_alpha',
+        title: 'TEST NOTIFICATION',
+        body: 'Dies ist eine Test-Notification. Alles funktioniert!',
+        icon: 'alpha',
+        urgency: 'medium',
+    });
+}
+
+// Socket Event Handler fuer Browser Notifications
+if (socket) {
+    socket.on('browser_notification', (data) => {
+        showBrowserNotification(data);
+    });
+}
+
+// Initialize Notifications
+if ('Notification' in window && Notification.permission === 'granted' && notificationSettings.enabled) {
+    // Notifications bereits aktiviert
+} else if (notificationSettings.enabled) {
+    requestNotificationPermission();
+}
+setTimeout(updateNotificationUI, 100);
+
+// =====================================================================================
+//                        SETTINGS PAGE FUNCTIONS
+// =====================================================================================
+
+// Default-Werte fuer Settings
+const DEFAULT_SETTINGS = {
+    trading: {
+        maxDailyLoss: 100,
+        maxPositions: 10,
+        maxPerMarket: 50,
+        maxBetUsdc: 10,
+        kellyFraction: 25,
+        bankroll: 1000,
+        executionMode: 'paper',
+    },
+    signals: {
+        minAlpha: 15,
+        minEdge: 5,
+        minVolumeUsd: 10000,
+        autoTradeOnBreaking: false,
+    },
+    notifications: {
+        browserNotifications: true,
+        notifySignal: true,
+        notifyTrade: true,
+        notifyKillswitch: true,
+        notifyDailyReset: false,
+        notifyHighAlpha: true,
+    },
+};
+
+// Lade Settings beim View-Wechsel
+async function loadSettings() {
+    try {
+        const [serverSettings, configData, walletData] = await Promise.all([
+            fetch('/api/settings/all', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+            fetch('/api/config', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+            fetch('/api/wallet', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+        ]);
+
+        // Trading Settings aus Server laden
+        if (serverSettings?.trading) {
+            setSettingsInputValue('settings-execution-mode', serverSettings.trading.executionMode || 'paper');
+            setSettingsInputValue('settings-max-daily-loss', serverSettings.trading.maxDailyLoss || DEFAULT_SETTINGS.trading.maxDailyLoss);
+            setSettingsInputValue('settings-max-positions', serverSettings.trading.maxPositions || DEFAULT_SETTINGS.trading.maxPositions);
+            setSettingsInputValue('settings-max-per-market', serverSettings.trading.maxPerMarket || DEFAULT_SETTINGS.trading.maxPerMarket);
+            setSettingsInputValue('settings-kelly-fraction', (serverSettings.trading.kellyFraction || 0.25) * 100);
+            setSettingsInputValue('settings-bankroll', serverSettings.trading.bankroll || DEFAULT_SETTINGS.trading.bankroll);
+            setSettingsInputValue('settings-max-bet', serverSettings.trading.maxBetUsdc || DEFAULT_SETTINGS.trading.maxBetUsdc);
+        }
+
+        // Signal Settings
+        if (serverSettings?.signals) {
+            setSettingsInputValue('settings-min-alpha', serverSettings.signals.minAlpha || DEFAULT_SETTINGS.signals.minAlpha);
+            setSettingsInputValue('settings-min-edge', serverSettings.signals.minEdge || DEFAULT_SETTINGS.signals.minEdge);
+            setSettingsInputValue('settings-min-volume', serverSettings.signals.minVolumeUsd || DEFAULT_SETTINGS.signals.minVolumeUsd);
+        }
+
+        // Notification Settings aus localStorage laden
+        const savedNotify = loadSettingsNotificationConfig();
+        setSettingsCheckbox('settings-browser-notifications', savedNotify?.enabled ?? true);
+        setSettingsCheckbox('settings-notify-signal', savedNotify?.events?.signal ?? true);
+        setSettingsCheckbox('settings-notify-trade', savedNotify?.events?.trade ?? true);
+        setSettingsCheckbox('settings-notify-killswitch', savedNotify?.events?.killswitch ?? true);
+        setSettingsCheckbox('settings-notify-daily-reset', savedNotify?.events?.dailyReset ?? false);
+        setSettingsCheckbox('settings-notify-high-alpha', savedNotify?.events?.highAlpha ?? true);
+        setSettingsCheckbox('settings-auto-trade', savedNotify?.autoTrade ?? false);
+
+        // System Status aktualisieren
+        updateSettingsSystemStatus(serverSettings, configData, walletData);
+
+        addLog('info', 'Settings geladen');
+    } catch (err) {
+        addLog('error', 'Settings laden fehlgeschlagen: ' + err.message);
+    }
+}
+
+function loadSettingsNotificationConfig() {
+    try {
+        const saved = localStorage.getItem('edgyalpha_notifications');
+        return saved ? JSON.parse(saved) : null;
+    } catch {
+        return null;
+    }
+}
+
+function setSettingsInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+}
+
+function setSettingsCheckbox(id, checked) {
+    const el = document.getElementById(id);
+    if (el) el.checked = checked;
+}
+
+function getSettingsInputValue(id, defaultVal = 0) {
+    const el = document.getElementById(id);
+    return el ? (parseFloat(el.value) || defaultVal) : defaultVal;
+}
+
+function getSettingsCheckbox(id) {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
+}
+
+function getSettingsSelectValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+}
+
+function updateSettingsSystemStatus(serverSettings, configData, walletData) {
+    // Telegram Status
+    const telegramEl = document.getElementById('settings-telegram-status');
+    if (telegramEl) {
+        const telegramOk = serverSettings?.telegram?.enabled && serverSettings?.telegram?.configured;
+        telegramEl.textContent = telegramOk ? 'AKTIV' : 'INAKTIV';
+        telegramEl.className = 'data-value ' + (telegramOk ? 'positive' : '');
+    }
+
+    // Wallet Status
+    const walletEl = document.getElementById('settings-wallet-status');
+    if (walletEl) {
+        const walletOk = walletData?.configured && !walletData?.error;
+        walletEl.textContent = walletOk ? (walletData.address || 'KONFIGURIERT') : 'NICHT KONFIGURIERT';
+        walletEl.className = 'data-value ' + (walletOk ? 'positive' : 'warning');
+    }
+
+    // Germany Mode Status
+    const germanyEl = document.getElementById('settings-germany-status');
+    if (germanyEl) {
+        const germanyOk = serverSettings?.germany?.enabled;
+        germanyEl.textContent = germanyOk ? 'AKTIV' : 'INAKTIV';
+        germanyEl.className = 'data-value ' + (germanyOk ? 'positive' : '');
+    }
+
+    // Dawum Status
+    const dawumEl = document.getElementById('settings-dawum-status');
+    if (dawumEl) {
+        const dawumOk = serverSettings?.germany?.sources?.dawum;
+        dawumEl.textContent = dawumOk ? 'AKTIV' : 'INAKTIV';
+        dawumEl.className = 'data-value ' + (dawumOk ? 'positive' : '');
+    }
+
+    // RSS Status
+    const rssEl = document.getElementById('settings-rss-status');
+    if (rssEl) {
+        const rssOk = serverSettings?.germany?.sources?.rss;
+        rssEl.textContent = rssOk ? 'AKTIV' : 'INAKTIV';
+        rssEl.className = 'data-value ' + (rssOk ? 'positive' : '');
+    }
+}
+
+async function saveAllSettings() {
+    const statusEl = document.getElementById('settings-save-status');
+
+    try {
+        // 1. Server Settings speichern (Trading & Signals)
+        const serverPayload = {
+            maxDailyLoss: getSettingsInputValue('settings-max-daily-loss', 100),
+            maxPositions: getSettingsInputValue('settings-max-positions', 10),
+            maxPerMarket: getSettingsInputValue('settings-max-per-market', 50),
+            maxBetUsdc: getSettingsInputValue('settings-max-bet', 10),
+            minAlpha: getSettingsInputValue('settings-min-alpha', 15),
+            minEdge: getSettingsInputValue('settings-min-edge', 5),
+            minVolumeUsd: getSettingsInputValue('settings-min-volume', 10000),
+        };
+
+        const settingsRes = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(serverPayload),
+        }).then(r => r.json());
+
+        if (!settingsRes.success) {
+            throw new Error(settingsRes.error || 'Server settings save failed');
+        }
+
+        // 2. Execution Mode speichern
+        const newMode = getSettingsSelectValue('settings-execution-mode');
+        if (newMode) {
+            await fetch('/api/execution/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ mode: newMode }),
+            });
+            updateModeUI(newMode);
+        }
+
+        // 3. Notification Settings in localStorage speichern
+        const notificationPayload = {
+            enabled: getSettingsCheckbox('settings-browser-notifications'),
+            events: {
+                signal: getSettingsCheckbox('settings-notify-signal'),
+                trade: getSettingsCheckbox('settings-notify-trade'),
+                killswitch: getSettingsCheckbox('settings-notify-killswitch'),
+                dailyReset: getSettingsCheckbox('settings-notify-daily-reset'),
+                highAlpha: getSettingsCheckbox('settings-notify-high-alpha'),
+            },
+            autoTrade: getSettingsCheckbox('settings-auto-trade'),
+        };
+        localStorage.setItem('edgyalpha_notifications', JSON.stringify(notificationPayload));
+
+        // Kelly Fraction und Bankroll in localStorage (da Server-Config)
+        localStorage.setItem('edgyalpha_kelly', getSettingsInputValue('settings-kelly-fraction', 25));
+        localStorage.setItem('edgyalpha_bankroll', getSettingsInputValue('settings-bankroll', 1000));
+
+        // Erfolgs-Feedback
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'Einstellungen gespeichert!';
+            statusEl.style.background = 'var(--green-dark)';
+            statusEl.style.borderColor = 'var(--green-dim)';
+            statusEl.style.color = 'var(--green-profit)';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+        }
+
+        addLog('success', 'Einstellungen gespeichert');
+
+        // Risk Dashboard neu laden
+        loadRiskDashboard();
+
+    } catch (err) {
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'Fehler beim Speichern: ' + err.message;
+            statusEl.style.background = 'rgba(255,51,68,0.15)';
+            statusEl.style.borderColor = 'var(--red-dim)';
+            statusEl.style.color = 'var(--red-risk)';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+        }
+        addLog('error', 'Settings speichern fehlgeschlagen: ' + err.message);
+    }
+}
+
+function resetSettingsToDefaults() {
+    if (!confirm('Alle Einstellungen auf Standardwerte zuruecksetzen?')) return;
+
+    // Trading Defaults
+    setSettingsInputValue('settings-execution-mode', DEFAULT_SETTINGS.trading.executionMode);
+    setSettingsInputValue('settings-max-daily-loss', DEFAULT_SETTINGS.trading.maxDailyLoss);
+    setSettingsInputValue('settings-max-positions', DEFAULT_SETTINGS.trading.maxPositions);
+    setSettingsInputValue('settings-max-per-market', DEFAULT_SETTINGS.trading.maxPerMarket);
+    setSettingsInputValue('settings-kelly-fraction', DEFAULT_SETTINGS.trading.kellyFraction);
+    setSettingsInputValue('settings-bankroll', DEFAULT_SETTINGS.trading.bankroll);
+    setSettingsInputValue('settings-max-bet', DEFAULT_SETTINGS.trading.maxBetUsdc);
+
+    // Signal Defaults
+    setSettingsInputValue('settings-min-alpha', DEFAULT_SETTINGS.signals.minAlpha);
+    setSettingsInputValue('settings-min-edge', DEFAULT_SETTINGS.signals.minEdge);
+    setSettingsInputValue('settings-min-volume', DEFAULT_SETTINGS.signals.minVolumeUsd);
+    setSettingsCheckbox('settings-auto-trade', DEFAULT_SETTINGS.signals.autoTradeOnBreaking);
+
+    // Notification Defaults
+    setSettingsCheckbox('settings-browser-notifications', DEFAULT_SETTINGS.notifications.browserNotifications);
+    setSettingsCheckbox('settings-notify-signal', DEFAULT_SETTINGS.notifications.notifySignal);
+    setSettingsCheckbox('settings-notify-trade', DEFAULT_SETTINGS.notifications.notifyTrade);
+    setSettingsCheckbox('settings-notify-killswitch', DEFAULT_SETTINGS.notifications.notifyKillswitch);
+    setSettingsCheckbox('settings-notify-daily-reset', DEFAULT_SETTINGS.notifications.notifyDailyReset);
+    setSettingsCheckbox('settings-notify-high-alpha', DEFAULT_SETTINGS.notifications.notifyHighAlpha);
+
+    addLog('info', 'Einstellungen auf Defaults zurueckgesetzt');
+}
+
+// =====================================================================================
+//                        SHOW VIEW HOOK FOR SETTINGS
+// =====================================================================================
+
+// Erweitere showView um Settings-Laden
+(function() {
+    const originalShowViewFn = showView;
+    window.showView = function(viewId) {
+        originalShowViewFn(viewId);
+        // Settings laden wenn Settings-View angezeigt wird
+        if (viewId === 'settings') {
+            loadSettings();
+        }
+    };
+})();
+
     </script>
 </body>
 </html>

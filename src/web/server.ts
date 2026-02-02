@@ -12,10 +12,11 @@ import { PolymarketClient } from '../api/polymarket.js';
 
 const polymarketClient = new PolymarketClient();
 import { newsTicker, TickerEvent } from '../ticker/index.js';
-import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode } from '../types/index.js';
+import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode, GermanSource } from '../types/index.js';
 import { runtimeState, StateChangeEvent } from '../runtime/state.js';
 import { runBacktest, BacktestOptions, generateJsonReport, generateMarkdownReport } from '../backtest/index.js';
-import { BacktestResult } from '../alpha/types.js';
+import { BacktestResult, SourceEvent } from '../alpha/types.js';
+import { fuzzyMatch, MatchResult } from '../alpha/matching.js';
 import { getStats } from '../storage/repositories/historical.js';
 import { initDatabase } from '../storage/db.js';
 import { getSystemHealthDashboard } from '../storage/repositories/pipelineHealth.js';
@@ -221,6 +222,134 @@ app.get('/api/germany/news', requireAuth, (_req: Request, res: Response) => {
 
 app.get('/api/germany/bundestag', requireAuth, (_req: Request, res: Response) => {
   res.json(germanySources.getBundestagItems());
+});
+
+// API: Deutschland News mit Polymarket Matches (Almanien Intelligence)
+app.get('/api/germany/matches', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    // 1. Deutsche News holen
+    const news = germanySources.getLatestNews();
+
+    // 2. Aktuelle Polymarket-Märkte holen
+    const scanResult = scanner.getLastResult();
+    const markets = scanResult?.signalsFound.map(s => s.market) || [];
+
+    // Falls keine Märkte aus dem Scanner, direkt von Polymarket holen
+    let allMarkets = markets;
+    if (allMarkets.length < 10) {
+      try {
+        const polymarketMarkets = await polymarketClient.getMarkets({ limit: 100, active: true });
+        allMarkets = [...allMarkets, ...polymarketMarkets];
+        // Duplikate entfernen
+        const seen = new Set<string>();
+        allMarkets = allMarkets.filter(m => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+      } catch (err) {
+        logger.warn(`Konnte Polymarket-Märkte nicht laden: ${(err as Error).message}`);
+      }
+    }
+
+    // 3. News zu SourceEvents konvertieren für Matching
+    const matches: Array<{
+      news: {
+        id: string;
+        source: string;
+        title: string;
+        url?: string;
+        category: string;
+        publishedAt: string;
+        content?: string;
+      };
+      marketMatches: Array<{
+        marketId: string;
+        question: string;
+        slug: string;
+        confidence: number;
+        matchedKeywords: string[];
+        matchedEntities: string[];
+        reasoning: string;
+        polymarketUrl: string;
+        currentPrice?: number;
+        timeAdvantageMinutes?: number;
+      }>;
+    }> = [];
+
+    for (const newsItem of news.slice(0, 50)) {
+      // News zu SourceEvent konvertieren
+      const sourceEvent: SourceEvent = {
+        eventHash: (newsItem.data.hash as string) || `${newsItem.data.source}:${newsItem.title}`.substring(0, 200),
+        sourceId: (newsItem.data.source as string) || 'unknown',
+        sourceName: (newsItem.data.source as string) || 'Deutsche Quelle',
+        url: newsItem.url || null,
+        title: newsItem.title,
+        content: (newsItem.data.content as string) || null,
+        category: (newsItem.data.category as string) || 'news',
+        keywords: (newsItem.data.keywords as string[]) || [],
+        publishedAt: newsItem.publishedAt,
+        ingestedAt: new Date(),
+        reliabilityScore: 0.8,
+      };
+
+      // Matching durchführen
+      const newsMatches = fuzzyMatch(sourceEvent, allMarkets);
+
+      if (newsMatches.length > 0) {
+        // Zeitvorsprung berechnen (geschätzt)
+        const newsAge = newsItem.publishedAt
+          ? Math.floor((Date.now() - new Date(newsItem.publishedAt).getTime()) / (1000 * 60))
+          : undefined;
+
+        matches.push({
+          news: {
+            id: sourceEvent.eventHash,
+            source: (newsItem.data.source as string) || 'Unbekannt',
+            title: newsItem.title,
+            url: newsItem.url,
+            category: (newsItem.data.category as string) || 'news',
+            publishedAt: newsItem.publishedAt?.toISOString() || new Date().toISOString(),
+            content: (newsItem.data.content as string)?.substring(0, 200),
+          },
+          marketMatches: newsMatches.slice(0, 3).map(match => {
+            const market = allMarkets.find(m => m.id === match.marketId);
+            return {
+              marketId: match.marketId,
+              question: market?.question || 'Unbekannt',
+              slug: market?.slug || match.marketId,
+              confidence: match.confidence,
+              matchedKeywords: match.matchedKeywords,
+              matchedEntities: match.matchedEntities,
+              reasoning: match.reasoning,
+              polymarketUrl: `https://polymarket.com/event/${market?.slug || match.marketId}`,
+              currentPrice: market?.outcomes?.[0]?.price,
+              timeAdvantageMinutes: newsAge,
+            };
+          }),
+        });
+      }
+    }
+
+    // Nach bester Match-Confidence sortieren
+    matches.sort((a, b) => {
+      const maxA = Math.max(...a.marketMatches.map(m => m.confidence));
+      const maxB = Math.max(...b.marketMatches.map(m => m.confidence));
+      return maxB - maxA;
+    });
+
+    res.json({
+      matches,
+      totalNews: news.length,
+      matchedNews: matches.length,
+      marketsChecked: allMarkets.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const error = err as Error;
+    logger.error(`Germany Matches Fehler: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -514,12 +643,40 @@ app.post('/api/settings', requireAuth, (req: Request, res: Response) => {
   });
 });
 
+// API: Alle Settings abrufen (fuer Settings-Seite)
+app.get('/api/settings/all', requireAuth, (_req: Request, res: Response) => {
+  const state = runtimeState.getState();
+
+  res.json({
+    trading: {
+      maxDailyLoss: state.maxDailyLoss,
+      maxPositions: state.maxPositions,
+      maxPerMarket: state.maxPerMarket,
+      maxBetUsdc: state.maxBetUsdc,
+      riskPerTradePercent: state.riskPerTradePercent,
+      kellyFraction: config.trading.kellyFraction,
+      bankroll: config.trading.maxBankrollUsdc,
+      executionMode: state.executionMode,
+    },
+    signals: {
+      minAlpha: state.minAlpha,
+      minEdge: state.minEdge,
+      minVolumeUsd: state.minVolumeUsd,
+    },
+    germany: config.germany,
+    telegram: {
+      enabled: config.telegram.enabled,
+      configured: !!(config.telegram.botToken && config.telegram.chatId),
+    },
+  });
+});
+
 // API: Runtime State (vollständig)
 app.get('/api/runtime', requireAuth, (_req: Request, res: Response) => {
   res.json(runtimeState.toJSON());
 });
 
-// API: Pipeline Health
+// API: Pipeline Health - Ehrliches Reporting
 app.get('/api/pipelines/health', requireAuth, (_req: Request, res: Response) => {
   const state = runtimeState.getState();
   const now = new Date();
@@ -527,25 +684,54 @@ app.get('/api/pipelines/health', requireAuth, (_req: Request, res: Response) => 
   // Stale-Berechnung (älter als 10 Minuten = stale)
   const staleThreshold = 10 * 60 * 1000;
 
-  const pipelines = Object.entries(state.pipelineHealth).map(([name, health]) => {
+  type PipelineName = keyof typeof state.pipelineHealth;
+  const pipelineNames: PipelineName[] = ['polymarket', 'rss', 'dawum', 'telegram'];
+
+  const pipelines = pipelineNames.map((name) => {
+    const health = state.pipelineHealth[name];
     const lastSuccessAgo = health.lastSuccess
       ? now.getTime() - health.lastSuccess.getTime()
       : null;
-    const isStale = lastSuccessAgo !== null && lastSuccessAgo > staleThreshold;
+
+    // Ehrlicher Status:
+    // - 'unknown': Nie erfolgreich gelaufen (lastSuccess === null)
+    // - 'error': 3+ aufeinanderfolgende Fehler
+    // - 'stale': lastSuccess > 10 Minuten alt
+    // - 'ok': Alles gut
+    let status: 'ok' | 'stale' | 'error' | 'unknown';
+
+    if (!health.lastSuccess) {
+      status = 'unknown';
+    } else if (health.errorCount >= 3) {
+      status = 'error';
+    } else if (lastSuccessAgo !== null && lastSuccessAgo > staleThreshold) {
+      status = 'stale';
+    } else {
+      status = 'ok';
+    }
+
+    // healthy nur wenn status === 'ok'
+    const healthy = status === 'ok';
 
     return {
       name,
-      healthy: health.healthy && !isStale,
+      healthy,
       lastSuccess: health.lastSuccess,
       lastSuccessAgo: lastSuccessAgo ? Math.round(lastSuccessAgo / 1000) : null,
       errorCount: health.errorCount,
-      status: isStale ? 'stale' : health.healthy ? 'ok' : 'error',
+      status,
     };
   });
 
+  // Overall: Nur healthy wenn ALLE Pipelines 'ok' sind
+  const overallHealthy = pipelines.every(p => p.status === 'ok');
+  const hasUnknown = pipelines.some(p => p.status === 'unknown');
+  const hasErrors = pipelines.some(p => p.status === 'error');
+
   res.json({
     pipelines,
-    overall: pipelines.every(p => p.healthy),
+    overall: overallHealthy,
+    overallStatus: hasErrors ? 'error' : hasUnknown ? 'unknown' : overallHealthy ? 'healthy' : 'degraded',
     lastScan: state.lastScanAt,
     lastSignal: state.lastSignalAt,
   });
@@ -1105,6 +1291,85 @@ runtimeState.on('dailyReset', () => {
 
 runtimeState.on('pipelineUnhealthy', (data: { pipeline: string; errorCount: number }) => {
   io.emit('pipeline_alert', data);
+  // Browser Notification: Pipeline Error
+  io.emit('browser_notification', {
+    type: 'pipeline_error',
+    title: 'Pipeline Fehler',
+    body: `${data.pipeline} hat ${data.errorCount} Fehler`,
+    icon: 'warning',
+    urgency: 'high',
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//                    BROWSER NOTIFICATION EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+// High-Alpha Signal gefunden (edge > 20%)
+scanner.on('signal_found', (signal: AlphaSignal) => {
+  if (signal.edge > 0.20) {
+    io.emit('browser_notification', {
+      type: 'high_alpha',
+      title: 'HIGH ALPHA SIGNAL',
+      body: `${signal.market?.question?.substring(0, 60) || 'Signal'} | Edge: ${(signal.edge * 100).toFixed(1)}%`,
+      icon: 'alpha',
+      urgency: 'high',
+      data: { signalId: signal.id, edge: signal.edge },
+    });
+  }
+});
+
+// Kill-Switch aktiviert - Browser Notification
+runtimeState.on('killSwitchActivated', (data: { reason: string; source: string }) => {
+  io.emit('browser_notification', {
+    type: 'risk_warning',
+    title: 'KILL-SWITCH AKTIVIERT',
+    body: data.reason,
+    icon: 'danger',
+    urgency: 'critical',
+  });
+});
+
+// Trade ausgeführt + Daily Loss Limit Warnung
+runtimeState.on('tradeRecorded', (data: { pnl: number; marketId: string; dailyPnL: number }) => {
+  const dashboard = runtimeState.getRiskDashboard();
+  const usedPercent = 1 - (dashboard.limits.dailyLossRemaining / dashboard.limits.dailyLossLimit);
+
+  // Trade ausgeführt Notification
+  io.emit('browser_notification', {
+    type: 'trade_executed',
+    title: 'TRADE AUSGEFÜHRT',
+    body: `PnL: ${data.pnl >= 0 ? '+' : ''}$${data.pnl.toFixed(2)} | Daily: ${data.dailyPnL >= 0 ? '+' : ''}$${data.dailyPnL.toFixed(2)}`,
+    icon: data.pnl >= 0 ? 'profit' : 'loss',
+    urgency: 'medium',
+    data: { marketId: data.marketId, pnl: data.pnl },
+  });
+
+  // Risk Warning wenn >80% des Daily Loss Limits verbraucht
+  if (usedPercent > 0.8 && data.pnl < 0) {
+    io.emit('browser_notification', {
+      type: 'risk_warning',
+      title: 'DAILY LIMIT WARNUNG',
+      body: `${(usedPercent * 100).toFixed(0)}% des Tages-Limits verbraucht`,
+      icon: 'warning',
+      urgency: 'high',
+    });
+  }
+});
+
+// Almanien Zeitvorsprung gefunden (via Ticker)
+newsTicker.on('tick', (event: TickerEvent) => {
+  if (event.type === 'match_found' && event.matchResult?.found && event.matchResult.markets.length > 0) {
+    const topMatch = event.matchResult.markets[0];
+    io.emit('browser_notification', {
+      type: 'almanien_edge',
+      title: 'ALMANIEN ZEITVORSPRUNG',
+      body: `${event.title?.substring(0, 50) || 'News'} -> ${topMatch.question?.substring(0, 30) || 'Markt'}`,
+      icon: 'germany',
+      urgency: 'high',
+      data: { matchScore: topMatch.matchScore },
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

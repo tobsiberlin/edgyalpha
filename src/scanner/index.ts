@@ -11,6 +11,7 @@ import {
   MarketCategory,
 } from '../types/index.js';
 import { EventEmitter } from 'events';
+import { runtimeState } from '../runtime/state.js';
 
 export class AlphaScanner extends EventEmitter {
   private isScanning = false;
@@ -66,9 +67,18 @@ export class AlphaScanner extends EventEmitter {
     try {
       // 1. Märkte von Polymarket holen
       logger.info('Scanne Polymarket Märkte...');
-      const allMarkets = await polymarketClient.getActiveMarketsWithVolume(
-        config.scanner.minVolumeUsd
-      );
+      let allMarkets;
+      try {
+        allMarkets = await polymarketClient.getActiveMarketsWithVolume(
+          config.scanner.minVolumeUsd
+        );
+        // Pipeline Success: Polymarket Daten erfolgreich geladen
+        runtimeState.recordPipelineSuccess('polymarket');
+      } catch (polyErr) {
+        const error = polyErr as Error;
+        runtimeState.recordPipelineError('polymarket', error.message);
+        throw error;
+      }
 
       // 2. Nach Kategorien filtern
       const markets = this.filterByCategories(allMarkets);

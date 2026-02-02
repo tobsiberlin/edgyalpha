@@ -34,6 +34,12 @@ interface CliArgs {
   output: string;
   verbose: boolean;
   help: boolean;
+  // NEU: Validation & Monte Carlo
+  validation: boolean;
+  trainTestSplit: number;
+  monteCarlo: boolean;
+  monteCarloSims: number;
+  walkForwardWindow: number;
 }
 
 function parseArgs(): CliArgs {
@@ -46,6 +52,12 @@ function parseArgs(): CliArgs {
     output: './backtest-results',
     verbose: false,
     help: false,
+    // NEU: Defaults fuer Validation & Monte Carlo
+    validation: true,
+    trainTestSplit: 0.7,
+    monteCarlo: true,
+    monteCarloSims: 1000,
+    walkForwardWindow: 90, // GEAENDERT: Von 30 auf 90 Tage
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -115,6 +127,45 @@ function parseArgs(): CliArgs {
         result.verbose = true;
         break;
 
+      // NEU: Validation & Monte Carlo Optionen
+      case '--no-validation':
+        result.validation = false;
+        break;
+
+      case '--validation':
+        result.validation = true;
+        break;
+
+      case '--split':
+        if (args[i + 1]) {
+          result.trainTestSplit = parseFloat(args[i + 1]);
+          i++;
+        }
+        break;
+
+      case '--no-monte-carlo':
+        result.monteCarlo = false;
+        break;
+
+      case '--monte-carlo':
+        result.monteCarlo = true;
+        break;
+
+      case '--mc-sims':
+        if (args[i + 1]) {
+          result.monteCarloSims = parseInt(args[i + 1], 10);
+          i++;
+        }
+        break;
+
+      case '--walk-forward':
+      case '-w':
+        if (args[i + 1]) {
+          result.walkForwardWindow = parseInt(args[i + 1], 10);
+          i++;
+        }
+        break;
+
       default:
         if (arg.startsWith('-')) {
           console.error(chalk.yellow(`Unbekanntes Argument: ${arg}`));
@@ -133,14 +184,21 @@ ${chalk.bold('USAGE')}
   npm run backtest -- [OPTIONS]
 
 ${chalk.bold('OPTIONS')}
-  --from DATE         Start-Datum (YYYY-MM-DD)
-  --to DATE           End-Datum (YYYY-MM-DD)
-  --engine, -e NAME   Engine: timeDelay, mispricing, meta (default: meta)
-  --no-slippage       Slippage deaktivieren
-  --bankroll, -b NUM  Initiales Kapital (default: 1000)
-  --output, -o PATH   Output-Verzeichnis (default: ./backtest-results)
-  --verbose, -v       Detaillierte Ausgabe
-  --help, -h          Diese Hilfe anzeigen
+  --from DATE           Start-Datum (YYYY-MM-DD)
+  --to DATE             End-Datum (YYYY-MM-DD)
+  --engine, -e NAME     Engine: timeDelay, mispricing, meta (default: meta)
+  --no-slippage         Slippage deaktivieren
+  --bankroll, -b NUM    Initiales Kapital (default: 1000)
+  --output, -o PATH     Output-Verzeichnis (default: ./backtest-results)
+  --verbose, -v         Detaillierte Ausgabe
+  --help, -h            Diese Hilfe anzeigen
+
+${chalk.bold('VALIDATION & ROBUSTNESS')}
+  --no-validation       Out-of-Sample Validation deaktivieren
+  --split RATIO         Train/Test Split (default: 0.7 = 70% Train)
+  --no-monte-carlo      Monte Carlo Simulation deaktivieren
+  --mc-sims NUM         Anzahl Monte Carlo Simulationen (default: 1000)
+  --walk-forward, -w    Walk-Forward Window in Tagen (default: 90)
 
 ${chalk.bold('BEISPIELE')}
   # Backtest mit meta-Engine fuer H1 2024
@@ -149,13 +207,26 @@ ${chalk.bold('BEISPIELE')}
   # TimeDelay-Engine ohne Slippage
   npm run backtest -- --engine timeDelay --no-slippage
 
-  # Alle verfuegbaren Daten verwenden
-  npm run backtest -- --engine mispricing
+  # Ohne Validation (schneller, aber weniger robust)
+  npm run backtest -- --no-validation --no-monte-carlo
+
+  # Mit aggressiverem 80/20 Split
+  npm run backtest -- --split 0.8
+
+  # Mit mehr Monte Carlo Simulationen
+  npm run backtest -- --mc-sims 5000
 
 ${chalk.bold('ENGINES')}
   timeDelay   News-basierte Signale (Time-Delay Alpha)
   mispricing  Marktbewertungs-basierte Signale
   meta        Kombiniert beide Engines mit Walk-Forward Learning
+
+${chalk.bold('OVERFITTING PROTECTION')}
+  Der Backtest prueft automatisch auf Overfitting-Indikatoren:
+  - Train >> Test Performance (Divergenz)
+  - Unrealistisch hohe Sharpe Ratio (>3)
+  - Monte Carlo Confidence Intervals
+  - Robustness Score (0-100)
 `);
 }
 
@@ -210,14 +281,17 @@ async function main(): Promise<void> {
   const to = args.to ?? stats.dateRange.to ?? new Date();
 
   console.log(chalk.gray('Backtest-Konfiguration:'));
-  console.log(chalk.gray(`  Engine:    ${args.engine}`));
+  console.log(chalk.gray(`  Engine:           ${args.engine}`));
   console.log(
     chalk.gray(
-      `  Zeitraum:  ${from.toISOString().slice(0, 10)} bis ${to.toISOString().slice(0, 10)}`
+      `  Zeitraum:         ${from.toISOString().slice(0, 10)} bis ${to.toISOString().slice(0, 10)}`
     )
   );
-  console.log(chalk.gray(`  Bankroll:  $${args.bankroll.toLocaleString()}`));
-  console.log(chalk.gray(`  Slippage:  ${args.slippage ? 'Ja' : 'Nein'}`));
+  console.log(chalk.gray(`  Bankroll:         $${args.bankroll.toLocaleString()}`));
+  console.log(chalk.gray(`  Slippage:         ${args.slippage ? 'Ja' : 'Nein'}`));
+  console.log(chalk.gray(`  Walk-Forward:     ${args.walkForwardWindow} Tage`));
+  console.log(chalk.gray(`  Validation:       ${args.validation ? `Ja (${(args.trainTestSplit * 100).toFixed(0)}/${((1 - args.trainTestSplit) * 100).toFixed(0)} Split)` : 'Nein'}`));
+  console.log(chalk.gray(`  Monte Carlo:      ${args.monteCarlo ? `Ja (${args.monteCarloSims} Sims)` : 'Nein'}`));
   console.log('');
 
   console.log(chalk.yellow('Starte Backtest...'));
@@ -234,6 +308,12 @@ async function main(): Promise<void> {
       initialBankroll: args.bankroll,
       slippageEnabled: args.slippage,
       verbose: args.verbose,
+      // NEU: Validation & Monte Carlo
+      walkForwardWindow: args.walkForwardWindow,
+      enableValidation: args.validation,
+      trainTestSplit: args.trainTestSplit,
+      enableMonteCarlo: args.monteCarlo,
+      monteCarloSimulations: args.monteCarloSims,
     });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

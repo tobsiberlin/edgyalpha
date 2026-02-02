@@ -25,6 +25,9 @@ import {
   updateNotificationSettings,
   PushMode,
 } from '../notifications/rateLimiter.js';
+import { autoTrader, AutoTradeResult } from '../alpha/autoTrader.js';
+import { timeDelayEngine } from '../alpha/timeDelayEngine.js';
+import { timeAdvantageService } from '../alpha/timeAdvantageService.js';
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
@@ -678,6 +681,11 @@ _Nutze /settings um Push-Benachrichtigungen zu konfigurieren._`;
       }, chatId);
     });
 
+    // /edge - Zeitvorsprung Dashboard
+    this.bot.onText(/\/edge/, async (msg) => {
+      await this.handleTimeAdvantageDashboard(msg.chat.id.toString());
+    });
+
     // /help - Kommando-Übersicht
     this.bot.onText(/\/help/, async (msg) => {
       const chatId = msg.chat.id.toString();
@@ -721,6 +729,7 @@ ${this.DIVIDER}
 ├─────────────────────────────────┤
 │  /polls        - Wahlumfragen   │
 │  /news         - Deutsche News  │
+│  /edge         - Zeitvorsprung  │
 ├─────────────────────────────────┤
 │  SONSTIGES                      │
 ├─────────────────────────────────┤
@@ -844,6 +853,9 @@ ${this.DIVIDER}
         break;
       case 'news':
         await this.handleNews(chatId, messageId);
+        break;
+      case 'edge':
+        await this.handleTimeAdvantageDashboard(chatId, messageId);
         break;
       case 'ticker':
         await this.handleTicker(chatId, messageId);
@@ -1274,6 +1286,132 @@ _Aktualisiert: ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minut
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //                    ZEITVORSPRUNG DASHBOARD
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleTimeAdvantageDashboard(chatId: string, messageId?: number): Promise<void> {
+    const dashboard = timeAdvantageService.getDashboard();
+
+    let message: string;
+
+    if (dashboard.totalTracked === 0) {
+      message = `${this.HEADER}
+
+*ZEITVORSPRUNG TRACKER*
+
+${this.DIVIDER}
+
+_Noch keine Daten vorhanden._
+
+Der Tracker sammelt automatisch Daten wenn deutsche News mit Polymarket-Maerkten gematcht werden.
+
+\`\`\`
+Wie funktioniert's?
+1. Deutsche News wird erkannt
+2. Markt-Match gesucht
+3. Preis-Snapshot gemacht
+4. Preis nach 5/15/30/60 Min geprueft
+5. Zeitvorsprung berechnet
+\`\`\`
+
+${this.DIVIDER}
+
+_Warte auf Breaking News..._`;
+    } else {
+      // Formatiere Quellen-Tabelle
+      let sourceTable = '';
+      if (dashboard.bySource.length > 0) {
+        sourceTable = '\n*Top Quellen:*\n\`\`\`\n';
+        sourceTable += 'Quelle          | # | Adv.  | Acc.\n';
+        sourceTable += '----------------|---|-------|-----\n';
+
+        for (const src of dashboard.bySource.slice(0, 6)) {
+          const name = src.source.substring(0, 15).padEnd(15);
+          const count = src.count.toString().padStart(2);
+          const adv = src.avgAdvantage > 0 ? `${src.avgAdvantage.toFixed(0)}m`.padStart(5) : '  -  ';
+          const acc = src.accuracy > 0 ? `${src.accuracy.toFixed(0)}%`.padStart(4) : '  - ';
+          sourceTable += `${name} |${count} |${adv} |${acc}\n`;
+        }
+        sourceTable += '\`\`\`';
+      }
+
+      // Formatiere letzte Trackings
+      let recentList = '';
+      if (dashboard.recentEntries.length > 0) {
+        recentList = '\n*Letzte Trackings:*\n';
+        for (const entry of dashboard.recentEntries.slice(0, 5)) {
+          const statusEmoji = entry.status === 'completed'
+            ? (entry.predictionCorrect ? '✅' : '❌')
+            : entry.status === 'tracking'
+              ? '⏳'
+              : '⏰';
+
+          const moveStr = entry.priceMove60min !== null
+            ? `${entry.priceMove60min >= 0 ? '+' : ''}${(entry.priceMove60min * 100).toFixed(1)}%`
+            : '-';
+
+          const advStr = entry.timeAdvantageMinutes !== null
+            ? `${entry.timeAdvantageMinutes}m`
+            : '-';
+
+          // Escape Markdown im Titel
+          const safeTitle = entry.newsTitle.substring(0, 35).replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+
+          recentList += `${statusEmoji} _${entry.newsSource}_\n   ${safeTitle}...\n   Move: ${moveStr} | Adv: ${advStr}\n`;
+        }
+      }
+
+      // Berechne "Edge Confidence" (wie sicher sind wir, dass es einen Edge gibt)
+      const edgeConfidence = dashboard.totalWithSignificantMove > 0 && dashboard.totalMatched > 0
+        ? Math.min(100, Math.round((dashboard.totalWithSignificantMove / dashboard.totalMatched) * 100))
+        : 0;
+      const edgeBar = this.progressBar(edgeConfidence, 100, 10);
+
+      message = `${this.HEADER}
+
+*ZEITVORSPRUNG DASHBOARD*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  ALMAN EDGE BEWEIS              │
+├─────────────────────────────────┤
+│  Getrackte News:     ${dashboard.totalTracked.toString().padStart(7)} │
+│  Mit Markt-Match:    ${dashboard.totalMatched.toString().padStart(7)} │
+│  Signifikante Moves: ${dashboard.totalWithSignificantMove.toString().padStart(7)} │
+├─────────────────────────────────┤
+│  Avg. Zeitvorsprung: ${dashboard.avgTimeAdvantageMinutes > 0 ? (dashboard.avgTimeAdvantageMinutes.toFixed(0) + ' min').padStart(7) : '    -  '} │
+│  Avg. Preisbewegung: ${dashboard.avgPriceMove > 0 ? ((dashboard.avgPriceMove * 100).toFixed(1) + '%').padStart(7) : '    -  '} │
+│  Vorhersage-Genau.:  ${dashboard.predictionAccuracy > 0 ? (dashboard.predictionAccuracy.toFixed(0) + '%').padStart(7) : '    -  '} │
+└─────────────────────────────────┘
+\`\`\`
+
+*Edge Confidence:*
+\`${edgeBar}\` ${edgeConfidence}%
+${sourceTable}
+${recentList}
+${this.DIVIDER}
+
+_${dashboard.pendingPriceChecks} Price-Checks ausstehend_
+_Letzte Aktualisierung: ${new Date().toLocaleTimeString('de-DE')}_`;
+    }
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: '🔄 Aktualisieren', callback_data: 'action:edge' }],
+        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //                    LIVE TICKER - DAUERFEUER
   // ═══════════════════════════════════════════════════════════════
 
@@ -1439,14 +1577,31 @@ _Tippe auf ein Modul zum Umschalten:_`;
 
     logger.info(`[TELEGRAM] Modul ${moduleNames[module]} → ${newValue ? 'AKTIVIERT' : 'DEAKTIVIERT'}`);
 
-    // Zusätzliche Warnung bei Auto-Bet Aktivierung
-    if (module === 'autoBet' && newValue) {
-      await this.sendMessage(
-        `⚠️ *AUTO-BET AKTIVIERT*\n\n` +
-        `Bei SAFE BET Signalen wird jetzt automatisch mit 50% Bankroll getradet!\n\n` +
-        `_Stelle sicher, dass du im richtigen Trading-Mode bist._`,
-        chatId
-      );
+    // Zusätzliche Warnung und AutoTrader-Sync bei Auto-Bet Toggle
+    if (module === 'autoBet') {
+      // Sync mit AutoTrader UND TimeDelayEngine
+      autoTrader.setEnabled(newValue as boolean);
+      timeDelayEngine.updateConfig({ autoTradeEnabled: newValue as boolean });
+
+      if (newValue) {
+        const state = runtimeState.getState();
+        await this.sendMessage(
+          `🚨 *AUTO-TRADE AKTIVIERT*\n\n` +
+          `Bei BREAKING_CONFIRMED Signalen wird jetzt automatisch getradet!\n\n` +
+          `*Config:*\n` +
+          `• Min Edge: ${(autoTrader.getConfig().minEdge * 100).toFixed(0)}%\n` +
+          `• Max Size: $${autoTrader.getConfig().maxSize}\n` +
+          `• Mode: ${state.executionMode.toUpperCase()}\n\n` +
+          `_Stelle sicher, dass du im richtigen Trading-Mode bist!_`,
+          chatId
+        );
+      } else {
+        await this.sendMessage(
+          `⏸️ *AUTO-TRADE DEAKTIVIERT*\n\n` +
+          `BREAKING_CONFIRMED Signals werden jetzt nur noch angezeigt.`,
+          chatId
+        );
+      }
     }
 
     // Refresh settings menu
@@ -2363,6 +2518,23 @@ ${riskGates}`;
     });
 
     // ═══════════════════════════════════════════════════════════════
+    // AUTO-TRADE EVENTS (Breaking News automatisch traden)
+    // ═══════════════════════════════════════════════════════════════
+    autoTrader.on('auto_trade_executed', async (result: AutoTradeResult) => {
+      logger.info(`[TELEGRAM] Auto-Trade executed event received`);
+      await this.sendAutoTradeNotification(result, true);
+    });
+
+    autoTrader.on('auto_trade_blocked', async (result: AutoTradeResult) => {
+      // Nur bei breaking_confirmed loggen/notifizieren
+      if (result.signal.certainty === 'breaking_confirmed') {
+        logger.info(`[TELEGRAM] Auto-Trade blocked: ${result.reason}`);
+        // Optional: Notification bei blockiertem Trade
+        // await this.sendAutoTradeNotification(result, false);
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
     // BREAKING NEWS → Candidate Queue (NICHT mehr direkt pushen!)
     // ═══════════════════════════════════════════════════════════════
     germanySources.on('breaking_news', async (news: BreakingNewsEvent) => {
@@ -2953,6 +3125,105 @@ ${additional.slice(0, 3).map(n => `• ${n.candidate.title.substring(0, 50)}...`
     });
 
     logger.info(`[TELEGRAM] Batched Alert: ${notifications.length} Notifications`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                    AUTO-TRADE NOTIFICATION
+  // Speed ist essentiell - sofortige Benachrichtigung nach Trade!
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendAutoTradeNotification(result: AutoTradeResult, executed: boolean): Promise<void> {
+    const { signal, execution, decision } = result;
+    const state = runtimeState.getState();
+    const modeEmoji = state.executionMode === 'live' ? '🚀' : state.executionMode === 'shadow' ? '👻' : '📝';
+
+    const directionEmoji = signal.direction === 'yes' ? '✅' : '❌';
+
+    // Market URL
+    const marketUrl = `https://polymarket.com/event/${signal.marketId}`;
+
+    if (executed) {
+      // Trade wurde ausgeführt
+      const message = `
+🤖 *AUTO\\-TRADE AUSGEFÜHRT* 🤖
+
+${this.DIVIDER}
+
+✅ *BREAKING\\_CONFIRMED*
+${modeEmoji} *Mode:* ${state.executionMode.toUpperCase()}
+
+${this.DIVIDER}
+
+📊 *Markt:*
+\`\`\`
+${signal.question.substring(0, 80)}...
+\`\`\`
+
+🎯 *Direction:* ${directionEmoji} ${signal.direction.toUpperCase()}
+📈 *Edge:* ${(signal.predictedEdge * 100).toFixed(1)}%
+💵 *Size:* $${decision?.sizeUsdc?.toFixed(2) || '?'}
+
+${this.DIVIDER}
+
+${execution ? `*Execution Details:*
+• Fill Price: ${execution.fillPrice?.toFixed(4) || 'N/A'}
+• Slippage: ${execution.slippage ? (execution.slippage * 100).toFixed(2) + '%' : 'N/A'}
+• ID: \`${execution.executionId.substring(0, 8)}...\`` : ''}
+
+_Zeitvorsprung genutzt \\- Trade automatisch ausgeführt\\!_
+
+[📊 Polymarket](${marketUrl})`;
+
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [
+            { text: '📊 Risk Dashboard', callback_data: 'action:risk' },
+            { text: '💰 PnL', callback_data: 'action:pnl' },
+          ],
+          [
+            { text: '⏸️ Auto-Trade AUS', callback_data: 'toggle:autoBet' },
+          ],
+        ],
+      });
+
+      logger.info(`[TELEGRAM] Auto-Trade Notification gesendet: ${signal.marketId}`);
+    } else {
+      // Trade wurde blockiert - optional notification
+      const safeReason = result.reason.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+      const message = `
+⚠️ *AUTO\\-TRADE BLOCKIERT* ⚠️
+
+${this.DIVIDER}
+
+*Grund:* ${safeReason}
+
+📊 *Markt:*
+\`\`\`
+${signal.question.substring(0, 60)}...
+\`\`\`
+
+🎯 *Direction:* ${directionEmoji} ${signal.direction.toUpperCase()}
+📈 *Edge:* ${(signal.predictedEdge * 100).toFixed(1)}%
+
+${this.DIVIDER}
+
+_Manuelles Trading über Polymarket möglich\\._
+
+[📊 Polymarket](${marketUrl})`;
+
+      await this.sendMessageWithKeyboard(message, {
+        inline_keyboard: [
+          [
+            { text: '🔥 Manuell traden', url: marketUrl },
+          ],
+          [
+            { text: '📊 Risk Dashboard', callback_data: 'action:risk' },
+          ],
+        ],
+      });
+
+      logger.info(`[TELEGRAM] Auto-Trade Blocked Notification gesendet: ${result.reason}`);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

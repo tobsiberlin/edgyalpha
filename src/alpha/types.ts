@@ -242,3 +242,57 @@ export interface BacktestMetrics {
   avgEdgeCapture: number;
   avgSlippage: number;
 }
+
+// Out-of-Sample Validation Result
+export interface ValidationResult {
+  trainMetrics: BacktestMetrics;
+  testMetrics: BacktestMetrics;
+  trainTrades: BacktestTrade[];
+  testTrades: BacktestTrade[];
+  splitRatio: number; // z.B. 0.7 = 70% Train
+  overfittingWarnings: OverfittingWarning[];
+}
+
+export interface OverfittingWarning {
+  type: 'sharpe_too_high' | 'train_test_divergence' | 'unrealistic_returns' | 'low_trade_count';
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  details?: Record<string, number>;
+}
+
+// Monte Carlo Result
+export interface MonteCarloResult {
+  simulations: number;
+  pnlDistribution: {
+    mean: number;
+    median: number;
+    stdDev: number;
+    percentile5: number;
+    percentile25: number;
+    percentile75: number;
+    percentile95: number;
+  };
+  winRateDistribution: {
+    mean: number;
+    stdDev: number;
+    percentile5: number;
+    percentile95: number;
+  };
+  maxDrawdownDistribution: {
+    mean: number;
+    worst: number;
+    percentile5: number;
+    percentile95: number;
+  };
+  confidenceInterval95: {
+    pnlLower: number;
+    pnlUpper: number;
+  };
+}
+
+// Extended Backtest Result with Validation
+export interface ExtendedBacktestResult extends BacktestResult {
+  validation?: ValidationResult;
+  monteCarlo?: MonteCarloResult;
+  walkForwardWindow: number;
+}

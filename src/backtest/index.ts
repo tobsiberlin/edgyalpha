@@ -1,6 +1,7 @@
 /**
  * Backtest Engine
- * Führt Backtests mit historischen Daten durch
+ * Fuehrt Backtests mit historischen Daten durch
+ * V2: Mit Out-of-Sample Validation und Monte Carlo Simulation
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +11,9 @@ import {
   BacktestTrade,
   HistoricalTrade,
   HistoricalMarket,
+  ExtendedBacktestResult,
+  ValidationResult,
+  MonteCarloResult,
 } from '../alpha/types.js';
 import { TimeDelayEngine } from '../alpha/timeDelayEngine.js';
 import { MispricingEngine } from '../alpha/mispricingEngine.js';
@@ -17,6 +21,11 @@ import { MetaCombiner, CombinedSignal } from '../alpha/metaCombiner.js';
 import { TradeSimulator, SimulatorConfig } from './simulator.js';
 import { calculateMetrics } from './metrics.js';
 import { calculateCalibrationBuckets } from './calibration.js';
+import {
+  performOutOfSampleValidation,
+  runMonteCarloSimulation,
+  checkBacktestRobustness,
+} from './validation.js';
 import {
   getTradesByMarket,
   getMarketResolution,
@@ -35,15 +44,25 @@ export interface BacktestOptions {
   engine: 'timeDelay' | 'mispricing' | 'meta';
   initialBankroll?: number;
   slippageEnabled?: boolean;
-  walkForwardWindow?: number; // Tage für Walk-Forward (nur für meta)
+  walkForwardWindow?: number; // Tage fuer Walk-Forward (nur fuer meta)
   verbose?: boolean;
+  // NEU: Validation & Robustness Options
+  enableValidation?: boolean; // Out-of-Sample Validation aktivieren
+  trainTestSplit?: number; // Split-Ratio (0.7 = 70% Train, 30% Test)
+  enableMonteCarlo?: boolean; // Monte Carlo Simulation aktivieren
+  monteCarloSimulations?: number; // Anzahl der Simulationen
 }
 
 export const DEFAULT_BACKTEST_OPTIONS: Partial<BacktestOptions> = {
   initialBankroll: 1000,
   slippageEnabled: true,
-  walkForwardWindow: 30,
+  walkForwardWindow: 90, // GEAENDERT: Von 30 auf 90 Tage fuer mehr Robustheit
   verbose: false,
+  // NEU: Defaults fuer Validation
+  enableValidation: true,
+  trainTestSplit: 0.7, // 70% Train, 30% Test
+  enableMonteCarlo: true,
+  monteCarloSimulations: 1000,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,26 +70,32 @@ export const DEFAULT_BACKTEST_OPTIONS: Partial<BacktestOptions> = {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Führe Backtest durch
+ * Fuehre Backtest durch
+ * V2: Mit Out-of-Sample Validation und Monte Carlo fuer Robustheit
  */
 export async function runBacktest(
   options: BacktestOptions
-): Promise<BacktestResult> {
+): Promise<ExtendedBacktestResult> {
   const opts = { ...DEFAULT_BACKTEST_OPTIONS, ...options };
 
   logger.info(
     `Starte Backtest: Engine=${opts.engine}, ` +
       `Zeitraum=${opts.from.toISOString().slice(0, 10)} bis ${opts.to.toISOString().slice(0, 10)}`
   );
+  logger.info(
+    `  Walk-Forward Window: ${opts.walkForwardWindow} Tage, ` +
+      `Validation: ${opts.enableValidation ? 'aktiv' : 'deaktiviert'}, ` +
+      `Monte Carlo: ${opts.enableMonteCarlo ? `${opts.monteCarloSimulations}x` : 'deaktiviert'}`
+  );
 
   // Initialisiere DB
   initDatabase();
 
-  // Prüfe ob Daten vorhanden sind
+  // Pruefe ob Daten vorhanden sind
   const stats = getStats();
   logger.info(
     `Historische Daten: ${stats.tradeCount} Trades, ` +
-      `${stats.marketCount} Märkte, ${stats.resolvedCount} resolved`
+      `${stats.marketCount} Maerkte, ${stats.resolvedCount} resolved`
   );
 
   if (stats.resolvedCount === 0) {
@@ -88,7 +113,7 @@ export async function runBacktest(
     feesPercent: 0.001,
   });
 
-  // Führe Engine-spezifischen Backtest durch
+  // Fuehre Engine-spezifischen Backtest durch
   let trades: BacktestTrade[] = [];
 
   switch (opts.engine) {
@@ -107,14 +132,67 @@ export async function runBacktest(
   const metrics = calculateMetrics(trades);
   const calibration = calculateCalibrationBuckets(trades);
 
-  const result: BacktestResult = {
+  // NEU: Out-of-Sample Validation
+  let validation: ValidationResult | undefined;
+  if (opts.enableValidation && trades.length >= 10) {
+    logger.info('');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    logger.info('OUT-OF-SAMPLE VALIDATION');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    validation = performOutOfSampleValidation(trades, opts.trainTestSplit!);
+  }
+
+  // NEU: Monte Carlo Simulation
+  let monteCarlo: MonteCarloResult | undefined;
+  if (opts.enableMonteCarlo && trades.length >= 10) {
+    logger.info('');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    logger.info('MONTE CARLO SIMULATION');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    monteCarlo = runMonteCarloSimulation(
+      trades,
+      opts.monteCarloSimulations!,
+      opts.initialBankroll!
+    );
+  }
+
+  // NEU: Robustness Check und Warnungen
+  if (validation && monteCarlo) {
+    logger.info('');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    logger.info('ROBUSTNESS CHECK');
+    logger.info('═══════════════════════════════════════════════════════════════');
+    const robustness = checkBacktestRobustness(validation, monteCarlo);
+    logger.info(`Robustness Score: ${robustness.score}/100 (${robustness.isRobust ? 'ROBUST' : 'NICHT ROBUST'})`);
+
+    if (robustness.issues.length > 0) {
+      logger.warn('Gefundene Probleme:');
+      for (const issue of robustness.issues) {
+        logger.warn(`  - ${issue}`);
+      }
+    }
+
+    if (robustness.recommendations.length > 0) {
+      logger.info('Empfehlungen:');
+      for (const rec of robustness.recommendations) {
+        logger.info(`  - ${rec}`);
+      }
+    }
+  }
+
+  const result: ExtendedBacktestResult = {
     engine: opts.engine,
     period: { from: opts.from, to: opts.to },
     trades,
     metrics,
     calibration,
+    // NEU: Erweiterte Ergebnisse
+    validation,
+    monteCarlo,
+    walkForwardWindow: opts.walkForwardWindow!,
   };
 
+  logger.info('');
   logger.info(
     `Backtest abgeschlossen: ${trades.length} Trades, ` +
       `PnL=$${metrics.totalPnl.toFixed(2)}, Win Rate=${(metrics.winRate * 100).toFixed(1)}%`
@@ -483,3 +561,9 @@ export {
   saveReports,
   generateConsoleOutput,
 } from './report.js';
+// NEU: Validation & Monte Carlo
+export {
+  performOutOfSampleValidation,
+  runMonteCarloSimulation,
+  checkBacktestRobustness,
+} from './validation.js';

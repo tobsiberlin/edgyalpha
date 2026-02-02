@@ -1,11 +1,18 @@
 /**
  * Backtest Report Generator
  * Generiert Markdown- und JSON-Reports
+ * V2: Mit Validation und Monte Carlo Ergebnissen
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BacktestResult, CalibrationBucket } from '../alpha/types.js';
+import {
+  BacktestResult,
+  CalibrationBucket,
+  ExtendedBacktestResult,
+  ValidationResult,
+  MonteCarloResult,
+} from '../alpha/types.js';
 import {
   interpretBrierScore,
   analyzeCalibration,
@@ -18,6 +25,7 @@ import {
   calculateAvgWinLoss,
   calculateCalmarRatio,
 } from './metrics.js';
+import { checkBacktestRobustness } from './validation.js';
 import { logger } from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -27,8 +35,9 @@ import { logger } from '../utils/logger.js';
 /**
  * Generiere Markdown-Report
  */
-export function generateMarkdownReport(result: BacktestResult): string {
+export function generateMarkdownReport(result: BacktestResult | ExtendedBacktestResult): string {
   const { engine, period, trades, metrics, calibration } = result;
+  const extResult = result as ExtendedBacktestResult;
 
   // Header
   let md = `# Backtest Report: ${engine.toUpperCase()} Engine\n\n`;
@@ -123,6 +132,21 @@ export function generateMarkdownReport(result: BacktestResult): string {
     md += `\n`;
   }
 
+  // NEU: Out-of-Sample Validation
+  if (extResult.validation) {
+    md += generateValidationSection(extResult.validation);
+  }
+
+  // NEU: Monte Carlo Simulation
+  if (extResult.monteCarlo) {
+    md += generateMonteCarloSection(extResult.monteCarlo);
+  }
+
+  // NEU: Robustness Check
+  if (extResult.validation && extResult.monteCarlo) {
+    md += generateRobustnessSection(extResult.validation, extResult.monteCarlo);
+  }
+
   // Top 10 Trades
   md += `## Top 10 Trades (nach PnL)\n\n`;
   const sortedTrades = [...trades]
@@ -171,8 +195,9 @@ export function generateMarkdownReport(result: BacktestResult): string {
 /**
  * Generiere JSON-Report
  */
-export function generateJsonReport(result: BacktestResult): string {
+export function generateJsonReport(result: BacktestResult | ExtendedBacktestResult): string {
   const { engine, period, trades, metrics, calibration } = result;
+  const extResult = result as ExtendedBacktestResult;
 
   // Erweiterte Metriken berechnen
   const profitFactor = calculateProfitFactor(trades);
@@ -252,6 +277,23 @@ export function generateJsonReport(result: BacktestResult): string {
       actualEdge: t.actualEdge,
       slippage: t.slippage,
     })),
+    // NEU: Validation & Monte Carlo
+    validation: extResult.validation ? {
+      splitRatio: extResult.validation.splitRatio,
+      trainCount: extResult.validation.trainTrades.length,
+      testCount: extResult.validation.testTrades.length,
+      trainMetrics: extResult.validation.trainMetrics,
+      testMetrics: extResult.validation.testMetrics,
+      overfittingWarnings: extResult.validation.overfittingWarnings,
+    } : null,
+    monteCarlo: extResult.monteCarlo ? {
+      simulations: extResult.monteCarlo.simulations,
+      pnlDistribution: extResult.monteCarlo.pnlDistribution,
+      winRateDistribution: extResult.monteCarlo.winRateDistribution,
+      maxDrawdownDistribution: extResult.monteCarlo.maxDrawdownDistribution,
+      confidenceInterval95: extResult.monteCarlo.confidenceInterval95,
+    } : null,
+    walkForwardWindow: extResult.walkForwardWindow || 90,
   };
 
   return JSON.stringify(report, null, 2);
@@ -301,8 +343,9 @@ export async function saveReports(
 /**
  * Generiere Console-Output
  */
-export function generateConsoleOutput(result: BacktestResult): string {
+export function generateConsoleOutput(result: BacktestResult | ExtendedBacktestResult): string {
   const { engine, period, trades, metrics, calibration } = result;
+  const extResult = result as ExtendedBacktestResult;
 
   const lines: string[] = [];
 
@@ -373,6 +416,57 @@ export function generateConsoleOutput(result: BacktestResult): string {
     lines.push('');
   }
 
+  // NEU: Out-of-Sample Validation
+  if (extResult.validation) {
+    const v = extResult.validation;
+    lines.push('=' .repeat(50));
+    lines.push('  OUT-OF-SAMPLE VALIDATION');
+    lines.push(`     Split:     ${(v.splitRatio * 100).toFixed(0)}% Train / ${((1 - v.splitRatio) * 100).toFixed(0)}% Test`);
+    lines.push('');
+    lines.push('     Metric         Train       Test');
+    lines.push(`     Trades         ${String(v.trainTrades.length).padStart(8)}  ${String(v.testTrades.length).padStart(8)}`);
+    lines.push(`     PnL            ${formatCurrency(v.trainMetrics.totalPnl).padStart(8)}  ${formatCurrency(v.testMetrics.totalPnl).padStart(8)}`);
+    lines.push(`     Win Rate       ${formatPercent(v.trainMetrics.winRate).padStart(8)}  ${formatPercent(v.testMetrics.winRate).padStart(8)}`);
+    lines.push(`     Sharpe         ${v.trainMetrics.sharpeRatio.toFixed(2).padStart(8)}  ${v.testMetrics.sharpeRatio.toFixed(2).padStart(8)}`);
+    lines.push('');
+
+    if (v.overfittingWarnings.length > 0) {
+      lines.push('  OVERFITTING WARNUNGEN');
+      for (const w of v.overfittingWarnings) {
+        const icon = w.severity === 'high' ? '!!' : w.severity === 'medium' ? '!' : '-';
+        lines.push(`     [${icon}] ${w.message}`);
+      }
+      lines.push('');
+    }
+  }
+
+  // NEU: Monte Carlo
+  if (extResult.monteCarlo) {
+    const mc = extResult.monteCarlo;
+    lines.push('=' .repeat(50));
+    lines.push('  MONTE CARLO SIMULATION');
+    lines.push(`     Simulationen:  ${mc.simulations}`);
+    lines.push('');
+    lines.push('     PnL Verteilung:');
+    lines.push(`        5% (Worst):   ${formatCurrency(mc.pnlDistribution.percentile5)}`);
+    lines.push(`        Median:       ${formatCurrency(mc.pnlDistribution.median)}`);
+    lines.push(`        95% (Best):   ${formatCurrency(mc.pnlDistribution.percentile95)}`);
+    lines.push(`        Mean:         ${formatCurrency(mc.pnlDistribution.mean)}`);
+    lines.push(`        Std. Dev.:    ${formatCurrency(mc.pnlDistribution.stdDev)}`);
+    lines.push('');
+    lines.push(`     95% CI:  ${formatCurrency(mc.confidenceInterval95.pnlLower)} bis ${formatCurrency(mc.confidenceInterval95.pnlUpper)}`);
+    lines.push(`     Worst DD: ${formatCurrency(mc.maxDrawdownDistribution.worst)}`);
+    lines.push('');
+  }
+
+  // NEU: Robustness Score
+  if (extResult.validation && extResult.monteCarlo) {
+    const robustness = checkBacktestRobustness(extResult.validation, extResult.monteCarlo);
+    lines.push('=' .repeat(50));
+    lines.push(`  ROBUSTNESS SCORE: ${robustness.score}/100 ${robustness.isRobust ? '(ROBUST)' : '(NICHT ROBUST)'}`);
+    lines.push('');
+  }
+
   lines.push('=' .repeat(50));
 
   return lines.join('\n');
@@ -402,6 +496,91 @@ function formatBucketRange(range: [number, number]): string {
 function daysBetween(from: Date, to: Date): number {
   const diffMs = to.getTime() - from.getTime();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NEU: VALIDATION & MONTE CARLO REPORT SECTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function generateValidationSection(validation: ValidationResult): string {
+  let md = `## Out-of-Sample Validation\n\n`;
+  md += `**Split:** ${(validation.splitRatio * 100).toFixed(0)}% Train / ${((1 - validation.splitRatio) * 100).toFixed(0)}% Test\n\n`;
+
+  md += `| Metrik | Train | Test | Differenz |\n`;
+  md += `|--------|-------|------|-----------|\n`;
+  md += `| Trades | ${validation.trainTrades.length} | ${validation.testTrades.length} | - |\n`;
+  md += `| Total PnL | ${formatCurrency(validation.trainMetrics.totalPnl)} | ${formatCurrency(validation.testMetrics.totalPnl)} | ${formatCurrency(validation.testMetrics.totalPnl - validation.trainMetrics.totalPnl)} |\n`;
+  md += `| Win Rate | ${formatPercent(validation.trainMetrics.winRate)} | ${formatPercent(validation.testMetrics.winRate)} | ${formatPercent(validation.testMetrics.winRate - validation.trainMetrics.winRate)} |\n`;
+  md += `| Sharpe Ratio | ${validation.trainMetrics.sharpeRatio.toFixed(2)} | ${validation.testMetrics.sharpeRatio.toFixed(2)} | ${(validation.testMetrics.sharpeRatio - validation.trainMetrics.sharpeRatio).toFixed(2)} |\n`;
+  md += `| Max Drawdown | ${formatCurrency(validation.trainMetrics.maxDrawdown)} | ${formatCurrency(validation.testMetrics.maxDrawdown)} | - |\n\n`;
+
+  if (validation.overfittingWarnings.length > 0) {
+    md += `### Overfitting-Warnungen\n\n`;
+    for (const warning of validation.overfittingWarnings) {
+      const severity = warning.severity === 'high' ? '🔴' : warning.severity === 'medium' ? '🟡' : '🟢';
+      md += `- ${severity} **[${warning.severity.toUpperCase()}]** ${warning.message}\n`;
+    }
+    md += `\n`;
+  } else {
+    md += `✅ Keine Overfitting-Warnungen erkannt.\n\n`;
+  }
+
+  return md;
+}
+
+function generateMonteCarloSection(mc: MonteCarloResult): string {
+  let md = `## Monte Carlo Simulation\n\n`;
+  md += `**Simulationen:** ${mc.simulations}\n\n`;
+
+  md += `### PnL-Verteilung\n\n`;
+  md += `| Perzentil | Wert |\n`;
+  md += `|-----------|------|\n`;
+  md += `| 5% (Worst Case) | ${formatCurrency(mc.pnlDistribution.percentile5)} |\n`;
+  md += `| 25% | ${formatCurrency(mc.pnlDistribution.percentile25)} |\n`;
+  md += `| 50% (Median) | ${formatCurrency(mc.pnlDistribution.median)} |\n`;
+  md += `| 75% | ${formatCurrency(mc.pnlDistribution.percentile75)} |\n`;
+  md += `| 95% (Best Case) | ${formatCurrency(mc.pnlDistribution.percentile95)} |\n`;
+  md += `| **Mean** | ${formatCurrency(mc.pnlDistribution.mean)} |\n`;
+  md += `| Std. Dev. | ${formatCurrency(mc.pnlDistribution.stdDev)} |\n\n`;
+
+  md += `### 95% Confidence Interval\n\n`;
+  md += `**PnL:** ${formatCurrency(mc.confidenceInterval95.pnlLower)} bis ${formatCurrency(mc.confidenceInterval95.pnlUpper)}\n\n`;
+
+  md += `### Max Drawdown Verteilung\n\n`;
+  md += `| Metrik | Wert |\n`;
+  md += `|--------|------|\n`;
+  md += `| Mean | ${formatCurrency(mc.maxDrawdownDistribution.mean)} |\n`;
+  md += `| Worst (all Sims) | ${formatCurrency(mc.maxDrawdownDistribution.worst)} |\n`;
+  md += `| 5% Percentile | ${formatCurrency(mc.maxDrawdownDistribution.percentile5)} |\n`;
+  md += `| 95% Percentile | ${formatCurrency(mc.maxDrawdownDistribution.percentile95)} |\n\n`;
+
+  return md;
+}
+
+function generateRobustnessSection(validation: ValidationResult, mc: MonteCarloResult): string {
+  const robustness = checkBacktestRobustness(validation, mc);
+
+  let md = `## Robustness Check\n\n`;
+  md += `**Score:** ${robustness.score}/100 `;
+  md += robustness.isRobust ? '✅ **ROBUST**\n\n' : '❌ **NICHT ROBUST**\n\n';
+
+  if (robustness.issues.length > 0) {
+    md += `### Probleme\n\n`;
+    for (const issue of robustness.issues) {
+      md += `- ⚠️ ${issue}\n`;
+    }
+    md += `\n`;
+  }
+
+  if (robustness.recommendations.length > 0) {
+    md += `### Empfehlungen\n\n`;
+    for (const rec of robustness.recommendations) {
+      md += `- 💡 ${rec}\n`;
+    }
+    md += `\n`;
+  }
+
+  return md;
 }
 
 export default {

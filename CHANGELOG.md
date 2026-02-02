@@ -7,6 +7,222 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.15] - 2026-02-02
+
+### Behoben
+- **Pipeline Health Reporting (Task #40)**
+  - Pipeline Status startet jetzt mit 'unknown' statt falschem 'healthy'
+  - HEALTHY nur wenn lastSuccess < 10 Minuten alt
+  - Neuer Status 'unknown' fuer Pipelines ohne Daten
+  - recordPipelineSuccess() wird bei echten Erfolgen aufgerufen:
+    - Polymarket: Bei erfolgreichem Markt-Fetch
+    - RSS: Bei erfolgreichen Feed-Fetches
+    - Dawum: Bei erfolgreichen Umfrage-Abrufen
+    - Telegram: Bei erfolgreichen Nachricht-Sendungen
+  - JSON Parse Error Fix: Content-Type Pruefung vor .json()
+  - Overall Status zeigt INITIALIZING statt ALL HEALTHY bei fehlenden Daten
+
+---
+
+## [3.0.14] - 2026-02-02
+
+### Hinzugefuegt
+- **Browser Push-Notifications** (Task #43)
+  - **Notification API Integration:**
+    - Permission Request beim ersten Besuch
+    - Desktop-Notifications fuer wichtige Events
+    - Auto-close nach 10 Sekunden (ausser kritische Alerts)
+  - **Event-Typen:**
+    - High-Alpha Signal (Edge > 20%)
+    - Almanien Zeitvorsprung gefunden
+    - Trade ausgefuehrt (auto oder manuell)
+    - Risk Warning (Kill-Switch, Daily Limit > 80%)
+    - Pipeline Fehler
+  - **Settings-UI:**
+    - Neuer SETTINGS-View in der Navigation
+    - Master on/off Toggle
+    - Sound on/off Toggle
+    - Individuelle Checkboxen fuer jeden Event-Typ
+    - Status-Anzeige (Browser Support, Permission, WebSocket)
+    - Test-Button zum Pruefen der Notifications
+  - **Backend WebSocket Events:**
+    - Neues `browser_notification` Event via Socket.io
+    - Events werden bei High-Alpha Signalen, Trades, Risk-Warnings emittiert
+
+### Neue Dateien
+- `src/web/public/index.html` erweitert um:
+  - Notification-JavaScript (Settings-Persistenz in localStorage)
+  - Settings-View mit Toggles und Status
+
+---
+
+## [3.0.13] - 2026-02-02
+
+### Hinzugefuegt
+- **Backtest Overfitting Prevention** (Task #34)
+  - **Out-of-Sample Validation:**
+    - Train/Test Split (default: 70/30, konfigurierbar)
+    - Separate Metriken fuer Train und Test Daten
+    - Divergenz-Erkennung zwischen Train/Test Performance
+  - **Monte Carlo Simulation:**
+    - Trade-Reihenfolge shufflen fuer Robustness-Check
+    - 1000 Simulationen (konfigurierbar mit `--mc-sims`)
+    - 95% Confidence Interval fuer PnL
+    - Max Drawdown Distribution
+  - **Overfitting-Warnungen:**
+    - Unrealistisch hohe Sharpe Ratio (>3) wird gewarnt
+    - Train >> Test Performance Divergenz erkannt
+    - Zu wenig Test-Trades Warnung
+    - Unrealistische Returns Detection
+  - **Robustness Score (0-100):**
+    - Aggregiert alle Overfitting-Indikatoren
+    - Empfehlungen zur Strategie-Verbesserung
+    - ROBUST vs NICHT ROBUST Klassifikation
+
+### Geaendert
+- **Walk-Forward Window von 30 auf 90 Tage erhoeht** (mehr Robustheit)
+- Neue CLI-Optionen fuer Backtest:
+  - `--no-validation` - Out-of-Sample Validation deaktivieren
+  - `--split RATIO` - Train/Test Split anpassen (default: 0.7)
+  - `--no-monte-carlo` - Monte Carlo deaktivieren
+  - `--mc-sims NUM` - Anzahl Simulationen (default: 1000)
+  - `--walk-forward, -w` - Walk-Forward Window in Tagen
+- `BacktestResult` erweitert zu `ExtendedBacktestResult` mit Validation & Monte Carlo
+- Reports (Markdown, JSON, Console) zeigen jetzt Validation-Ergebnisse
+
+### Neue Dateien
+- `src/backtest/validation.ts` - Out-of-Sample Validation, Monte Carlo, Robustness Check
+- `src/alpha/types.ts` erweitert um:
+  - `ValidationResult` Interface
+  - `MonteCarloResult` Interface
+  - `OverfittingWarning` Interface
+  - `ExtendedBacktestResult` Interface
+
+### Warum wichtig
+- **Overfitting ist das groesste Risiko beim Backtesting!**
+- Strategie die in-sample funktioniert kann out-of-sample versagen
+- Monte Carlo zeigt Varianz der Ergebnisse (nicht nur Best-Case)
+- Automatische Warnungen verhindern falsche Zuversicht
+- 90-Tage Walk-Forward vermeidet kurzfristige Zufalls-Fits
+
+---
+
+## [3.0.12] - 2026-02-02
+
+### Hinzugefuegt
+- **Settings-Seite im Web-Interface** (Task #42)
+  - Neue View "SETTINGS" in der Navigation (unten bei CONSOLE)
+  - Vollstaendiges Einstellungs-Panel mit 4 Kategorien:
+
+  **Trading-Einstellungen:**
+  - Execution Mode (Paper/Shadow/Live) - direkt aenderbar
+  - Max Daily Loss ($) - taegliches Verlust-Limit
+  - Max Positions - maximale gleichzeitige Positionen
+  - Max pro Markt ($) - Exposure-Limit pro Markt
+  - Kelly Fraction (%) - Position Sizing Aggressivitaet
+  - Bankroll ($) - Gesamtkapital fuer Berechnungen
+  - Max Bet pro Trade ($) - absolutes Trade-Maximum
+
+  **Signal-Einstellungen:**
+  - Min Alpha Threshold (%) - Qualitaetsfilter fuer Signale
+  - Min Edge (%) - minimale Preisdifferenz
+  - Min Volumen ($) - Liquiditaetsfilter
+  - Auto-Trade bei "breaking_confirmed" (Checkbox)
+
+  **Benachrichtigungs-Einstellungen:**
+  - Browser-Notifications (on/off)
+  - Event-Checkboxen: Signal, Trade, Kill-Switch, Daily Reset, High-Alpha
+
+  **System Status:**
+  - Telegram Bot Status
+  - Wallet Konfiguration
+  - Deutschland-Modus Status
+  - Dawum API Status
+  - RSS Feeds Status
+
+- Neuer API-Endpoint `GET /api/settings/all`
+  - Liefert alle aktuellen Settings fuer die Settings-Seite
+  - Kombiniert Server-State mit Config-Werten
+
+- Persistenz:
+  - Trading/Signal-Settings werden auf dem Server gespeichert (SQLite)
+  - Notification-Settings werden in localStorage gespeichert
+  - Kelly/Bankroll werden lokal gespeichert (da .env Werte)
+
+- UI-Features:
+  - SPEICHERN Button mit Erfolgs-/Fehler-Feedback
+  - DEFAULTS Button setzt alle Werte auf Standardwerte zurueck
+  - Settings werden beim View-Wechsel automatisch geladen
+  - Erklaerungstexte unter jedem Eingabefeld
+
+### Warum wichtig
+- **Keine .env Aenderungen mehr noetig** fuer Runtime-Einstellungen
+- Alle wichtigen Parameter zentral im Web-UI konfigurierbar
+- Sofortige Aenderungen ohne Server-Neustart
+- Einmal einstellen, dann laeuft es
+
+---
+
+## [3.0.11] - 2026-02-02
+
+### Hinzugefuegt
+- **Breaking News Auto-Execute Feature** (Task #46)
+  - Neuer `AutoTrader` Service (`src/alpha/autoTrader.ts`)
+    - Automatische Trade-Ausfuehrung bei `breaking_confirmed` Signals
+    - Konfigurierbar: `AUTO_TRADE_MIN_EDGE` (default: 15%)
+    - Konfigurierbar: `AUTO_TRADE_MAX_SIZE` (default: 50 USDC)
+    - Event-basierte Architektur fuer Notifications
+  - Erweiterte Config (`src/utils/config.ts`)
+    - `AUTO_TRADE_ENABLED` (default: false - Sicherheit!)
+    - `AUTO_TRADE_MIN_EDGE` (default: 0.15 = 15%)
+    - `AUTO_TRADE_MAX_SIZE` (default: 50 USDC)
+  - TimeDelayEngine Integration
+    - Automatischer Auto-Trade Trigger bei `breaking_confirmed`
+    - `autoTradeEnabled` Config-Option
+  - Telegram Bot Erweiterungen
+    - Auto-Trade Notifications (ausgefuehrt/blockiert)
+    - Toggle fuer Auto-Trade im Settings-Menue
+    - Sync zwischen `autoBetOnSafeBet` und AutoTrader/TimeDelayEngine
+
+### Warum wichtig
+- **Speed ist essentiell** - Zeitvorsprung nur wertvoll wenn schnell gehandelt wird!
+- Automatisiertes Trading bei quasi-sicheren Breaking News (breaking_confirmed)
+- Risk Gates werden vor jedem Auto-Trade geprueft
+- Kill-Switch stoppt auch Auto-Trading
+- Default: AUS (muss explizit aktiviert werden)
+
+---
+
+## [3.0.10] - 2026-02-02
+
+### Hinzugefuegt
+- **Almanien Intelligence: News-Markt Matches** (Herzstück des Features!)
+  - Neuer API-Endpoint `/api/germany/matches` (`src/web/server.ts`)
+    - Deutsche News werden mit Polymarket-Märkten gematched
+    - Nutzt Fuzzy-Matching aus `src/alpha/matching.ts`
+    - Gibt Confidence-Score, Keywords, Entities und Zeitvorsprung zurück
+    - Direkter Link zum Polymarket-Markt
+  - Komplett neu gestaltete Almanien-View (`src/web/public/index.html`)
+    - Matches-Panel zeigt News mit gematchten Märkten
+    - Confidence-Bar mit Farbkodierung (grün/gelb/grau)
+    - Zeitvorsprung-Anzeige (m/h/d)
+    - "MARKT ÖFFNEN"-Button mit direktem Link
+    - Match-Details: Entities und Keywords
+    - Aktueller Marktpreis (wenn verfügbar)
+  - Umfragen-Panel bleibt erhalten (Sonntagsfrage)
+
+### Behoben
+- TypeScript-Fehler in `src/alpha/timeAdvantageService.ts` (null -> undefined)
+- TypeScript-Fehler in `src/backtest/validation.ts` (drawdownStats.worst)
+
+### Warum wichtig
+- **Das ist das Herzstück des Almanien-Features!**
+- Zeigt deutschen Informationsvorsprung konkret an
+- Ermöglicht schnelles Handeln auf Polymarket bei deutschen Breaking News
+- Messbare Match-Qualität durch Confidence-Scoring
+
+---
+
 ## [3.0.9] - 2026-02-02
 
 ### Geaendert

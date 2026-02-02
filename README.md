@@ -90,6 +90,17 @@
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
+#### Almanien Intelligence View (NEU!)
+
+Die "ALMANIEN"-Seite im Web-Interface zeigt das Herzstück des Features:
+
+- **News-Markt Matches**: Deutsche News mit passenden Polymarket-Märkten
+- **Match-Confidence**: Farbkodierte Anzeige (grün >70%, gelb >40%, grau <40%)
+- **Zeitvorsprung**: Wie alt ist die News (m/h/d)?
+- **Direkter Link**: "MARKT ÖFFNEN"-Button führt direkt zu Polymarket
+- **Match-Details**: Entities und Keywords die zum Match führten
+- **Aktueller Preis**: Wenn verfügbar, Marktpreis als Prozent
+
 ### Interfaces
 
 - **Trading Desk Console** - Bloomberg/Palantir-Style UI (Dark-First, Three-Column Layout)
@@ -454,6 +465,7 @@ RSS_FEEDS_ENABLED=true
 | `/api/execution/quality` | `GET` | Execution Quality Metrics (V3.0!) |
 | `/api/runtime` | `GET` | Vollständiger Runtime-State |
 | `/api/settings` | `POST` | Settings Update |
+| `/api/settings/all` | `GET` | Alle Settings fuer Settings-Seite |
 | `/api/stats/equity` | `GET` | Equity Curve Daten (V3.0!) |
 | `/api/stats/trading` | `GET` | Trading Stats (V3.0!) |
 | `/api/backtest` | `POST` | Backtest starten |
