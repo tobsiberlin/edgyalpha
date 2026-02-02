@@ -61,6 +61,9 @@ export interface NewsCandidate {
   matchedMarketQuestion: string | null;
   matchConfidence: number | null;
   matchMethod: string | null;
+  // LLM-bestimmte Richtung
+  suggestedDirection: 'yes' | 'no' | null;
+  llmReasoning: string | null;
   // Gates
   gateResults: GateResults | null;
   gatesPassed: boolean;
@@ -115,6 +118,9 @@ function rowToCandidate(row: Record<string, unknown>): NewsCandidate {
     matchedMarketQuestion: row.matched_market_question as string | null,
     matchConfidence: row.match_confidence as number | null,
     matchMethod: row.match_method as string | null,
+    // LLM-bestimmte Richtung
+    suggestedDirection: row.suggested_direction as 'yes' | 'no' | null,
+    llmReasoning: row.llm_reasoning as string | null,
     gateResults: row.gate_results ? JSON.parse(row.gate_results as string) : null,
     gatesPassed: (row.gates_passed as number) === 1,
     pushQueuedAt: row.push_queued_at ? new Date(row.push_queued_at as string) : null,
@@ -273,6 +279,26 @@ export function markAsPushed(candidateId: number, messageId?: string): void {
   `).run(messageId || null, candidateId);
 
   logger.info(`[NEWS_CANDIDATE] Push gesendet für #${candidateId}`);
+}
+
+/**
+ * Setzt LLM-bestimmte Richtung und Begründung
+ */
+export function setLLMDirection(
+  candidateId: number,
+  direction: 'yes' | 'no' | null,
+  reasoning: string | null
+): void {
+  const db = ensureDatabase();
+  db.prepare(`
+    UPDATE news_candidates SET
+      suggested_direction = ?,
+      llm_reasoning = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(direction, reasoning, candidateId);
+
+  logger.debug(`[NEWS_CANDIDATE] LLM Direction für #${candidateId}: ${direction}`);
 }
 
 /**

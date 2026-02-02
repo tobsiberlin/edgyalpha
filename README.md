@@ -5,11 +5,11 @@
 ██╔══╝  ██║  ██║██║   ██║  ╚██╔╝      ██╔══██║██║     ██╔═══╝ ██╔══██║██╔══██║
 ███████╗██████╔╝╚██████╔╝   ██║       ██║  ██║███████╗██║     ██║  ██║██║  ██║
 ╚══════╝╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝
-                 M I T   A L M A N I E N - V O R S P R U N G
+           A L M A N I E N - E U S S R - T R A C K E R
 ```
 
 <p align="center">
-  <strong>Polymarket Alpha Scanner mit Deutschland-Informationsvorsprung</strong>
+  <strong>ALMANIEN-EUSSR-Tracker - Polymarket Alpha Scanner mit Europa-Informationsvorsprung</strong>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 │  SYSTEM STATUS                                                    │
 ├──────────────────────────────────────────────────────────────────┤
 │  Polymarket API    [████████████████████████████████████] ONLINE │
-│  Alman Modul    [████████████████████████████████████] AKTIV  │
+│  EUSSR-Tracker  [████████████████████████████████████] AKTIV  │
 │  WebSocket         [████████████████████████████████████] BEREIT │
 │  Trading Engine    [████████████████████████████████████] ARMED  │
 └──────────────────────────────────────────────────────────────────┘
@@ -71,11 +71,11 @@
 ╚════════════════════════════════════════════════════════════════════╝
 ```
 
-### Alman-Modul (Der Deutschland-Edge)
+### ALMANIEN-EUSSR-Tracker (Der Europa-Edge)
 
 ```
 ╔═══════════════════════════════════════════════════════════════════╗
-║  A L M A N I E N   -   D E R   D E U T S C H L A N D - E D G E   ║
+║     A L M A N I E N - E U S S R - T R A C K E R                   ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║                                                                   ║
 ║  Dawum API        [████████████] Wahlumfragen aller Institute     ║
@@ -90,9 +90,9 @@
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
-#### Almanien Intelligence View (NEU!)
+#### ALMANIEN-EUSSR Intelligence View
 
-Die "ALMANIEN"-Seite im Web-Interface zeigt das Herzstück des Features:
+Die "EUSSR-Tracker"-Seite im Web-Interface zeigt das Herzstück des Features:
 
 - **News-Markt Matches**: Deutsche News mit passenden Polymarket-Märkten
 - **Match-Confidence**: Farbkodierte Anzeige (grün >70%, gelb >40%, grau <40%)

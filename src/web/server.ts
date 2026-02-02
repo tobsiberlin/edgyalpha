@@ -189,6 +189,12 @@ app.use(cookieSession({
 
 // Session Auth Middleware
 const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+  // Auth deaktiviert? Alle Requests durchlassen
+  if (!WEB_AUTH_ENABLED) {
+    next();
+    return;
+  }
+
   if (req.session?.authenticated) {
     next();
     return;

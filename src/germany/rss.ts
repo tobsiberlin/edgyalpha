@@ -22,7 +22,7 @@ const rssParser = new Parser({
 export interface RSSFeed {
   url: string;
   name: string;
-  category: 'politics' | 'economics' | 'sports' | 'geopolitics' | 'tech' | 'crypto';
+  category: 'politics' | 'economics' | 'sports' | 'geopolitics' | 'tech';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -86,23 +86,59 @@ export const WORKING_RSS_FEEDS: RSSFeed[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// INTERNATIONALE FEEDS - Für Geopolitik-Matching & Alpha-Detection
+// INTERNATIONALE/EUROPÄISCHE FEEDS - Für EUSSR-Tracker Matching
 // Werden NICHT im "Deutsche News" Bereich angezeigt!
 // ═══════════════════════════════════════════════════════════════
 export const INTERNATIONAL_RSS_FEEDS: RSSFeed[] = [
-  // Wirtschaft International
+  // ═══════════════════════════════════════════════════════════════
+  // UK POLITIK & NEWS
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://feeds.bbci.co.uk/news/uk/politics/rss.xml', name: 'BBC UK Politics', category: 'politics' },
+  { url: 'https://www.theguardian.com/politics/rss', name: 'Guardian Politics', category: 'politics' },
+  { url: 'https://www.telegraph.co.uk/politics/rss.xml', name: 'Telegraph Politics', category: 'politics' },
+  { url: 'https://www.independent.co.uk/news/uk/politics/rss', name: 'Independent Politics', category: 'politics' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // FRANKREICH
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.france24.com/en/rss', name: 'France24 EN', category: 'geopolitics' },
+  { url: 'https://www.rfi.fr/en/rss', name: 'RFI English', category: 'geopolitics' },
+  { url: 'https://www.lemonde.fr/en/rss/une.xml', name: 'Le Monde EN', category: 'politics' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // ITALIEN
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://www.ansa.it/sito/notizie/politica/politica_rss.xml', name: 'ANSA Politics', category: 'politics' },
+  { url: 'https://www.reuters.com/news/archive/italyNews?view=rss', name: 'Reuters Italy', category: 'geopolitics' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // SPANIEN
+  // ═══════════════════════════════════════════════════════════════
+  { url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada', name: 'El Pais EN', category: 'politics' },
+
+  // ═══════════════════════════════════════════════════════════════
+  // WIRTSCHAFT INTERNATIONAL
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://feeds.reuters.com/reuters/businessNews', name: 'Reuters Business', category: 'economics' },
   { url: 'https://feeds.bloomberg.com/markets/news.rss', name: 'Bloomberg', category: 'economics' },
   { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', name: 'MarketWatch', category: 'economics' },
   { url: 'https://www.ecb.europa.eu/rss/press.html', name: 'ECB News', category: 'economics' },
+  { url: 'https://www.ft.com/rss/home/uk', name: 'Financial Times', category: 'economics' },
 
-  // Sport International
+  // ═══════════════════════════════════════════════════════════════
+  // EUROPÄISCHER FUSSBALL
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', name: 'BBC Sport Football', category: 'sports' },
   { url: 'https://www.theguardian.com/football/rss', name: 'Guardian Football', category: 'sports' },
   { url: 'https://www.skysports.com/rss/12040', name: 'Sky Sports Football', category: 'sports' },
   { url: 'https://www.espn.com/espn/rss/soccer/news', name: 'ESPN FC', category: 'sports' },
+  { url: 'https://www.marca.com/en/rss/football.xml', name: 'Marca Football', category: 'sports' },
+  { url: 'https://www.gazzetta.it/rss/calcio.xml', name: 'Gazzetta Calcio', category: 'sports' },
+  { url: 'https://www.lequipe.fr/rss/actu_rss.xml', name: 'L Equipe', category: 'sports' },
 
-  // Geopolitik International
+  // ═══════════════════════════════════════════════════════════════
+  // GEOPOLITIK INTERNATIONAL
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://feeds.reuters.com/reuters/worldNews', name: 'Reuters World', category: 'geopolitics' },
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', category: 'geopolitics' },
   { url: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml', name: 'BBC Europe', category: 'geopolitics' },
@@ -113,12 +149,12 @@ export const INTERNATIONAL_RSS_FEEDS: RSSFeed[] = [
   { url: 'https://www.politico.eu/feed/', name: 'Politico EU', category: 'geopolitics' },
   { url: 'https://kyivindependent.com/feed/', name: 'Kyiv Independent', category: 'geopolitics' },
   { url: 'https://meduza.io/rss/en/all', name: 'Meduza EN', category: 'geopolitics' },
+  { url: 'https://www.euronews.com/rss', name: 'Euronews', category: 'geopolitics' },
 
-  // Tech & Crypto International
+  // ═══════════════════════════════════════════════════════════════
+  // TECH INTERNATIONAL (kein Crypto)
+  // ═══════════════════════════════════════════════════════════════
   { url: 'https://techcrunch.com/feed/', name: 'TechCrunch', category: 'tech' },
-  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', name: 'CoinDesk', category: 'crypto' },
-  { url: 'https://cointelegraph.com/rss', name: 'CoinTelegraph', category: 'crypto' },
-  { url: 'https://decrypt.co/feed', name: 'Decrypt', category: 'crypto' },
 ];
 
 // Experimentelle Feeds - weniger zuverlässig, optional aktivierbar
@@ -251,13 +287,6 @@ export const EXPERIMENTAL_RSS_FEEDS: RSSFeed[] = [
   { url: 'https://openai.com/blog/rss/', name: 'OpenAI Blog', category: 'tech' },
   { url: 'https://artificialintelligence-news.com/feed/', name: 'AI News', category: 'tech' },
   { url: 'https://venturebeat.com/category/ai/feed/', name: 'VentureBeat AI', category: 'tech' },
-
-  // ═══════════════════════════════════════════════════════════════
-  // CRYPTO - ERWEITERT (6 Quellen)
-  // ═══════════════════════════════════════════════════════════════
-  { url: 'https://www.theblockcrypto.com/rss.xml', name: 'The Block', category: 'crypto' },
-  { url: 'https://bitcoinmagazine.com/feed', name: 'Bitcoin Magazine', category: 'crypto' },
-  { url: 'https://cryptoslate.com/feed/', name: 'CryptoSlate', category: 'crypto' },
 ];
 
 // ═══════════════════════════════════════════════════════════════

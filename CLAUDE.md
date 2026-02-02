@@ -2,12 +2,12 @@
 
 ## Projekt-Kontext
 
-**Zweck:** Polymarket Prediction Markets Scanner mit KI-Research und Deutschland Information Edge
+**Zweck:** Polymarket Prediction Markets Scanner mit KI-Research und ALMANIEN-EUSSR-Tracker
 
 **Features:**
 - Echtzeit-Scanning von Polymarket Märkten
 - Alpha-Scoring und Trade-Empfehlungen
-- Deutschland-Modus: Dawum Umfragen, Bundestag API, RSS Feeds
+- EUSSR-Tracker: Dawum Umfragen, Bundestag API, RSS Feeds
 - Telegram Bot mit 1-Klick Trading
 - Mobile-First Web-Interface
 - Automatisiertes Deployment via GitHub Actions

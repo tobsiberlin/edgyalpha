@@ -71,6 +71,7 @@ export {
   createCandidate,
   setMatchResult,
   setGateResults,
+  setLLMDirection,
   markAsPushed,
   rejectCandidate,
   queueForPush,
@@ -143,3 +144,26 @@ export type {
   PriceCheckItem,
   TimeAdvantageDashboard,
 } from './timeAdvantage.js';
+
+// German Watchlist Repository
+export {
+  addToWatchlist,
+  bulkAddToWatchlist,
+  updateWatchlistPrices,
+  deactivateWatchlistMarket,
+  removeFromWatchlist,
+  getWatchlistMarket,
+  getActiveWatchlistMarkets,
+  getWatchlistByCategory,
+  getWatchlistMarketIds,
+  searchWatchlist,
+  getWatchlistStats,
+  isOnWatchlist,
+  cleanupOldWatchlistMarkets,
+} from './germanWatchlist.js';
+export type {
+  GermanWatchlistMarket,
+  WatchlistCategory,
+  WatchlistStats,
+  AddWatchlistMarketInput,
+} from './germanWatchlist.js';

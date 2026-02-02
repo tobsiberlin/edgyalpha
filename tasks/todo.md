@@ -235,3 +235,67 @@ Speed ist essentiell für Zeitvorsprung!
 ### Status: ✅ PRODUCTION READY (außer Live-Test)
 
 **Nächster Schritt:** Live-Test mit echtem Wallet (VPN erforderlich für Deutschland)
+
+---
+
+## Task #48: Alpha Engine Kalibrierung ✅
+
+### Implementiert
+- [x] `volatility30d` für jeden Markt (`src/alpha/volatility.ts`)
+- [x] Source Reliability Tracking in DB Schema (`reliability_score`)
+- [x] Push Gates evaluieren Source Reliability
+- [x] Time Advantage Stats aggregieren `prediction_accuracy` pro Quelle
+
+### Future Enhancement (nicht kritisch)
+- [ ] Automatischer Source Reliability Feedback Loop (Outcome → Source Score)
+  - Aktuell: Manuelle Initialwerte + time_advantage_stats Tracking
+  - Zukunft: Nach Trade-Resolution automatisch Source-Score anpassen
+
+### Status: ABGESCHLOSSEN (2026-02-02)
+
+---
+
+## Phase 5: Operations - ÜBERSPRUNGEN
+
+> Entscheidung: Nicht kritisch für MVP, kann später nachgezogen werden
+
+- [ ] Monitoring (Prometheus/Grafana)
+- [ ] Backup-Strategie
+- [ ] Security Hardening
+- [ ] Runbook
+
+---
+
+## 🚀 PRODUCTION READY ZUSAMMENFASSUNG
+
+### ✅ Alle kritischen Komponenten implementiert:
+
+1. **CLOB Order Execution**
+   - Order-Lifecycle-Management (pending → filled → cancelled)
+   - Retry-Logik mit exponential backoff
+   - ethers v6→v5 Kompatibilität
+
+2. **Kill-Switch Hardening**
+   - `FORCE_PAPER_MODE` ENV (Hardware Kill-Switch)
+   - Auto-Kill nach 3 fehlgeschlagenen Trades
+   - Manueller Kill via Telegram
+
+3. **Risk Management**
+   - 6 Risk Gates + Extended Orderbook Checks
+   - Slippage-Schätzung vor Trade
+   - Quarter-Kelly Sizing mit Caps
+
+4. **Observability**
+   - `/health` Telegram Command
+   - RiskDashboard mit `consecutiveFailures`
+   - Vollständiges Audit-Log
+
+5. **Alpha Engines**
+   - TIME_DELAY mit Fuzzy-Matching
+   - MISPRICING mit Bayesian P_true
+   - Meta-Combiner mit Online Learning
+
+### ⚠️ Ausstehend für Go-Live:
+- [ ] VPN-Zugang für Deutschland
+- [ ] Wallet mit USDC funden
+- [ ] End-to-End Live-Test mit Minimal-Trade

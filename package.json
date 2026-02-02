@@ -35,6 +35,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.1",
     "@polymarket/clob-client": "^5.2.1",
     "axios": "^1.6.7",
     "bcrypt": "^6.0.0",

@@ -7,6 +7,60 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.3.0] - 2026-02-02
+
+### Hinzugefuegt
+- **Deutsche Markt-Watchlist System**
+  - Neue SQLite-Tabelle `german_market_watchlist` fuer 1000+ EU-Maerkte
+  - Kategorien: bundesliga, politik, eu_ukraine, wirtschaft, sonstige
+  - Automatische Synchronisation taeglich um 6:00 Uhr
+  - 869 europaeische Maerkte (UK, FR, IT, ES Politik + Premier League, La Liga, Serie A, Ligue 1, Champions League)
+  - 113 manuell hinzugefuegte Maerkte (Bundesliga Abstieg, Landtagswahlen, CDU/SPD Koalition, Bank-Pleiten)
+  - Total: 1058 Maerkte mit $558M Volume
+  - Scripts: `add-european-markets.ts`, `add-manual-markets.ts`, `show-watchlist.ts`
+
+- **Europaeische RSS-Feeds**
+  - 30+ neue internationale Feeds fuer EUSSR-Tracker Matching
+  - UK: BBC Politics, Guardian, Telegraph, Independent
+  - FR: France24, RFI, Le Monde
+  - IT: ANSA Politics, Reuters Italy
+  - ES: El Pais
+  - Sport: BBC Football, Guardian Football, Sky Sports, ESPN FC, Marca, Gazzetta
+
+- **LLM-Matcher fuer News → Market Matching**
+  - Claude 3.5 Haiku fuer schnelles, praezises Matching
+  - Keyword Pre-Filter reduziert API-Calls
+  - Richtungs-Bestimmung (YES/NO) mit Confidence
+
+### Geaendert
+- **Branding:** "Almanien" → "ALMANIEN-EUSSR-Tracker" ueberall in Docs und Code
+- **Crypto entfernt:** Keine Crypto-Feeds oder -Kategorie mehr
+
+### Behoben
+- **Web-Auth bei WEB_AUTH_ENABLED=false:** requireAuth prueft jetzt Config-Flag
+- **TypeScript Build:** newsCandidates.ts fehlende Felder hinzugefuegt
+
+---
+
+## [3.2.0] - 2026-02-02
+
+### Hinzugefuegt
+- **Alpha Engine Kalibrierung** (Phase 4 abgeschlossen)
+  - `volatility30d` fuer jeden Markt bereits in `src/alpha/volatility.ts`
+  - Source Reliability Tracking im DB Schema (`reliability_score`)
+  - Push Gates evaluieren Source Reliability bei jedem Signal
+  - Time Advantage Stats aggregieren `prediction_accuracy` pro Quelle
+
+### Dokumentation
+- **tasks/todo.md** aktualisiert mit vollstaendiger Production Ready Zusammenfassung
+- Phase 5 (Operations) als "uebersprungen" markiert - nicht kritisch fuer MVP
+
+### Status: PRODUCTION READY
+- Alle kritischen Komponenten implementiert
+- Ausstehend: VPN-Zugang + Wallet-Funding + E2E Live-Test
+
+---
+
 ## [3.1.0] - 2026-02-02
 
 ### Hinzugefuegt

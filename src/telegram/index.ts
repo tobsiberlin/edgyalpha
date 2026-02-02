@@ -50,7 +50,7 @@ const runtimeSettings = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//           GERMANY KEYWORDS - Filter für Almanien Alerts
+//           GERMANY KEYWORDS - Filter für EUSSR-Tracker Alerts
 // ═══════════════════════════════════════════════════════════════
 const GERMANY_KEYWORDS = [
   'germany', 'german', 'deutschland', 'bundestag', 'bundesregierung',
@@ -63,7 +63,7 @@ const GERMANY_KEYWORDS = [
 
 /**
  * Prüft ob eine Markt-Frage Deutschland-Bezug hat
- * Nur bei Deutschland-Bezug werden Almanien Alerts gesendet
+ * Nur bei Deutschland-Bezug werden EUSSR-Tracker Alerts gesendet
  */
 function hasGermanyRelevance(marketQuestion: string): boolean {
   const lower = marketQuestion.toLowerCase();
@@ -274,11 +274,12 @@ ${this.DIVIDER}
 
   /**
    * Quick-Buy Buttons für Alerts
-   * Zeigt konfigurierbare Beträge (Standard: 5$, 10$, 25$, 50$)
+   * Zeigt konfigurierbare Beträge mit klarer Richtung (YES/NO)
    */
   private getQuickBuyKeyboard(signalId: string, marketId: string, direction: 'yes' | 'no' = 'yes'): InlineKeyboardMarkup {
     const amounts = config.quickBuy.amounts; // z.B. [5, 10, 25, 50]
-    const directionEmoji = direction === 'yes' ? '✅' : '❌';
+    const directionLabel = direction === 'yes' ? 'YES' : 'NO';
+    const directionEmoji = direction === 'yes' ? '🟢' : '🔴';
 
     // Buttons für alle Beträge erstellen
     const buyButtons: InlineKeyboardButton[][] = [];
@@ -287,13 +288,13 @@ ${this.DIVIDER}
     if (amounts.length >= 2) {
       buyButtons.push(
         amounts.slice(0, 2).map(amount => ({
-          text: `💰 ${amount}$ ${directionEmoji}`,
+          text: `${directionEmoji} ${amount}$ ${directionLabel}`,
           callback_data: `quickbuy:${signalId}:${direction}:${amount}`,
         }))
       );
     } else if (amounts.length === 1) {
       buyButtons.push([{
-        text: `💰 ${amounts[0]}$ ${directionEmoji}`,
+        text: `${directionEmoji} ${amounts[0]}$ ${directionLabel}`,
         callback_data: `quickbuy:${signalId}:${direction}:${amounts[0]}`,
       }]);
     }
@@ -302,7 +303,7 @@ ${this.DIVIDER}
     if (amounts.length > 2) {
       buyButtons.push(
         amounts.slice(2, 4).map(amount => ({
-          text: `💰 ${amount}$ ${directionEmoji}`,
+          text: `${directionEmoji} ${amount}$ ${directionLabel}`,
           callback_data: `quickbuy:${signalId}:${direction}:${amount}`,
         }))
       );
@@ -884,7 +885,7 @@ ${this.DIVIDER}
 │  /scan         - Scan starten   │
 │  /wallet       - Wallet Balance │
 ├─────────────────────────────────┤
-│  ALMANIEN                       │
+│  EUSSR-TRACKER                       │
 ├─────────────────────────────────┤
 │  /polls        - Wahlumfragen   │
 │  /news         - Deutsche News  │
@@ -1663,7 +1664,7 @@ _Auto-Update alle 60 Sekunden_`;
 ${this.DIVIDER}
 
 *ALPHA MODULE:*
-${tdStatus} ⚡ ALMANIEN: ${runtimeSettings.timeDelayEnabled ? 'AKTIV' : 'AUS'}
+${tdStatus} ⚡ EUSSR-TRACKER: ${runtimeSettings.timeDelayEnabled ? 'AKTIV' : 'AUS'}
 ${mpStatus} MISPRICING: ${runtimeSettings.mispricingEnabled ? 'AKTIV' : 'AUS'}
 ${deStatus} Nur Deutschland: ${runtimeSettings.germanyOnly ? 'JA' : 'NEIN'}
 
@@ -1687,7 +1688,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
       inline_keyboard: [
         // Module Toggles
         [
-          { text: `${tdStatus} ⚡ ALMANIEN`, callback_data: 'toggle:timeDelay' },
+          { text: `${tdStatus} ⚡ EUSSR-TRACKER`, callback_data: 'toggle:timeDelay' },
           { text: `${mpStatus} MISPRICING`, callback_data: 'toggle:mispricing' },
         ],
         [
@@ -1752,7 +1753,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
 
     const newValue = runtimeSettings[settingKey];
     const moduleNames: Record<string, string> = {
-      timeDelay: '⚡ ALMANIEN',
+      timeDelay: '⚡ EUSSR-TRACKER',
       mispricing: 'MISPRICING',
       germanyOnly: '🇩🇪 Nur Deutschland',
       autoBet: '🚨 Auto-Bet bei SAFE BET',
@@ -2498,7 +2499,7 @@ ${hasSignals
     this.pendingTrades.set(signal.id, recommendation);
 
     const isGerman = signal.germanSource !== undefined;
-    const prefix = isGerman ? '🇩🇪 ALMANIEN-VORSPRUNG!' : '🚨 ALPHA ALARM!';
+    const prefix = isGerman ? '🇩🇪 EUSSR-TRACKER-VORSPRUNG!' : '🚨 ALPHA ALARM!';
     const subtext = isGerman ? '_Deutsche Daten zeigen Edge_' : '_Die Maschine hat was gefunden_';
 
     const message = `${this.HEADER}
@@ -2843,7 +2844,7 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //             ALMANIEN ALERT (Deutscher Zeitvorsprung)
+  //             EUSSR-TRACKER ALERT (Deutscher Zeitvorsprung)
   // ═══════════════════════════════════════════════════════════════
 
   private async sendTimeDelayAlert(notification: PushReadyNotification): Promise<void> {
@@ -2877,7 +2878,7 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
     ];
 
     const message = `
-⚡ *ALMANIEN ALERT* ⚡
+⚡ *EUSSR-TRACKER ALERT* ⚡
 
 ${this.DIVIDER}
 
@@ -2892,6 +2893,8 @@ ${this.DIVIDER}
 📰 *Quelle:* ${candidate.sourceName}
 💰 *Volume:* $${(market.totalVolume / 1000).toFixed(0)}k
 📈 *Preis:* ${(market.currentPrice * 100).toFixed(1)}%
+${candidate.suggestedDirection ? `🎯 *KI-Empfehlung:* ${candidate.suggestedDirection === 'yes' ? '🟢 YES kaufen' : '🔴 NO kaufen'}` : ''}
+${candidate.llmReasoning ? `💡 *Grund:* ${candidate.llmReasoning}` : ''}
 
 ${this.DIVIDER}
 
@@ -2901,11 +2904,12 @@ ${improvedWhyNow.map(r => `• ${r}`).join('\n')}
 ${candidate.url ? `🔗 [Quelle](${candidate.url})` : ''}
 ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
 
-    // Quick-Buy Buttons mit konfigurierbaren Beträgen
+    // Quick-Buy Buttons mit LLM-bestimmter Richtung
     // Signal-ID: candidate.id (als string), Market-ID: market.marketId
-    await this.sendMessageWithKeyboard(message, this.getQuickBuyKeyboard(String(candidate.id), market.marketId, 'yes'));
+    const direction = candidate.suggestedDirection || 'yes';
+    await this.sendMessageWithKeyboard(message, this.getQuickBuyKeyboard(String(candidate.id), market.marketId, direction));
 
-    logger.info(`[TELEGRAM] Almanien Alert gesendet: ${candidate.title.substring(0, 40)}...`);
+    logger.info(`[TELEGRAM] EUSSR-Tracker Alert gesendet: ${candidate.title.substring(0, 40)}...`);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -3609,7 +3613,7 @@ _Der Trade wurde nicht ausgeführt._`;
     ];
 
     let message = `
-⚡ *ALMANIEN ALERT* ⚡
+⚡ *EUSSR-TRACKER ALERT* ⚡
 
 ${this.DIVIDER}
 
@@ -3642,7 +3646,7 @@ ${additional.slice(0, 3).map(n => `• ${n.candidate.title.substring(0, 50)}...`
       ],
     });
 
-    logger.info(`[TELEGRAM] Almanien Batch Alert: ${germanyRelevant.length} von ${notifications.length} Notifications`);
+    logger.info(`[TELEGRAM] EUSSR-Tracker Batch Alert: ${germanyRelevant.length} von ${notifications.length} Notifications`);
   }
 
   // ═══════════════════════════════════════════════════════════════

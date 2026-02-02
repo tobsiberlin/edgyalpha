@@ -245,7 +245,10 @@ CREATE TABLE IF NOT EXISTS news_candidates (
   matched_market_id TEXT,
   matched_market_question TEXT,
   match_confidence REAL,
-  match_method TEXT,                       -- 'keyword'|'semantic'|'hybrid'
+  match_method TEXT,                       -- 'keyword'|'semantic'|'hybrid'|'llm'
+  -- LLM-Matching Ergebnisse
+  suggested_direction TEXT,                -- 'yes'|'no' - LLM-bestimmte Richtung
+  llm_reasoning TEXT,                      -- Kurze Begründung vom LLM
   -- Gate-Check Ergebnisse
   gate_results TEXT,                       -- JSON: {gate_name: {passed: bool, value: X, threshold: Y}}
   gates_passed INTEGER DEFAULT 0,          -- 1 wenn alle Gates grün
@@ -518,3 +521,31 @@ CREATE TABLE IF NOT EXISTS order_tracking (
 CREATE INDEX IF NOT EXISTS idx_order_tracking_execution ON order_tracking(execution_id);
 CREATE INDEX IF NOT EXISTS idx_order_tracking_status ON order_tracking(status);
 CREATE INDEX IF NOT EXISTS idx_order_tracking_venue ON order_tracking(venue);
+
+-- ═══════════════════════════════════════════════════════════════
+-- GERMAN MARKET WATCHLIST (Fokussierte Liste für Alman-Scanner)
+-- Speichert Märkte mit Deutschland-Relevanz für gezieltes Matching
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS german_market_watchlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  market_id TEXT UNIQUE NOT NULL,        -- Polymarket Market ID
+  condition_id TEXT,                     -- Condition ID für Trading
+  question TEXT NOT NULL,                -- Markt-Frage
+  slug TEXT,                             -- URL Slug
+  category TEXT NOT NULL,                -- 'bundesliga'|'politik'|'eu_ukraine'|'wirtschaft'|'sonstige'
+  matched_keywords TEXT,                 -- JSON Array: Keywords die gematcht haben
+  relevance_score REAL DEFAULT 0.5,      -- 0-1 wie relevant für DE
+  volume_total REAL,                     -- Gesamtvolumen
+  current_price_yes REAL,                -- Aktueller YES-Preis
+  current_price_no REAL,                 -- Aktueller NO-Preis
+  end_date TEXT,                         -- Wann endet der Markt
+  is_active INTEGER DEFAULT 1,           -- 1 = aktiv, 0 = geschlossen/resolved
+  last_synced_at TEXT,                   -- Letzter Sync mit Polymarket
+  added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_watchlist_market ON german_market_watchlist(market_id);
+CREATE INDEX IF NOT EXISTS idx_watchlist_category ON german_market_watchlist(category);
+CREATE INDEX IF NOT EXISTS idx_watchlist_active ON german_market_watchlist(is_active);
+CREATE INDEX IF NOT EXISTS idx_watchlist_relevance ON german_market_watchlist(relevance_score);

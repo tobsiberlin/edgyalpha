@@ -239,13 +239,19 @@ export function fuzzyMatch(
   // Auch vorhandene Keywords aus Event nutzen
   const allEventKeywords = [...new Set([...eventKeywords, ...event.keywords])];
 
-  logger.debug(`Matching Event: "${event.title.substring(0, 50)}..." (${allEventKeywords.length} keywords, ${eventEntities.length} entities)`);
+  // NEU: News-Subjekte extrahieren (wer/was ist das Hauptthema?)
+  const newsSubjects = extractNewsSubjects(event.title, eventEntities);
+
+  logger.debug(`Matching Event: "${event.title.substring(0, 50)}..." (${allEventKeywords.length} keywords, ${eventEntities.length} entities, subjects=[${newsSubjects.join(', ')}])`);
 
   for (const market of markets) {
     // Market-Text extrahieren
     const marketText = market.question;
     const marketKeywords = extractKeywords(marketText);
     const marketEntities = extractEntities(marketText);
+
+    // NEU: Markt-Subjekte extrahieren
+    const marketSubjects = extractMarketSubjects(marketText, marketEntities);
 
     // Keyword-Matches finden
     const matchedKeywords: string[] = [];
@@ -296,14 +302,16 @@ export function fuzzyMatch(
       }
     }
 
-    // Confidence berechnen
+    // Confidence berechnen (jetzt MIT Subjekt-Pruefung!)
     const confidence = calculateMatchConfidence(
       matchedKeywords,
       matchedEntities,
       allEventKeywords.length,
       eventEntities.length,
       marketKeywords.length,
-      marketEntities.length
+      marketEntities.length,
+      newsSubjects,
+      marketSubjects
     );
 
     // Nur Matches mit Confidence > 0 zurueckgeben
@@ -345,6 +353,136 @@ export function fuzzyMatch(
 }
 
 // ═══════════════════════════════════════════════════════════════
+// GENERISCHE KEYWORDS (reichen NICHT fuer Match alleine!)
+// Diese Keywords sind zu breit - brauchen zusaetzlich spezifische Entity
+// ═══════════════════════════════════════════════════════════════
+
+const GENERIC_KEYWORDS = new Set([
+  // Sport-Ligen (zu breit ohne Team/Spieler)
+  'bundesliga', 'champions', 'league', 'premier', 'liga', 'serie',
+  'nfl', 'nba', 'mlb', 'nhl', 'uefa', 'fifa', 'dfb',
+  'fussball', 'football', 'soccer', 'basketball', 'tennis',
+  'meister', 'meisterschaft', 'pokal', 'cup', 'finale', 'halbfinale',
+  'saison', 'season', 'spieltag', 'matchday',
+  // Politik allgemein (zu breit ohne Person/Partei)
+  'wahl', 'wahlen', 'election', 'vote', 'abstimmung',
+  'regierung', 'government', 'parlament', 'congress', 'senate',
+  'politik', 'politics', 'political',
+  // Wirtschaft allgemein
+  'wirtschaft', 'economy', 'market', 'markt', 'boerse', 'stock',
+  'unternehmen', 'company', 'firma',
+  // Zeit-bezogen (immer zu generisch)
+  '2024', '2025', '2026', '2027', '2028',
+]);
+
+// ═══════════════════════════════════════════════════════════════
+// SUBJEKT-EXTRAKTION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Extrahiert das HAUPT-SUBJEKT einer News
+ * Das ist typischerweise die erste genannte spezifische Entity
+ * z.B. "FC Bayern-Talent Dalpiaz..." → ["Bayern", "Dalpiaz"]
+ */
+function extractNewsSubjects(title: string, entities: string[]): string[] {
+  const subjects: string[] = [];
+
+  // 1. Erste Entities im Titel sind meist das Subjekt
+  const titleLower = title.toLowerCase();
+
+  for (const entity of entities) {
+    const entityLower = entity.toLowerCase();
+    const pos = titleLower.indexOf(entityLower);
+
+    // Entity in erster Haelfte des Titels = wahrscheinlich Subjekt
+    if (pos >= 0 && pos < title.length / 2) {
+      subjects.push(entity);
+    }
+  }
+
+  // 2. Bekannte Team/Club-Namen im Titel
+  const teamPatterns = [
+    /\b(FC|VfB|VfL|TSG|SC|SV|Borussia|Eintracht|Hertha|Union|RB|Bayer)\s+\w+/gi,
+    /\b(Bayern|Dortmund|Leipzig|Frankfurt|Freiburg|Wolfsburg|Gladbach|Koeln|Stuttgart|Bremen|Hamburg|Schalke)\b/gi,
+    /\b(Real|Barcelona|Manchester|Chelsea|Liverpool|Arsenal|Juventus|Milan|Inter|PSG)\b/gi,
+  ];
+
+  for (const pattern of teamPatterns) {
+    const matches = title.match(pattern);
+    if (matches) {
+      subjects.push(...matches.map(m => m.trim()));
+    }
+  }
+
+  return [...new Set(subjects)];
+}
+
+/**
+ * Extrahiert das SUBJEKT eines Marktes
+ * z.B. "Will Freiburg win the Bundesliga?" → ["Freiburg"]
+ */
+function extractMarketSubjects(question: string, entities: string[]): string[] {
+  const subjects: string[] = [];
+
+  // Entities aus dem Markt
+  subjects.push(...entities);
+
+  // Team-Namen extrahieren
+  const teamPatterns = [
+    /\b(Bayern|Dortmund|Leipzig|Frankfurt|Freiburg|Wolfsburg|Gladbach|Koeln|Stuttgart|Bremen|Hamburg|Schalke)\b/gi,
+    /\b(Real|Barcelona|Manchester|Chelsea|Liverpool|Arsenal|Juventus|Milan|Inter|PSG)\b/gi,
+    /\b(Trump|Biden|Harris|Merz|Scholz|Habeck|Musk)\b/gi,
+  ];
+
+  for (const pattern of teamPatterns) {
+    const matches = question.match(pattern);
+    if (matches) {
+      subjects.push(...matches.map(m => m.trim()));
+    }
+  }
+
+  return [...new Set(subjects)];
+}
+
+/**
+ * Prueft ob News-Subjekt und Markt-Subjekt uebereinstimmen
+ * KRITISCH: Ohne Subjekt-Match kein Alert!
+ */
+function hasSubjectMatch(
+  newsSubjects: string[],
+  marketSubjects: string[],
+  matchedEntities: string[]
+): boolean {
+  // Wenn wir bereits Entity-Matches haben, pruefen ob einer ein Subjekt ist
+  for (const entity of matchedEntities) {
+    const entityClean = entity.split('~')[0].toLowerCase(); // Remove fuzzy marker
+
+    for (const newsSub of newsSubjects) {
+      if (newsSub.toLowerCase().includes(entityClean) ||
+          entityClean.includes(newsSub.toLowerCase())) {
+        return true;
+      }
+    }
+  }
+
+  // Direkte Subjekt-Ueberpruefung
+  for (const newsSub of newsSubjects) {
+    for (const marketSub of marketSubjects) {
+      const newsLower = newsSub.toLowerCase();
+      const marketLower = marketSub.toLowerCase();
+
+      if (newsLower === marketLower ||
+          newsLower.includes(marketLower) ||
+          marketLower.includes(newsLower)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CONFIDENCE CALCULATION
 // ═══════════════════════════════════════════════════════════════
 
@@ -354,8 +492,26 @@ function calculateMatchConfidence(
   totalEventKeywords: number,
   totalEventEntities: number,
   totalMarketKeywords: number,
-  totalMarketEntities: number
+  totalMarketEntities: number,
+  newsSubjects: string[],
+  marketSubjects: string[]
 ): number {
+  // KRITISCH: Ohne Subjekt-Match = kein Match!
+  // Dies verhindert "Bayern-Transfer" → "Wird Freiburg Meister?" Matches
+  if (!hasSubjectMatch(newsSubjects, marketSubjects, matchedEntities)) {
+    // Pruefe ob wir NUR generische Keywords haben
+    const specificKeywords = matchedKeywords.filter(kw => {
+      const kwClean = kw.split('~')[0].split('*')[0].toLowerCase();
+      return !GENERIC_KEYWORDS.has(kwClean);
+    });
+
+    // Wenn NUR generische Keywords und keine Subjekt-Uebereinstimmung → REJECT
+    if (specificKeywords.length === 0) {
+      logger.debug(`[MATCH_REJECT] Nur generische Keywords, kein Subjekt-Match`);
+      return 0;
+    }
+  }
+
   // Gewichtungen
   const ENTITY_WEIGHT = 0.6;  // Entities sind wichtiger
   const KEYWORD_WEIGHT = 0.4;
@@ -371,11 +527,16 @@ function calculateMatchConfidence(
     entityScore = 0.5;
   }
 
-  // Keyword Score
+  // Keyword Score - OHNE generische Keywords
+  const specificKeywords = matchedKeywords.filter(kw => {
+    const kwClean = kw.split('~')[0].split('*')[0].toLowerCase();
+    return !GENERIC_KEYWORDS.has(kwClean);
+  });
+
   let keywordScore = 0;
   if (totalEventKeywords > 0 && totalMarketKeywords > 0) {
     const maxKeywordMatches = Math.min(totalEventKeywords, totalMarketKeywords);
-    keywordScore = matchedKeywords.length / maxKeywordMatches;
+    keywordScore = specificKeywords.length / maxKeywordMatches;
 
     // Cap at 1.0 (kann durch Fuzzy-Matches > 1 werden)
     keywordScore = Math.min(keywordScore, 1.0);
@@ -389,12 +550,12 @@ function calculateMatchConfidence(
     confidence += 0.1; // Bonus fuer multiple Entity-Matches
   }
 
-  if (matchedKeywords.length >= 3) {
-    confidence += 0.05; // Kleiner Bonus fuer viele Keyword-Matches
+  if (specificKeywords.length >= 3) {
+    confidence += 0.05; // Kleiner Bonus fuer viele spezifische Keyword-Matches
   }
 
-  // Minimum-Threshold: Mindestens ein Entity-Match ODER 2+ Keyword-Matches
-  if (matchedEntities.length === 0 && matchedKeywords.length < 2) {
+  // Minimum-Threshold: Mindestens ein Entity-Match ODER 2+ spezifische Keyword-Matches
+  if (matchedEntities.length === 0 && specificKeywords.length < 2) {
     confidence = 0;
   }
 

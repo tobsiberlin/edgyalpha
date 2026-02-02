@@ -11,6 +11,7 @@ import { fuzzyMatch, MatchResult, extractKeywords } from './matching.js';
 import { eventExists, getEventByHash } from '../storage/repositories/events.js';
 import logger from '../utils/logger.js';
 import { autoTrader, AutoTradeResult } from './autoTrader.js';
+import { llmMatcher, LLMMatchResult } from './llmMatcher.js';
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -127,8 +128,8 @@ export class TimeDelayEngine {
       return signals;
     }
 
-    // 3. Matche Events gegen Markets
-    const marketEventMap = new Map<string, { event: SourceEvent; match: MatchResult }[]>();
+    // 3. Matche Events gegen Markets (Fuzzy + LLM Validation)
+    const marketEventMap = new Map<string, { event: SourceEvent; match: MatchResult; llmResult?: LLMMatchResult }[]>();
 
     for (const event of recentEvents) {
       const matches = fuzzyMatch(event, markets);
@@ -139,14 +140,38 @@ export class TimeDelayEngine {
           continue;
         }
 
-        if (!marketEventMap.has(match.marketId)) {
-          marketEventMap.set(match.marketId, []);
+        // LLM-Validation: Prüfe ob Match wirklich relevant ist
+        const market = markets.find(m => m.id === match.marketId);
+        if (llmMatcher.isEnabled() && market) {
+          const llmResult = await llmMatcher.matchNewsToMarket(
+            { title: event.title, content: event.content || undefined, source: event.sourceName },
+            { id: market.id, question: market.question, currentPrice: market.outcomes?.[0]?.price }
+          );
+
+          // LLM sagt NICHT RELEVANT → Skip
+          if (!llmResult.isRelevant) {
+            logger.info(`[LLM_REJECT] "${event.title.substring(0, 40)}..." → "${market.question.substring(0, 30)}..." (${llmResult.reasoning})`);
+            continue;
+          }
+
+          // LLM sagt RELEVANT → Speichere mit LLM-Result
+          if (!marketEventMap.has(match.marketId)) {
+            marketEventMap.set(match.marketId, []);
+          }
+          marketEventMap.get(match.marketId)!.push({ event, match, llmResult });
+
+          logger.info(`[LLM_MATCH] "${event.title.substring(0, 40)}..." → ${llmResult.direction?.toUpperCase()} @ ${llmResult.confidence}% (${llmResult.impactStrength})`);
+        } else {
+          // Fallback ohne LLM
+          if (!marketEventMap.has(match.marketId)) {
+            marketEventMap.set(match.marketId, []);
+          }
+          marketEventMap.get(match.marketId)!.push({ event, match });
         }
-        marketEventMap.get(match.marketId)!.push({ event, match });
       }
     }
 
-    logger.info(`Matches gefunden fuer ${marketEventMap.size} Markets`);
+    logger.info(`Matches gefunden fuer ${marketEventMap.size} Markets (LLM-validiert: ${llmMatcher.isEnabled()})`);
 
     // 4. Fuer jeden Market mit Matches: Signal generieren
     for (const [marketId, eventMatches] of marketEventMap) {
@@ -184,14 +209,29 @@ export class TimeDelayEngine {
       const edge = this.calculateEdge(features);
       const confidence = this.calculateConfidence(features);
 
-      // 4e. Direction bestimmen
-      const direction = this.determineDirection(matchedEvents, market);
+      // 4e. Direction bestimmen - LLM hat Vorrang!
+      const llmResults = eventMatches.map(em => em.llmResult).filter(r => r !== undefined);
+      let direction: 'yes' | 'no';
+      let llmDetermined = false;
+
+      if (llmResults.length > 0 && llmResults[0]?.direction) {
+        // LLM hat die Richtung bestimmt
+        direction = llmResults[0].direction;
+        llmDetermined = true;
+        logger.info(`[DIRECTION] LLM bestimmt: ${direction.toUpperCase()} (${llmResults[0].reasoning})`);
+      } else {
+        // Fallback: Heuristische Bestimmung
+        direction = this.determineDirection(matchedEvents, market);
+      }
 
       // 4f. Certainty berechnen (für Sizing)
       const certainty = this.calculateCertainty(features, matchedEvents);
 
-      // 4g. Reasoning zusammenstellen
+      // 4g. Reasoning zusammenstellen - mit LLM-Info
       const reasoning = this.buildReasoning(matchedEvents, eventMatches, features, edge, certainty);
+      if (llmDetermined && llmResults[0]) {
+        reasoning.unshift(`LLM: ${llmResults[0].reasoning} (${llmResults[0].confidence}% Konfidenz)`);
+      }
 
       // 4h. Signal erstellen
       const signal: AlphaSignalV2 = {

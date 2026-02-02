@@ -6,6 +6,7 @@ import { scanner } from './scanner/index.js';
 import { telegramBot } from './telegram/index.js';
 import { startWebServer } from './web/server.js';
 import { germanySources } from './germany/index.js';
+import { watchlistSyncService } from './germany/watchlistSync.js';
 import { initDatabase, isSqliteAvailable } from './storage/db.js';
 import { syncPositionsToRiskState } from './runtime/positionSync.js';
 import { timeAdvantageService } from './alpha/timeAdvantageService.js';
@@ -21,7 +22,7 @@ const BANNER = `
 ║     ⚡ POLYMARKET ALPHA SCANNER ⚡                            ║
 ║                                                               ║
 ║     🎯 Prediction Markets Scanner                             ║
-║     🇩🇪 Deutschland Information Edge                          ║
+║     🇩🇪 ALMANIEN-EUSSR-Tracker                          ║
 ║     📱 Telegram Alerts + 1-Click Trading                      ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
   logger.info(`  Scan-Intervall: ${config.scanner.intervalMs / 1000}s`);
   logger.info(`  Min. Volume: $${config.scanner.minVolumeUsd.toLocaleString()}`);
   logger.info(`  Kategorien: ${config.scanner.categories.join(', ')}`);
-  logger.info(`  Deutschland-Modus: ${config.germany.enabled ? 'Aktiv' : 'Inaktiv'}`);
+  logger.info(`  EUSSR-Tracker: ${config.germany.enabled ? 'Aktiv' : 'Inaktiv'}`);
   logger.info(`  Trading: ${config.trading.enabled ? 'Aktiv' : 'Inaktiv'}`);
   logger.info(`  Telegram: ${config.telegram.enabled ? 'Aktiv' : 'Inaktiv'}`);
   logger.info('═══════════════════════════════════════════════════════');
@@ -92,6 +93,12 @@ async function main(): Promise<void> {
       // 3.5 Time Advantage Service starten (Zeitvorsprung-Tracking)
       logger.info('Starte Time Advantage Service...');
       timeAdvantageService.start();
+
+      // 3.6 Watchlist Sync Service starten (deutsche Märkte-Liste)
+      logger.info('Starte Watchlist Sync Service...');
+      watchlistSyncService.start().catch(err => {
+        logger.warn(`Watchlist Sync Fehler (non-fatal): ${err.message}`);
+      });
     }
 
     // 4. Scanner starten
@@ -123,6 +130,9 @@ function setupGracefulShutdown(): void {
 
       timeAdvantageService.stop();
       logger.info('Time Advantage Service gestoppt');
+
+      watchlistSyncService.stop();
+      logger.info('Watchlist Sync Service gestoppt');
     } catch (err) {
       logger.error(`Shutdown-Fehler: ${(err as Error).message}`);
     }
