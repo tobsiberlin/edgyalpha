@@ -1,10 +1,19 @@
 /**
  * Risk Gates Modul
  * Zentrale Risk-Management Logik für gestufte Execution
+ *
+ * KRITISCH: Risk State wird in SQLite persistiert und überlebt Server-Restarts.
+ * Kill-Switch, Daily PnL, Positions - alles bleibt erhalten.
  */
 
 import { RiskChecks, MarketQuality } from './types.js';
 import logger from '../utils/logger.js';
+import {
+  loadRiskState as loadPersistedRiskState,
+  saveRiskState as savePersistedRiskState,
+  writeAuditLog,
+} from '../storage/repositories/riskState.js';
+import { isDatabaseInitialized } from '../storage/db.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                         INTERFACES
@@ -48,7 +57,7 @@ export const DEFAULT_RISK_CONFIG: RiskConfig = {
 //                      GLOBAL RISK STATE
 // ═══════════════════════════════════════════════════════════════
 
-// In-Memory Risk State (später DB-backed)
+// In-Memory Risk State - wird beim Start aus SQLite geladen
 let riskState: RiskState = {
   dailyPnL: 0,
   openPositions: 0,
@@ -56,6 +65,85 @@ let riskState: RiskState = {
   killSwitchActive: false,
   lastReset: new Date(),
 };
+
+// Flag ob State bereits aus DB geladen wurde
+let stateInitialized = false;
+
+/**
+ * Lädt den Risk State aus SQLite (beim ersten Zugriff)
+ * KRITISCH: Muss vor jedem Risk-Check aufgerufen werden
+ */
+function ensureStateInitialized(): void {
+  if (stateInitialized) return;
+
+  // Prüfe ob DB verfügbar ist
+  if (!isDatabaseInitialized()) {
+    logger.debug('[RISK] Datenbank noch nicht initialisiert, nutze Default-State');
+    return;
+  }
+
+  try {
+    const persisted = loadPersistedRiskState();
+
+    // Konvertiere persistierten State in In-Memory Format
+    riskState = {
+      dailyPnL: persisted.dailyPnL,
+      openPositions: Object.keys(persisted.positions).length,
+      positionsPerMarket: new Map(
+        Object.entries(persisted.positions).map(([marketId, pos]) => [marketId, pos.size])
+      ),
+      killSwitchActive: persisted.killSwitchActive,
+      lastReset: persisted.updatedAt,
+    };
+
+    stateInitialized = true;
+
+    logger.info('[RISK] Risk State aus SQLite geladen', {
+      dailyPnL: riskState.dailyPnL.toFixed(2),
+      openPositions: riskState.openPositions,
+      killSwitchActive: riskState.killSwitchActive,
+    });
+
+    // Warnung wenn Kill-Switch aktiv war
+    if (riskState.killSwitchActive) {
+      logger.warn('[RISK] KILL-SWITCH WAR AKTIV beim Start!');
+    }
+  } catch (err) {
+    logger.warn(`[RISK] Konnte Risk State nicht aus DB laden: ${(err as Error).message}`);
+    // Fallback: Nutze Default-State
+    stateInitialized = true;
+  }
+}
+
+/**
+ * Persistiert den aktuellen Risk State in SQLite
+ * Wird bei JEDER Änderung aufgerufen
+ */
+function persistRiskState(): void {
+  if (!isDatabaseInitialized()) {
+    logger.debug('[RISK] Datenbank nicht initialisiert, Skip Persistierung');
+    return;
+  }
+
+  try {
+    // Konvertiere In-Memory State in DB-Format
+    const positions: Record<string, { size: number; entryPrice: number; direction: 'yes' | 'no' }> = {};
+    for (const [marketId, size] of riskState.positionsPerMarket.entries()) {
+      positions[marketId] = { size, entryPrice: 0, direction: 'yes' };
+    }
+
+    savePersistedRiskState({
+      dailyPnL: riskState.dailyPnL,
+      killSwitchActive: riskState.killSwitchActive,
+      totalExposure: Array.from(riskState.positionsPerMarket.values()).reduce((sum, size) => sum + size, 0),
+      positions,
+    });
+
+    logger.debug('[RISK] Risk State in SQLite persistiert');
+  } catch (err) {
+    logger.error(`[RISK] Fehler beim Persistieren des Risk State: ${(err as Error).message}`);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 //                      CORE FUNCTIONS
@@ -70,6 +158,9 @@ export function checkRiskGates(
   quality: MarketQuality,
   config: RiskConfig = DEFAULT_RISK_CONFIG
 ): RiskCheckResult {
+  // Stelle sicher dass State aus DB geladen ist
+  ensureStateInitialized();
+
   const failedReasons: string[] = [];
 
   // 1. Kill Switch Check
@@ -150,12 +241,16 @@ export function checkRiskGates(
 
 /**
  * Aktualisiert den Risk-State nach einem Trade
+ * PERSISTIERT automatisch in SQLite
  */
 export function updateRiskState(
   pnl: number,
   marketId: string,
   sizeChange: number
 ): void {
+  // Stelle sicher dass State aus DB geladen ist
+  ensureStateInitialized();
+
   // PnL aktualisieren
   riskState.dailyPnL += pnl;
 
@@ -183,12 +278,18 @@ export function updateRiskState(
     openPositions: riskState.openPositions,
     marketExposure: marketId ? riskState.positionsPerMarket.get(marketId) : undefined,
   });
+
+  // KRITISCH: In SQLite persistieren
+  persistRiskState();
 }
 
 /**
  * Setzt den täglichen Risk-State zurück (z.B. um Mitternacht)
+ * PERSISTIERT automatisch in SQLite
  */
 export function resetDailyRisk(): void {
+  ensureStateInitialized();
+
   const previousPnL = riskState.dailyPnL;
 
   riskState = {
@@ -203,33 +304,97 @@ export function resetDailyRisk(): void {
     previousPnL: previousPnL.toFixed(2),
     newPnL: 0,
   });
+
+  // KRITISCH: In SQLite persistieren
+  persistRiskState();
+
+  // Audit Log
+  if (isDatabaseInitialized()) {
+    try {
+      writeAuditLog({
+        eventType: 'daily_reset',
+        actor: 'system',
+        action: `Daily Risk Reset: PnL ${previousPnL.toFixed(2)} → 0`,
+        details: { previousPnL },
+        riskStateBefore: { dailyPnL: previousPnL },
+        riskStateAfter: { dailyPnL: 0 },
+      });
+    } catch {
+      // Audit Log Fehler ignorieren
+    }
+  }
 }
 
 /**
  * Aktiviert den Kill-Switch (sofortiger Stopp aller Trades)
+ * PERSISTIERT automatisch in SQLite - überlebt Server-Restart!
  */
-export function activateKillSwitch(): void {
+export function activateKillSwitch(reason: string = 'Manuell aktiviert'): void {
+  ensureStateInitialized();
+
   riskState.killSwitchActive = true;
-  logger.warn('KILL-SWITCH AKTIVIERT - Alle Trades gestoppt!');
+  logger.warn(`KILL-SWITCH AKTIVIERT - Alle Trades gestoppt! Grund: ${reason}`);
+
+  // KRITISCH: In SQLite persistieren
+  persistRiskState();
+
+  // Audit Log
+  if (isDatabaseInitialized()) {
+    try {
+      writeAuditLog({
+        eventType: 'kill_switch',
+        actor: 'system',
+        action: `KILL-SWITCH AKTIVIERT: ${reason}`,
+        riskStateBefore: { killSwitchActive: false },
+        riskStateAfter: { killSwitchActive: true },
+      });
+    } catch {
+      // Audit Log Fehler ignorieren
+    }
+  }
 }
 
 /**
  * Deaktiviert den Kill-Switch
+ * PERSISTIERT automatisch in SQLite
  */
 export function deactivateKillSwitch(): void {
+  ensureStateInitialized();
+
   riskState.killSwitchActive = false;
   logger.info('Kill-Switch deaktiviert - Trading wieder aktiv');
+
+  // KRITISCH: In SQLite persistieren
+  persistRiskState();
+
+  // Audit Log
+  if (isDatabaseInitialized()) {
+    try {
+      writeAuditLog({
+        eventType: 'kill_switch',
+        actor: 'system',
+        action: 'KILL-SWITCH DEAKTIVIERT',
+        riskStateBefore: { killSwitchActive: true },
+        riskStateAfter: { killSwitchActive: false },
+      });
+    } catch {
+      // Audit Log Fehler ignorieren
+    }
+  }
 }
 
 /**
  * Gibt den aktuellen Risk-State zurück
+ * Lädt automatisch aus SQLite wenn noch nicht initialisiert
  */
 export function getRiskState(): RiskState {
+  ensureStateInitialized();
   return { ...riskState, positionsPerMarket: new Map(riskState.positionsPerMarket) };
 }
 
 /**
- * Setzt den kompletten Risk-State (für Tests)
+ * Setzt den kompletten Risk-State (für Tests und manuelles Override)
+ * PERSISTIERT automatisch in SQLite
  */
 export function setRiskState(newState: Partial<RiskState>): void {
   riskState = {
@@ -239,12 +404,22 @@ export function setRiskState(newState: Partial<RiskState>): void {
       ? new Map(newState.positionsPerMarket)
       : riskState.positionsPerMarket,
   };
+
+  // Markiere als initialisiert (manuelles Setzen)
+  stateInitialized = true;
+
+  // In SQLite persistieren (außer in Tests)
+  if (isDatabaseInitialized()) {
+    persistRiskState();
+  }
 }
 
 /**
  * Prüft ob der Kill-Switch aktiv ist
+ * Lädt automatisch aus SQLite wenn noch nicht initialisiert
  */
 export function isKillSwitchActive(): boolean {
+  ensureStateInitialized();
   return riskState.killSwitchActive;
 }
 
@@ -252,8 +427,25 @@ export function isKillSwitchActive(): boolean {
  * Berechnet verfügbares Risk-Budget
  */
 export function getAvailableRiskBudget(config: RiskConfig = DEFAULT_RISK_CONFIG): number {
+  ensureStateInitialized();
   const dailyLossRemaining = config.maxDailyLoss + riskState.dailyPnL;
   return Math.max(0, dailyLossRemaining);
+}
+
+/**
+ * Initialisiert den Risk State aus SQLite
+ * Wird beim Server-Start aufgerufen
+ */
+export function initializeRiskState(): void {
+  stateInitialized = false; // Force Reload
+  ensureStateInitialized();
+}
+
+/**
+ * Gibt zurück ob der State bereits aus DB geladen wurde
+ */
+export function isRiskStateInitialized(): boolean {
+  return stateInitialized;
 }
 
 export default {
@@ -266,5 +458,7 @@ export default {
   setRiskState,
   isKillSwitchActive,
   getAvailableRiskBudget,
+  initializeRiskState,
+  isRiskStateInitialized,
   DEFAULT_RISK_CONFIG,
 };

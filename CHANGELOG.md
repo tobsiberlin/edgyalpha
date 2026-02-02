@@ -7,6 +7,31 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [3.0.4] - 2026-02-02
+
+### Hinzugefügt
+- **KRITISCH: Risk State SQLite Persistierung** (`src/alpha/riskGates.ts`)
+  - Risk State (dailyPnL, openPositions, killSwitchActive) wird jetzt in SQLite persistiert
+  - `ensureStateInitialized()` - Lädt State automatisch aus DB beim ersten Zugriff
+  - `persistRiskState()` - Speichert State bei JEDER Änderung
+  - Kill-Switch überlebt jetzt Server-Restarts (vorher verloren!)
+  - Positions-Tracking persistiert (vorher verloren!)
+  - Daily PnL überlebt Restarts (vorher verloren!)
+  - Audit-Logging für alle Risk-Änderungen
+
+- **Neue Funktionen:**
+  - `initializeRiskState()` - Explizites Force-Reload aus DB
+  - `isRiskStateInitialized()` - Prüft ob State geladen wurde
+
+### Behoben
+- **KRITISCH: Risk-Limits gingen bei Server-Restart verloren**
+  - Vorher: Kill-Switch deaktiviert nach Restart → unkontrolliertes Trading
+  - Vorher: Daily PnL auf 0 nach Restart → Verlust-Limits umgangen
+  - Vorher: Positions vergessen → Over-Exposure möglich
+  - Jetzt: Alles persistiert in `risk_state` Tabelle
+
+---
+
 ## [3.0.3] - 2026-02-02
 
 ### Hinzugefügt
