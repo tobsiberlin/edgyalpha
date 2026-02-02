@@ -1,0 +1,188 @@
+{
+  "generatedAt": "2026-02-02T14:20:58.050Z",
+  "engine": "timeDelay",
+  "period": {
+    "from": "2025-08-19T13:17:17.000Z",
+    "to": "2026-01-02T10:57:14.000Z",
+    "days": 136
+  },
+  "summary": {
+    "tradeCount": 9,
+    "totalPnl": -76.75379837696642,
+    "winRate": 0.4444444444444444,
+    "maxDrawdown": 152.60254647896886,
+    "sharpeRatio": -2.6332043560864107,
+    "profitFactor": 0.4970346160799856,
+    "avgWin": 18.962187025500608,
+    "avgLoss": -30.520509295793765,
+    "calmarRatio": -1.349870331844156
+  },
+  "edge": {
+    "avgPredictedEdge": 0.053453333333333325,
+    "avgActualEdge": -0.035293420788482445,
+    "edgeCaptureRate": -0.6602660411913653,
+    "avgSlippage": 0.009597248948986446
+  },
+  "calibration": {
+    "brierScore": 0.19777299572154755,
+    "brierInterpretation": "akzeptabel",
+    "ece": 0.3887932295941558,
+    "eceInterpretation": "schlecht",
+    "isOverconfident": true,
+    "isUnderconfident": false,
+    "avgDeviation": 0.08136415660923386,
+    "recommendation": "Overconfident um 8.1%. Edge-Schätzungen sollten konservativer sein. Erwäge Kelly-Fraction zu reduzieren. Achtung: Bucket 50-60% hat 31.2% Abweichung.",
+    "buckets": [
+      {
+        "range": [
+          0.2,
+          0.30000000000000004
+        ],
+        "predictedAvg": 0.28993084500662025,
+        "actualAvg": 1,
+        "deviation": -0.7100691549933797,
+        "count": 1
+      },
+      {
+        "range": [
+          0.4,
+          0.5
+        ],
+        "predictedAvg": 0.433679030769219,
+        "actualAvg": 0,
+        "deviation": 0.433679030769219,
+        "count": 2
+      },
+      {
+        "range": [
+          0.5,
+          0.6000000000000001
+        ],
+        "predictedAvg": 0.5620875440942039,
+        "actualAvg": 0.25,
+        "deviation": 0.3120875440942039,
+        "count": 4
+      },
+      {
+        "range": [
+          0.6000000000000001,
+          0.7000000000000001
+        ],
+        "predictedAvg": 0.6633191632806155,
+        "actualAvg": 1,
+        "deviation": -0.33668083671938454,
+        "count": 2
+      }
+    ]
+  },
+  "trades": [
+    {
+      "signalId": "76ba0660-ac03-40ca-9a49-f558ca081cb7",
+      "marketId": "0x8fd76e9f98ae995c70b38072652e3bb1897b54ae5a82cba59cfec7e55a4f700d",
+      "direction": "no",
+      "entryPrice": 0.6339891549933798,
+      "exitPrice": 0,
+      "size": 38.039999999999964,
+      "pnl": 21.92298635887708,
+      "predictedEdge": 0.07607999999999993,
+      "actualEdge": 0.3660108450066202,
+      "slippage": 0.010280584824
+    },
+    {
+      "signalId": "480fff21-2686-4981-8fc5-29f154a636ea",
+      "marketId": "0x87be00ea53c3ca1e839d52e35fc467ee1aecfa85e96611519fd744b640461eb4",
+      "direction": "no",
+      "entryPrice": 0.36899215211773884,
+      "exitPrice": 0,
+      "size": 21.77717883930761,
+      "pnl": 37.21904399709162,
+      "predictedEdge": 0.04261999999999988,
+      "actualEdge": 0.6310078478822612,
+      "slippage": 0.009213121267823818
+    },
+    {
+      "signalId": "1e56fe6f-7a83-4b3e-8a36-ffa93c1b73cd",
+      "marketId": "0x46066a1e9e9e3fc43aeebef7a559d56e0bdc66a63f776536a437a3860b247c21",
+      "direction": "yes",
+      "entryPrice": 0.6646276842650108,
+      "exitPrice": 1,
+      "size": 14.806805584376551,
+      "pnl": 7.456733720088481,
+      "predictedEdge": 0.027960000000000207,
+      "actualEdge": 0.33537231573498916,
+      "slippage": 0.009365512735403446
+    },
+    {
+      "signalId": "e37435ff-a9de-4614-851f-12ecb464d841",
+      "marketId": "0x458511d8c6091a785f2de11a2ee3ef52cf00363993dac0ac435a653cc41586fa",
+      "direction": "yes",
+      "entryPrice": 0.3791030619814302,
+      "exitPrice": 0,
+      "size": 24.019804166992852,
+      "pnl": -24.043823971159846,
+      "predictedEdge": 0.04504000000000008,
+      "actualEdge": -0.3791030619814302,
+      "slippage": 0.008884075194944632
+    },
+    {
+      "signalId": "0a87e780-1678-4728-9240-f5dabc1accef",
+      "marketId": "0xb904359d887501442407dbfe21e906f325ac7136e72834ef6411366a7ed04ff9",
+      "direction": "yes",
+      "entryPrice": 0.3661749995570078,
+      "exitPrice": 0,
+      "size": 40.15921629284059,
+      "pnl": -40.19937550913343,
+      "predictedEdge": 0.07703999999999989,
+      "actualEdge": -0.3661749995570078,
+      "slippage": 0.010980884758022915
+    },
+    {
+      "signalId": "898f4d85-4dff-47de-93b5-5847e6b42aea",
+      "marketId": "0x6e8e889b31faeab38f148333702677beeba7e01e81c8f1d740d45d8f823a907f",
+      "direction": "yes",
+      "entryPrice": 0.4449163118904227,
+      "exitPrice": 0,
+      "size": 31.73457717510191,
+      "pnl": -31.766311752277012,
+      "predictedEdge": 0.06332000000000004,
+      "actualEdge": -0.4449163118904227,
+      "slippage": 0.009914100446266451
+    },
+    {
+      "signalId": "0170ee23-7bdb-4895-b9aa-a51ec548e0ea",
+      "marketId": "0xfff21352d28b45984ab52f539b458fe5c36502a720acb0564636cfff0d7f7813",
+      "direction": "yes",
+      "entryPrice": 0.5139063982996319,
+      "exitPrice": 0,
+      "size": 23.954142760177184,
+      "pnl": -23.978096902937363,
+      "predictedEdge": 0.04935999999999985,
+      "actualEdge": -0.5139063982996319,
+      "slippage": 0.009531329179104108
+    },
+    {
+      "signalId": "d4890ace-1ee7-4407-94b3-6517d6116e57",
+      "marketId": "0x27a69acde56bd26aae9833e31070227682232d903de539da8cb330a51097a6f8",
+      "direction": "no",
+      "entryPrice": 0.34270038169550016,
+      "exitPrice": 1,
+      "size": 32.58235598747372,
+      "pnl": -32.61493834346119,
+      "predictedEdge": 0.06884000000000001,
+      "actualEdge": -0.34270038169550016,
+      "slippage": 0.00855553932400861
+    },
+    {
+      "signalId": "a18530be-8a3d-42b2-ae0b-1ad8da1b8d73",
+      "marketId": "0x8cfce70436c95f872c258e10301d27409670d9ba47a16dd6a751892c97b5489d",
+      "direction": "yes",
+      "entryPrice": 0.6032306422962197,
+      "exitPrice": 1,
+      "size": 14.084681713171163,
+      "pnl": 9.249984025945254,
+      "predictedEdge": 0.03082000000000007,
+      "actualEdge": 0.3967693577037803,
+      "slippage": 0.009650092811304018
+    }
+  ]
+}

@@ -43,7 +43,7 @@ const envSchema = z.object({
   RSS_FEEDS_ENABLED: z.string().default('true'),
 
   // Web Security
-  WEB_AUTH_ENABLED: z.string().default('true'),
+  WEB_AUTH_ENABLED: z.string().default('false'),  // Default: keine Auth (für einfaches Setup)
   WEB_USERNAME: z.string().default('admin'),
   WEB_PASSWORD_HASH: z.string().optional(),  // bcrypt hash - REQUIRED wenn WEB_AUTH_ENABLED=true
   WEB_SESSION_SECRET: z.string().optional(),  // min 32 chars - REQUIRED wenn WEB_AUTH_ENABLED=true
