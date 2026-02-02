@@ -1,20 +1,61 @@
-import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
+// Typen für better-sqlite3
+type BetterSqlite3 = typeof import('better-sqlite3');
+type Database = import('better-sqlite3').Database;
+
+// Lazy-loaded Database module
+let Database: BetterSqlite3 | null = null;
+let loadError: Error | null = null;
+
+function loadSqliteModule(): BetterSqlite3 {
+  if (Database) return Database;
+  if (loadError) throw loadError;
+
+  try {
+    // Dynamic require für native Module
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Database = require('better-sqlite3') as BetterSqlite3;
+    return Database;
+  } catch (err) {
+    loadError = new Error(
+      'better-sqlite3 nicht verfügbar. ' +
+      'Installiere Build-Tools auf dem Server:\n' +
+      '  apt-get install python3 build-essential\n' +
+      '  npm rebuild better-sqlite3\n' +
+      `Original-Fehler: ${(err as Error).message}`
+    );
+    throw loadError;
+  }
+}
+
 // Singleton-Instanz
-let db: Database.Database | null = null;
+let db: Database | null = null;
+
+/**
+ * Prüft ob SQLite verfügbar ist (ohne Fehler zu werfen)
+ */
+export function isSqliteAvailable(): boolean {
+  try {
+    loadSqliteModule();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Initialisiert die Datenbank und führt Migrations aus
  */
-export function initDatabase(): Database.Database {
+export function initDatabase(): Database {
   if (db) {
     return db;
   }
 
+  const SqliteDatabase = loadSqliteModule();
   const dbPath = config.sqlitePath;
   const dbDir = path.dirname(dbPath);
 
@@ -27,8 +68,8 @@ export function initDatabase(): Database.Database {
   logger.info(`Initialisiere SQLite Datenbank: ${dbPath}`);
 
   // Datenbank öffnen/erstellen
-  db = new Database(dbPath, {
-    verbose: process.env.NODE_ENV === 'development' ? (msg) => logger.debug(`SQL: ${msg}`) : undefined,
+  db = new SqliteDatabase(dbPath, {
+    verbose: process.env.NODE_ENV === 'development' ? (msg: unknown) => logger.debug(`SQL: ${msg}`) : undefined,
   });
 
   // WAL-Modus für bessere Performance
@@ -66,7 +107,7 @@ function findSchemaPath(): string {
 /**
  * Führt die Schema-Migration aus
  */
-function runMigrations(database: Database.Database): void {
+function runMigrations(database: Database): void {
   const schemaPath = findSchemaPath();
 
   const schema = fs.readFileSync(schemaPath, 'utf-8');
@@ -96,7 +137,7 @@ function runMigrations(database: Database.Database): void {
  * Gibt die Datenbank-Instanz zurück
  * @throws Error wenn Datenbank nicht initialisiert
  */
-export function getDatabase(): Database.Database {
+export function getDatabase(): Database {
   if (!db) {
     throw new Error('Datenbank nicht initialisiert. Rufe zuerst initDatabase() auf.');
   }
