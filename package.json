@@ -9,8 +9,8 @@
     "build": "tsc && cp src/storage/schema.sql dist/storage/",
     "start": "node dist/index.js",
     "start:web": "node dist/web/server.js",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -56,6 +56,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/blessed": "^0.1.25",
     "@types/cli-progress": "^3.11.6",
@@ -72,6 +73,7 @@
     "prettier": "^3.2.5",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
+    "typescript-eslint": "^8.54.0",
     "vitest": "^1.2.2"
   },
   "engines": {

@@ -605,7 +605,7 @@ export function calculateOptimalSize(
   config: SizingConfig = DEFAULT_SIZING_CONFIG,
   maxIterations: number = 5
 ): SizingResult {
-  let result = calculatePositionSize(edge, confidence, bankroll, quality, config.kellyFraction, config);
+  const result = calculatePositionSize(edge, confidence, bankroll, quality, config.kellyFraction, config);
 
   for (let i = 0; i < maxIterations && result.size > 0; i++) {
     const slippage = estimateSlippage(result.size, quality);

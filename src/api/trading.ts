@@ -6,8 +6,10 @@ import { AlphaSignal, TradeRecommendation, TradeExecution, Position, ExecutionMo
 import { Decision, Execution, MarketQuality, RiskChecks } from '../alpha/types.js';
 import { checkRiskGates, updateRiskState, getRiskState, RiskCheckResult } from '../alpha/riskGates.js';
 import { calculatePositionSize, estimateSlippage, SizingResult } from '../alpha/sizing.js';
+import { polymarketClient } from './polymarket.js';
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
+import { ClobClient, Side, OrderType } from '@polymarket/clob-client';
 
 // Polymarket Contract Addresses (Polygon)
 const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
@@ -35,11 +37,19 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
+// Polymarket CLOB Config
+const CLOB_HOST = 'https://clob.polymarket.com';
+const POLYGON_CHAIN_ID = 137;
+
 export class TradingClient extends EventEmitter {
   private provider: ethers.JsonRpcProvider | null = null;
   private wallet: ethers.Wallet | null = null;
   private usdcContract: ethers.Contract | null = null;
   private pendingExecutions: Map<string, TradeExecution> = new Map();
+
+  // Polymarket CLOB Client
+  private clobClient: ClobClient | null = null;
+  private clobInitialized = false;
 
   constructor() {
     super();
@@ -52,11 +62,190 @@ export class TradingClient extends EventEmitter {
         // Adresse automatisch aus Private Key ableiten
         const derivedAddress = this.wallet.address;
         logger.info(`Trading Client initialisiert: ${derivedAddress.slice(0, 10)}...`);
+
+        // CLOB Client initialisieren (async)
+        this.initializeClobClient().catch(err => {
+          logger.error(`CLOB Client Init Fehler: ${(err as Error).message}`);
+        });
       } catch (err) {
         logger.error(`Trading Client Fehler: ${(err as Error).message}`);
       }
     } else {
       logger.warn('Trading Client: Wallet nicht konfiguriert (kein Private Key)');
+    }
+  }
+
+  /**
+   * Initialisiert den Polymarket CLOB Client mit API Credentials
+   */
+  private async initializeClobClient(): Promise<void> {
+    if (!this.wallet || !WALLET_PRIVATE_KEY) {
+      logger.warn('[CLOB] Kein Wallet für CLOB Client');
+      return;
+    }
+
+    try {
+      // Temporärer Client für API Key Derivation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tempClient = new ClobClient(
+        CLOB_HOST,
+        POLYGON_CHAIN_ID,
+        this.wallet as any // Type cast für ethers v6 → v5 Kompatibilität
+      );
+
+      // API Credentials erstellen oder derivieren
+      logger.info('[CLOB] Deriviere API Credentials...');
+      const apiCreds = await tempClient.createOrDeriveApiKey();
+
+      if (!apiCreds || !apiCreds.key || !apiCreds.secret) {
+        throw new Error('API Credentials konnten nicht erstellt werden');
+      }
+
+      logger.info(`[CLOB] API Key erhalten: ${apiCreds.key.substring(0, 10)}...`);
+
+      // Vollständiger Client mit Credentials
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.clobClient = new ClobClient(
+        CLOB_HOST,
+        POLYGON_CHAIN_ID,
+        this.wallet as any, // Type cast für ethers v6 → v5 Kompatibilität
+        apiCreds
+      );
+
+      this.clobInitialized = true;
+      logger.info('[CLOB] Client erfolgreich initialisiert');
+
+      this.emit('clob_ready');
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[CLOB] Initialisierung fehlgeschlagen: ${error.message}`);
+      this.clobInitialized = false;
+    }
+  }
+
+  /**
+   * Prüft ob CLOB Client bereit ist
+   */
+  isClobReady(): boolean {
+    return this.clobInitialized && this.clobClient !== null;
+  }
+
+  /**
+   * Holt das aktuelle Orderbook für einen Token
+   */
+  async getOrderbook(tokenId: string): Promise<{ bids: Array<{ price: number; size: number }>; asks: Array<{ price: number; size: number }> } | null> {
+    if (!this.clobClient) {
+      logger.warn('[CLOB] Client nicht initialisiert');
+      return null;
+    }
+
+    try {
+      const orderbook = await this.clobClient.getOrderBook(tokenId);
+      return {
+        bids: orderbook.bids.map((b: { price: string; size: string }) => ({ price: parseFloat(b.price), size: parseFloat(b.size) })),
+        asks: orderbook.asks.map((a: { price: string; size: string }) => ({ price: parseFloat(a.price), size: parseFloat(a.size) })),
+      };
+    } catch (err) {
+      logger.error(`[CLOB] Orderbook Fehler: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Platziert eine echte Order auf Polymarket
+   */
+  async placeOrder(params: {
+    tokenId: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    size: number;
+    orderType?: OrderType;
+  }): Promise<{ success: boolean; orderId?: string; error?: string }> {
+    if (!this.clobClient || !this.clobInitialized) {
+      return { success: false, error: 'CLOB Client nicht initialisiert' };
+    }
+
+    try {
+      logger.info(`[CLOB] Platziere Order: ${params.side} ${params.size} @ ${params.price} für ${params.tokenId}`);
+
+      // Order erstellen
+      const order = await this.clobClient.createOrder({
+        tokenID: params.tokenId,
+        side: params.side === 'BUY' ? Side.BUY : Side.SELL,
+        price: params.price,
+        size: params.size,
+        feeRateBps: 0, // 0% Maker Fee aktuell
+        nonce: Date.now(),
+        expiration: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24h gültig
+      });
+
+      // Order signieren und posten
+      const response = await this.clobClient.postOrder(order, params.orderType || OrderType.GTC);
+
+      if (response && response.orderID) {
+        logger.info(`[CLOB] Order erfolgreich: ${response.orderID}`);
+        return { success: true, orderId: response.orderID };
+      } else {
+        logger.warn(`[CLOB] Order Response ohne Order ID:`, response);
+        return { success: false, error: 'Keine Order ID erhalten' };
+      }
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[CLOB] Order Fehler: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Platziert eine Market Order (Fill-or-Kill)
+   */
+  async placeMarketOrder(params: {
+    tokenId: string;
+    side: 'BUY' | 'SELL';
+    amount: number; // in USDC
+  }): Promise<{ success: boolean; orderId?: string; fillPrice?: number; error?: string }> {
+    if (!this.clobClient || !this.clobInitialized) {
+      return { success: false, error: 'CLOB Client nicht initialisiert' };
+    }
+
+    try {
+      // Hole aktuelles Orderbook für Preisbestimmung
+      const orderbook = await this.getOrderbook(params.tokenId);
+      if (!orderbook) {
+        return { success: false, error: 'Orderbook nicht verfügbar' };
+      }
+
+      // Beste Seite des Orderbooks
+      const bestPrice = params.side === 'BUY'
+        ? orderbook.asks[0]?.price  // Kaufe zum niedrigsten Ask
+        : orderbook.bids[0]?.price; // Verkaufe zum höchsten Bid
+
+      if (!bestPrice) {
+        return { success: false, error: 'Kein Preis verfügbar im Orderbook' };
+      }
+
+      // Berechne Size aus Amount
+      const size = params.amount / bestPrice;
+
+      logger.info(`[CLOB] Market Order: ${params.side} $${params.amount} → ${size.toFixed(2)} Shares @ ${bestPrice}`);
+
+      // FOK Order platzieren (Fill-or-Kill)
+      const result = await this.placeOrder({
+        tokenId: params.tokenId,
+        side: params.side,
+        price: bestPrice,
+        size,
+        orderType: OrderType.FOK,
+      });
+
+      return {
+        ...result,
+        fillPrice: result.success ? bestPrice : undefined,
+      };
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[CLOB] Market Order Fehler: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 
@@ -450,7 +639,7 @@ export class TradingClient extends EventEmitter {
   }
 
   /**
-   * Live Trading: Echter Trade mit Credential-Check
+   * Live Trading: Echter Trade mit Credential-Check und CLOB API
    */
   private async executeLive(
     decision: Decision,
@@ -497,47 +686,102 @@ export class TradingClient extends EventEmitter {
       };
     }
 
-    // 5. Quote holen
-    let quote: { price: number; liquidity: number };
-    try {
-      quote = await this.fetchQuote(decision);
-      logger.info(`[LIVE] Quote erhalten`, { quote });
-    } catch (err) {
-      logger.error(`[LIVE] Quote-Abruf fehlgeschlagen: ${(err as Error).message}`);
+    // 5. CLOB Client prüfen
+    if (!this.isClobReady()) {
+      logger.error(`[LIVE] CLOB Client nicht bereit - Trade verweigert`);
       return {
         ...execution,
         status: 'failed',
       };
     }
 
-    // 6. Trade ausführen (ECHTE IMPLEMENTATION)
-    try {
-      // TODO: Polymarket CLOB API Integration
-      // Für jetzt: Simulation mit echten Daten
-      logger.warn(`[LIVE] Echte Trade-Ausführung noch nicht implementiert - simuliere`);
+    // 6. Markt laden und Token-ID extrahieren
+    let tokenId: string | null = null;
+    let marketDirection: 'YES' | 'NO' = 'YES';
 
-      const simulatedTxHash = `live_${execution.executionId.slice(0, 8)}_${Date.now()}`;
-      const slippage = 0.001; // 0.1% geschätzt
+    try {
+      // MarketId aus Decision - Format kann "marketId" oder "marketId:direction" sein
+      const marketId = decision.signalId.split(':')[0] || decision.signalId;
+
+      // Markt von Polymarket API laden
+      const market = await polymarketClient.getMarketById(marketId);
+      if (!market) {
+        logger.error(`[LIVE] Markt ${marketId} nicht gefunden`);
+        return { ...execution, status: 'failed' };
+      }
+
+      // Direction aus Decision rationale oder Signal extrahieren
+      const rationale = decision.rationale;
+      if (rationale && typeof rationale === 'object') {
+        // Check ob direction im rationale steht
+        const topFeatures = rationale.topFeatures || [];
+        const hasYesDirection = topFeatures.some(f => f.toLowerCase().includes('yes') || f.toLowerCase().includes('ja'));
+        const hasNoDirection = topFeatures.some(f => f.toLowerCase().includes('no') || f.toLowerCase().includes('nein'));
+        marketDirection = hasNoDirection && !hasYesDirection ? 'NO' : 'YES';
+      }
+
+      // Token-ID für die entsprechende Seite
+      const outcomeLabel = marketDirection === 'YES' ? 'Yes' : 'No';
+      const outcome = market.outcomes.find(o => o.name.toLowerCase() === outcomeLabel.toLowerCase());
+
+      if (!outcome || !outcome.id || outcome.id.startsWith('outcome-')) {
+        logger.error(`[LIVE] Keine gültige Token-ID für ${outcomeLabel} in Markt ${marketId}`);
+        return { ...execution, status: 'failed' };
+      }
+
+      tokenId = outcome.id;
+      logger.info(`[LIVE] Token-ID: ${tokenId} für ${outcomeLabel} @ ${market.question.substring(0, 50)}...`);
+
+    } catch (err) {
+      logger.error(`[LIVE] Markt-Lookup fehlgeschlagen: ${(err as Error).message}`);
+      return { ...execution, status: 'failed' };
+    }
+
+    // 7. Quote mit echtem Orderbook holen
+    let quote: { price: number; liquidity: number; tokenId?: string };
+    try {
+      quote = await this.fetchQuote(decision, tokenId);
+      logger.info(`[LIVE] Quote erhalten`, { quote });
+    } catch (err) {
+      logger.error(`[LIVE] Quote-Abruf fehlgeschlagen: ${(err as Error).message}`);
+      return { ...execution, status: 'failed' };
+    }
+
+    // 8. ECHTE CLOB ORDER PLATZIEREN
+    try {
+      logger.info(`[LIVE] Platziere echte CLOB Order...`);
+
+      const orderResult = await this.placeMarketOrder({
+        tokenId,
+        side: 'BUY', // Kaufe immer den Token (YES oder NO)
+        amount: decision.sizeUsdc || 0,
+      });
+
+      if (!orderResult.success) {
+        logger.error(`[LIVE] CLOB Order fehlgeschlagen: ${orderResult.error}`);
+        return { ...execution, status: 'failed' };
+      }
 
       const filledExecution: Execution = {
         ...execution,
         status: 'filled',
-        fillPrice: quote.price,
+        fillPrice: orderResult.fillPrice || quote.price,
         fillSize: decision.sizeUsdc,
-        slippage,
-        fees: (decision.sizeUsdc || 0) * 0.002,
-        txHash: simulatedTxHash,
+        slippage: orderResult.fillPrice ? Math.abs(orderResult.fillPrice - quote.price) / quote.price : 0.001,
+        fees: (decision.sizeUsdc || 0) * 0.002, // 0.2% Taker Fee
+        txHash: orderResult.orderId || `clob_${execution.executionId.slice(0, 8)}`,
         filledAt: new Date(),
       };
 
       // Risk State aktualisieren
       updateRiskState(0, decision.signalId, decision.sizeUsdc || 0);
 
-      logger.info(`[LIVE] Trade erfolgreich`, {
+      logger.info(`[LIVE] 🎯 ECHTE ORDER ERFOLGREICH`, {
         executionId: execution.executionId,
-        txHash: simulatedTxHash,
+        orderId: orderResult.orderId,
         fillPrice: filledExecution.fillPrice,
         fillSize: filledExecution.fillSize,
+        direction: marketDirection,
       });
 
       this.emit('live_trade', filledExecution);
@@ -555,14 +799,35 @@ export class TradingClient extends EventEmitter {
   }
 
   /**
-   * Holt Quote von Polymarket API
+   * Holt Quote von Polymarket API - ECHTE IMPLEMENTATION
    */
   private async fetchQuote(
-    decision: Decision
-  ): Promise<{ price: number; liquidity: number }> {
-    // TODO: Echte Polymarket CLOB API Integration
-    // Für jetzt: Simulierte Quotes
+    decision: Decision,
+    tokenId?: string
+  ): Promise<{ price: number; liquidity: number; tokenId?: string }> {
+    // Wenn tokenId gegeben, nutze CLOB Orderbook
+    if (tokenId && this.isClobReady()) {
+      try {
+        const orderbook = await this.getOrderbook(tokenId);
+        if (orderbook && orderbook.asks.length > 0) {
+          // Bester Ask-Preis und Liquidität berechnen
+          const bestAsk = orderbook.asks[0];
+          const totalLiquidity = orderbook.asks.reduce((sum, a) => sum + a.size * a.price, 0);
 
+          logger.info(`[QUOTE] CLOB Orderbook: Best Ask ${bestAsk.price}, Liquidity $${totalLiquidity.toFixed(2)}`);
+
+          return {
+            price: bestAsk.price,
+            liquidity: totalLiquidity,
+            tokenId,
+          };
+        }
+      } catch (err) {
+        logger.warn(`[QUOTE] CLOB Orderbook Fehler: ${(err as Error).message}`);
+      }
+    }
+
+    // Fallback: Simulierte Quotes
     const simulatedPrice = 0.45 + Math.random() * 0.1;
     const simulatedLiquidity = 10000 + Math.random() * 50000;
 
