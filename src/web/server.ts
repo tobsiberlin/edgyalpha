@@ -1778,121 +1778,42 @@ newsTicker.on('tick', (event: TickerEvent) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//                    PERPLEXITY LLM ENGINE API
+//            PERPLEXITY ENGINE API (ENTFERNT V4.0)
+// Perplexity Engine wurde durch Dutch-Book Arbitrage & Late-Entry ersetzt
+// Diese Endpunkte sind nur noch Stubs für Kompatibilität
 // ═══════════════════════════════════════════════════════════════
 
-// API: LLM Engine Status
-app.get('/api/llm/status', requireAuth, async (_req: Request, res: Response) => {
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-    res.json({
-      active: perplexityEngine.isActive(),
-      stats: perplexityEngine.getStats(),
-    });
-  } catch (err) {
-    res.json({
-      active: false,
-      error: 'Perplexity Engine nicht verfügbar',
-      message: (err as Error).message,
-    });
-  }
+// API: LLM Engine Status (Stub)
+app.get('/api/llm/status', requireAuth, (_req: Request, res: Response) => {
+  res.json({
+    active: false,
+    info: 'Perplexity Engine wurde in V4.0 entfernt - ersetzt durch Arbitrage & Late-Entry Strategien',
+  });
 });
 
-// API: LLM Engine Stats
-app.get('/api/llm/stats', requireAuth, async (_req: Request, res: Response) => {
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-    res.json(perplexityEngine.toJSON());
-  } catch (err) {
-    res.json({
-      stats: null,
-      error: (err as Error).message,
-    });
-  }
+// API: LLM Engine Stats (Stub)
+app.get('/api/llm/stats', requireAuth, (_req: Request, res: Response) => {
+  res.json({ stats: null, info: 'Nicht mehr verfügbar' });
 });
 
-// API: Recent LLM Signals
-app.get('/api/llm/signals', requireAuth, async (req: Request, res: Response) => {
-  const limit = parseInt(String(req.query?.limit || '20'), 10);
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-    const signals = perplexityEngine.getSignals(limit);
-    res.json({
-      signals,
-      count: signals.length,
-      limit,
-    });
-  } catch (err) {
-    res.json({
-      signals: [],
-      count: 0,
-      error: (err as Error).message,
-    });
-  }
+// API: Recent LLM Signals (Stub)
+app.get('/api/llm/signals', requireAuth, (_req: Request, res: Response) => {
+  res.json({ signals: [], count: 0, info: 'Nicht mehr verfügbar' });
 });
 
-// API: Strong LLM Signals only
-app.get('/api/llm/signals/strong', requireAuth, async (_req: Request, res: Response) => {
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-    const signals = perplexityEngine.getStrongSignals();
-    res.json({
-      signals,
-      count: signals.length,
-    });
-  } catch (err) {
-    res.json({
-      signals: [],
-      count: 0,
-      error: (err as Error).message,
-    });
-  }
+// API: Strong LLM Signals (Stub)
+app.get('/api/llm/signals/strong', requireAuth, (_req: Request, res: Response) => {
+  res.json({ signals: [], count: 0, info: 'Nicht mehr verfügbar' });
 });
 
-// API: Initialize LLM Engine
-app.post('/api/llm/init', requireAuth, async (_req: Request, res: Response) => {
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-
-    if (perplexityEngine.isActive()) {
-      res.json({
-        success: false,
-        message: 'Engine bereits aktiv',
-        active: true,
-      });
-      return;
-    }
-
-    const success = await perplexityEngine.initialize();
-    res.json({
-      success,
-      message: success ? 'Engine erfolgreich gestartet' : 'Initialisierung fehlgeschlagen',
-      active: perplexityEngine.isActive(),
-    });
-  } catch (err) {
-    res.json({
-      success: false,
-      error: (err as Error).message,
-    });
-  }
+// API: Initialize LLM Engine (Stub)
+app.post('/api/llm/init', requireAuth, (_req: Request, res: Response) => {
+  res.json({ success: false, message: 'Perplexity Engine wurde in V4.0 entfernt' });
 });
 
-// API: Shutdown LLM Engine
-app.post('/api/llm/shutdown', requireAuth, async (_req: Request, res: Response) => {
-  try {
-    const { perplexityEngine } = await import('../alpha/perplexityEngine.js');
-    await perplexityEngine.shutdown();
-    res.json({
-      success: true,
-      message: 'Engine heruntergefahren',
-      active: false,
-    });
-  } catch (err) {
-    res.json({
-      success: false,
-      error: (err as Error).message,
-    });
-  }
+// API: Shutdown LLM Engine (Stub)
+app.post('/api/llm/shutdown', requireAuth, (_req: Request, res: Response) => {
+  res.json({ success: true, message: 'Bereits deaktiviert (V4.0)' });
 });
 
 // ═══════════════════════════════════════════════════════════════

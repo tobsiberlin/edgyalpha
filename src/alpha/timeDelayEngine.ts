@@ -10,8 +10,9 @@ import { Market } from '../types/index.js';
 import { fuzzyMatch, MatchResult, extractKeywords } from './matching.js';
 import { eventExists, getEventByHash } from '../storage/repositories/events.js';
 import logger from '../utils/logger.js';
-import { autoTrader, AutoTradeResult } from './autoTrader.js';
 import { llmMatcher, LLMMatchResult } from './llmMatcher.js';
+
+// AutoTrader wurde entfernt (V4.0) - Auto-Trading über neue Strategien
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -259,28 +260,9 @@ export class TimeDelayEngine {
         `| sources=${matchedEvents.length}`
       );
 
-      // ═══════════════════════════════════════════════════════════════
-      // AUTO-TRADE BEI BREAKING_CONFIRMED
-      // Speed ist essentiell - Zeitvorsprung nur wertvoll wenn wir schnell handeln!
-      // ═══════════════════════════════════════════════════════════════
-      if (certainty === 'breaking_confirmed' && this.config.autoTradeEnabled) {
-        logger.warn(`[AUTO-TRADE] BREAKING_CONFIRMED detected - prüfe Auto-Trade für ${market.question.substring(0, 40)}...`);
-
-        // MarketQuality aus Market-Daten erstellen
-        const marketQuality: MarketQuality = {
-          marketId: market.id,
-          liquidityScore: Math.min(1, (market.liquidity || 0) / 100000), // Normalisiert auf 0-1
-          spreadProxy: 0.02, // Default Spread
-          volume24h: market.volume24h || 0,
-          volatility: 0.1, // Default Volatility
-          tradeable: true,
-          reasons: [],
-        };
-
-        // Async Auto-Trade (nicht blockierend)
-        this.processAutoTrade(signal, marketQuality).catch(err => {
-          logger.error(`[AUTO-TRADE] Fehler: ${(err as Error).message}`);
-        });
+      // Auto-Trade wurde entfernt (V4.0) - Trading über neue Strategien (Arbitrage/Late-Entry)
+      if (certainty === 'breaking_confirmed') {
+        logger.warn(`[SIGNAL] BREAKING_CONFIRMED: ${market.question.substring(0, 40)}... - Signal für externe Handler`);
       }
     }
 
@@ -290,27 +272,6 @@ export class TimeDelayEngine {
     logger.info(`TimeDelayEngine: ${signals.length} Signale generiert`);
 
     return signals;
-  }
-
-  /**
-   * Verarbeitet Auto-Trade für ein Signal
-   * WICHTIG: Geschwindigkeit ist kritisch!
-   */
-  private async processAutoTrade(signal: AlphaSignalV2, marketQuality: MarketQuality): Promise<AutoTradeResult | null> {
-    try {
-      const result = await autoTrader.processSignal(signal, marketQuality);
-
-      if (result.executed) {
-        logger.warn(`[AUTO-TRADE] ✅ ERFOLG: ${signal.question.substring(0, 40)}... | ${signal.direction.toUpperCase()} | Edge: ${(signal.predictedEdge * 100).toFixed(1)}%`);
-      } else {
-        logger.info(`[AUTO-TRADE] ❌ Nicht ausgeführt: ${result.reason}`);
-      }
-
-      return result;
-    } catch (err) {
-      logger.error(`[AUTO-TRADE] Exception: ${(err as Error).message}`);
-      return null;
-    }
   }
 
   /**

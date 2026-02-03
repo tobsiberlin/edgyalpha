@@ -7,6 +7,39 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [4.0.0] - 2026-02-03
+
+### BREAKING CHANGE: Alpha-Bereich entfernt
+
+Die bisherige Alpha-Scoring-Engine wurde entfernt, da sie nicht die gewuenschten Ergebnisse lieferte. Das System wird auf bewährte Polymarket-Trading-Strategien umgestellt.
+
+### Entfernt
+- **PerplexityEngine** (`src/alpha/perplexityEngine.ts`) - LLM-basierte Analyse
+- **MetaCombiner** (`src/alpha/metaCombiner.ts`) - Signal-Kombination
+- **DriftDetection** (`src/alpha/driftDetection.ts`) - Drift-Erkennung
+- **AutoTrader** (`src/alpha/autoTrader.ts`) - Automatisches Trading
+- **MispricingEngine** (`src/alpha/mispricingEngine.ts`) - Mispricing-Erkennung
+- **scanner/alpha.ts** - Alpha-Score Berechnung
+- **tests/alpha.test.ts** - Veraltete Tests
+
+### Behalten (für News-Matching)
+- **LLMMatcher** - LLM-Validierung für Ticker-Matching (verhindert False Positives)
+- **TimeDelayEngine** - News-Event Verarbeitung (ohne Auto-Trade)
+- **FuzzyMatching** - Schnelles Vorfiltern von News-Market Paaren
+- **RiskGates, Sizing, Volatility, ExecutionQuality, Telemetry** - Infrastruktur
+
+### Geaendert
+- Web API: `/api/llm/*` Endpoints geben jetzt Stubs zurueck
+- Backtest: `mispricing` und `meta` Engines fallen auf `timeDelay` zurueck
+- Scanner: Vereinfachte Alpha-Signal-Generierung
+- Telegram: AutoTrader-Integration deaktiviert
+
+### Geplant (V4.1+)
+- **Dutch-Book Arbitrage Engine** - Risikofreier Profit wenn YES+NO < $1.00
+- **Late-Entry V3 Strategy** - 15-Min Crypto Markets, Einstieg nur in letzten 4 Minuten
+
+---
+
 ## [3.7.0] - 2026-02-02
 
 ### Hinzugefuegt

@@ -1,8 +1,9 @@
 import { polymarketClient } from '../api/polymarket.js';
 import { germanySources } from '../germany/index.js';
-import { createAlphaSignal, createTradeRecommendation, analyzeNewsForMarket } from './alpha.js';
 import { config } from '../utils/config.js';
-import logger from '../utils/logger.js';
+
+// scanner/alpha.js wurde entfernt (V4.0) - Trading über neue Strategien (Arbitrage/Late-Entry)
+// Einfache Fallback-Funktionen für Kompatibilität
 import {
   Market,
   AlphaSignal,
@@ -10,6 +11,46 @@ import {
   ScanResult,
   MarketCategory,
 } from '../types/index.js';
+
+function createAlphaSignal(market: Market, _options: unknown): AlphaSignal | null {
+  // Vereinfachtes Alpha-Signal für Kompatibilität
+  const yesOutcome = market.outcomes?.find(o => o.name?.toLowerCase() === 'yes');
+  const price = yesOutcome?.price || 0.5;
+
+  // Nur ein Signal wenn Preis weit von 50% entfernt (potentielles Edge)
+  const edge = Math.abs(price - 0.5);
+  if (edge < 0.1) return null;
+
+  return {
+    id: `alpha-${market.id}-${Date.now()}`,
+    market,
+    score: edge,
+    edge,
+    confidence: 0.5 + edge,
+    direction: price < 0.5 ? 'YES' : 'NO',
+    reasoning: 'Preis-basiertes Alpha (vereinfacht)',
+    sources: ['scanner'],
+    timestamp: new Date(),
+  };
+}
+
+function analyzeNewsForMarket(_market: Market, _news: unknown[]): { matchCount: number } {
+  // Vereinfachte News-Analyse - die eigentliche Logik ist im Ticker
+  return { matchCount: 0 };
+}
+
+function createTradeRecommendation(signal: AlphaSignal, maxBankroll: number): TradeRecommendation {
+  const positionSize = Math.min(maxBankroll * signal.edge * 0.25, maxBankroll * 0.1);
+  return {
+    signal,
+    positionSize,
+    kellyFraction: signal.edge * 0.25,
+    expectedValue: signal.edge * positionSize,
+    maxLoss: positionSize,
+    riskRewardRatio: signal.edge > 0 ? (1 / signal.edge) : 2,
+  };
+}
+import logger from '../utils/logger.js';
 import { EventEmitter } from 'events';
 import { runtimeState } from '../runtime/state.js';
 import { timeDelayEngine } from '../alpha/timeDelayEngine.js';

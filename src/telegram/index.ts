@@ -25,8 +25,35 @@ import {
   updateNotificationSettings,
   PushMode,
 } from '../notifications/rateLimiter.js';
-import { autoTrader, AutoTradeResult } from '../alpha/autoTrader.js';
 import { timeDelayEngine } from '../alpha/timeDelayEngine.js';
+
+// AutoTrader wurde entfernt (V4.0) - Ersetzt durch Dutch-Book Arbitrage & Late-Entry Strategien
+// Dummy für Kompatibilität
+const autoTraderDisabled = {
+  setEnabled: (_enabled: boolean) => { /* No-op */ },
+  getConfig: () => ({ minEdge: 0.05, maxSize: 50 }),
+  on: (_event: string, _handler: (...args: unknown[]) => void) => { /* No-op */ },
+};
+// Erweiterter Typ für Kompatibilität (Funktion wird nicht mehr aufgerufen)
+type AutoTradeResult = {
+  executed: boolean;
+  reason?: string;
+  signal: {
+    certainty: string;
+    direction?: 'yes' | 'no';
+    marketId?: string;
+    question?: string;
+    predictedEdge?: number;
+  };
+  execution?: {
+    fillPrice?: number;
+    slippage?: number;
+    executionId?: string;
+  };
+  decision?: {
+    sizeUsdc?: number;
+  };
+};
 import { timeAdvantageService } from '../alpha/timeAdvantageService.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -1816,7 +1843,7 @@ _Tippe auf ein Modul zum Umschalten:_`;
     // Zusätzliche Warnung und AutoTrader-Sync bei Auto-Bet Toggle
     if (module === 'autoBet') {
       // Sync mit AutoTrader UND TimeDelayEngine
-      autoTrader.setEnabled(newValue as boolean);
+      autoTraderDisabled.setEnabled(newValue as boolean);
       timeDelayEngine.updateConfig({ autoTradeEnabled: newValue as boolean });
 
       if (newValue) {
@@ -1825,8 +1852,8 @@ _Tippe auf ein Modul zum Umschalten:_`;
           `🚨 *AUTO-TRADE AKTIVIERT*\n\n` +
           `Bei BREAKING_CONFIRMED Signalen wird jetzt automatisch getradet!\n\n` +
           `*Config:*\n` +
-          `• Min Edge: ${(autoTrader.getConfig().minEdge * 100).toFixed(0)}%\n` +
-          `• Max Size: $${autoTrader.getConfig().maxSize}\n` +
+          `• Min Edge: ${(autoTraderDisabled.getConfig().minEdge * 100).toFixed(0)}%\n` +
+          `• Max Size: $${autoTraderDisabled.getConfig().maxSize}\n` +
           `• Mode: ${state.executionMode.toUpperCase()}\n\n` +
           `_Stelle sicher, dass du im richtigen Trading-Mode bist!_`,
           chatId
@@ -2498,8 +2525,15 @@ _Zurück zum Hauptmenü_`;
     }
 
     // Store for trading (mit TTL für Memory Leak Prevention)
-    const { createTradeRecommendation } = await import('../scanner/alpha.js');
-    const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
+    // createTradeRecommendation wurde entfernt (V4.0) - einfache inline Berechnung
+    const recommendation: TradeRecommendation = {
+      signal,
+      positionSize: Math.min(config.trading.maxBankrollUsdc * signal.edge * 0.25, config.trading.maxBankrollUsdc * 0.1),
+      kellyFraction: signal.edge * 0.25,
+      expectedValue: signal.edge * config.trading.maxBankrollUsdc * 0.1,
+      maxLoss: config.trading.maxBankrollUsdc * 0.05,
+      riskRewardRatio: signal.edge > 0 ? (1 / signal.edge) : 2,
+    };
     this.pendingTrades.set(signal.id, { recommendation, createdAt: Date.now() });
 
     const message = `${this.HEADER}
@@ -2670,8 +2704,15 @@ ${hasSignals
   // ═══════════════════════════════════════════════════════════════
 
   async sendBreakingSignal(signal: AlphaSignal): Promise<void> {
-    const { createTradeRecommendation } = await import('../scanner/alpha.js');
-    const recommendation = createTradeRecommendation(signal, config.trading.maxBankrollUsdc);
+    // createTradeRecommendation wurde entfernt (V4.0) - einfache inline Berechnung
+    const recommendation: TradeRecommendation = {
+      signal,
+      positionSize: Math.min(config.trading.maxBankrollUsdc * signal.edge * 0.25, config.trading.maxBankrollUsdc * 0.1),
+      kellyFraction: signal.edge * 0.25,
+      expectedValue: signal.edge * config.trading.maxBankrollUsdc * 0.1,
+      maxLoss: config.trading.maxBankrollUsdc * 0.05,
+      riskRewardRatio: signal.edge > 0 ? (1 / signal.edge) : 2,
+    };
     this.pendingTrades.set(signal.id, { recommendation, createdAt: Date.now() });
 
     const isGerman = signal.germanSource !== undefined;
@@ -2916,21 +2957,11 @@ ${riskGates}`;
     });
 
     // ═══════════════════════════════════════════════════════════════
-    // AUTO-TRADE EVENTS (Breaking News automatisch traden)
+    // AUTO-TRADE EVENTS - Deprecated in V4.0
+    // AutoTrader wurde durch Dutch-Book Arbitrage & Late-Entry ersetzt
+    // Diese Event-Handler werden nicht mehr aufgerufen
     // ═══════════════════════════════════════════════════════════════
-    autoTrader.on('auto_trade_executed', async (result: AutoTradeResult) => {
-      logger.info(`[TELEGRAM] Auto-Trade executed event received`);
-      await this.sendAutoTradeNotification(result, true);
-    });
-
-    autoTrader.on('auto_trade_blocked', async (result: AutoTradeResult) => {
-      // Nur bei breaking_confirmed loggen/notifizieren
-      if (result.signal.certainty === 'breaking_confirmed') {
-        logger.info(`[TELEGRAM] Auto-Trade blocked: ${result.reason}`);
-        // Optional: Notification bei blockiertem Trade
-        // await this.sendAutoTradeNotification(result, false);
-      }
-    });
+    // autoTraderDisabled.on ist ein No-op - Events werden nicht mehr gefeuert
 
     // ═══════════════════════════════════════════════════════════════
     // BREAKING NEWS → Candidate Queue (NICHT mehr direkt pushen!)
@@ -3933,101 +3964,12 @@ ${additional.slice(0, 3).map(n => `• ${n.candidate.title.substring(0, 50)}...`
 
   // ═══════════════════════════════════════════════════════════════
   //                    AUTO-TRADE NOTIFICATION
-  // Speed ist essentiell - sofortige Benachrichtigung nach Trade!
+  // @deprecated AutoTrader wurde in V4.0 entfernt - diese Funktion wird nicht mehr aufgerufen
   // ═══════════════════════════════════════════════════════════════
 
-  private async sendAutoTradeNotification(result: AutoTradeResult, executed: boolean): Promise<void> {
-    const { signal, execution, decision } = result;
-    const state = runtimeState.getState();
-    const modeEmoji = state.executionMode === 'live' ? '🚀' : state.executionMode === 'shadow' ? '👻' : '📝';
-
-    const directionEmoji = signal.direction === 'yes' ? '✅' : '❌';
-
-    // Market URL
-    const marketUrl = `https://polymarket.com/event/${signal.marketId}`;
-
-    if (executed) {
-      // Trade wurde ausgeführt
-      const message = `
-🤖 *AUTO\\-TRADE AUSGEFÜHRT* 🤖
-
-${this.DIVIDER}
-
-✅ *BREAKING\\_CONFIRMED*
-${modeEmoji} *Mode:* ${state.executionMode.toUpperCase()}
-
-${this.DIVIDER}
-
-📊 *Markt:*
-\`\`\`
-${signal.question.substring(0, 80)}...
-\`\`\`
-
-🎯 *Direction:* ${directionEmoji} ${signal.direction.toUpperCase()}
-📈 *Edge:* ${(signal.predictedEdge * 100).toFixed(1)}%
-💵 *Size:* $${decision?.sizeUsdc?.toFixed(2) || '?'}
-
-${this.DIVIDER}
-
-${execution ? `*Execution Details:*
-• Fill Price: ${execution.fillPrice?.toFixed(4) || 'N/A'}
-• Slippage: ${execution.slippage ? (execution.slippage * 100).toFixed(2) + '%' : 'N/A'}
-• ID: \`${execution.executionId.substring(0, 8)}...\`` : ''}
-
-_Zeitvorsprung genutzt \\- Trade automatisch ausgeführt\\!_
-
-[📊 Polymarket](${marketUrl})`;
-
-      await this.sendMessageWithKeyboard(message, {
-        inline_keyboard: [
-          [
-            { text: '📊 Risk Dashboard', callback_data: 'action:risk' },
-            { text: '💰 PnL', callback_data: 'action:pnl' },
-          ],
-          [
-            { text: '⏸️ Auto-Trade AUS', callback_data: 'toggle:autoBet' },
-          ],
-        ],
-      });
-
-      logger.info(`[TELEGRAM] Auto-Trade Notification gesendet: ${signal.marketId}`);
-    } else {
-      // Trade wurde blockiert - optional notification
-      const safeReason = result.reason.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-      const message = `
-⚠️ *AUTO\\-TRADE BLOCKIERT* ⚠️
-
-${this.DIVIDER}
-
-*Grund:* ${safeReason}
-
-📊 *Markt:*
-\`\`\`
-${signal.question.substring(0, 60)}...
-\`\`\`
-
-🎯 *Direction:* ${directionEmoji} ${signal.direction.toUpperCase()}
-📈 *Edge:* ${(signal.predictedEdge * 100).toFixed(1)}%
-
-${this.DIVIDER}
-
-_Manuelles Trading über Polymarket möglich\\._
-
-[📊 Polymarket](${marketUrl})`;
-
-      await this.sendMessageWithKeyboard(message, {
-        inline_keyboard: [
-          [
-            { text: '🔥 Manuell traden', url: marketUrl },
-          ],
-          [
-            { text: '📊 Risk Dashboard', callback_data: 'action:risk' },
-          ],
-        ],
-      });
-
-      logger.info(`[TELEGRAM] Auto-Trade Blocked Notification gesendet: ${result.reason}`);
-    }
+  private async sendAutoTradeNotification(_result: AutoTradeResult, _executed: boolean): Promise<void> {
+    // Funktion ist deprecated (V4.0) - AutoTrader wurde durch neue Strategien ersetzt
+    logger.debug('[TELEGRAM] sendAutoTradeNotification ist deprecated (V4.0)');
   }
 
   // ═══════════════════════════════════════════════════════════════

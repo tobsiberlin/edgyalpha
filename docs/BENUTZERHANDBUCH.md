@@ -68,18 +68,19 @@ EDGY ALPHA ist ein intelligentes Trading-System für **Polymarket** - die weltwe
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Die drei Säulen
+### Die Trading-Strategien (V4.0)
 
 ```
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│   TIME_DELAY     │    │   MISPRICING     │    │   META-COMBINER  │
-│   ENGINE         │    │   ENGINE         │    │   (KI)           │
+│   NEWS-MATCHING  │    │   DUTCH-BOOK     │    │   LATE-ENTRY     │
+│   (LLM)          │    │   ARBITRAGE      │    │   V3 STRATEGY    │
 ├──────────────────┤    ├──────────────────┤    ├──────────────────┤
 │                  │    │                  │    │                  │
-│  Nachrichtenvor- │    │  Findet unter-   │    │  Kombiniert      │
-│  sprung nutzen   │    │  bewertete       │    │  beide Engines   │
-│                  │    │  Märkte          │    │  intelligent     │
-│  ⚡ Schnell      │    │  🎯 Präzise      │    │  🧠 Lernend      │
+│  KI-validiertes  │    │  Risikofreier    │    │  15-Min Crypto   │
+│  News-Matching   │    │  Profit wenn     │    │  Markets, Entry  │
+│  (aktiv)         │    │  YES+NO < $1.00  │    │  in letzten 4min │
+│                  │    │  (geplant V4.1)  │    │  (geplant V4.1)  │
+│  🔍 Intelligent  │    │  💰 Risikofrei   │    │  ⏱️ Taktisch     │
 │                  │    │                  │    │                  │
 └──────────────────┘    └──────────────────┘    └──────────────────┘
          │                      │                      │
@@ -91,6 +92,10 @@ EDGY ALPHA ist ein intelligentes Trading-System für **Polymarket** - die weltwe
                     │  mit Kelly-Size  │
                     └──────────────────┘
 ```
+
+> **Hinweis V4.0:** Die alten Alpha-Scoring Engines (MispricingEngine, MetaCombiner) wurden
+> entfernt. Das System nutzt jetzt KI-gestütztes News-Matching und wird um bewährte
+> Polymarket-Trading-Strategien erweitert.
 
 ---
 

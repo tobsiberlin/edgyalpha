@@ -16,8 +16,9 @@ import {
   MonteCarloResult,
 } from '../alpha/types.js';
 import { TimeDelayEngine } from '../alpha/timeDelayEngine.js';
-import { MispricingEngine } from '../alpha/mispricingEngine.js';
-import { MetaCombiner, CombinedSignal } from '../alpha/metaCombiner.js';
+// MispricingEngine und MetaCombiner wurden entfernt (V4.0)
+// Backtest unterstützt nur noch timeDelay Engine
+import { CombinedSignal } from '../alpha/telemetry.js';
 import { TradeSimulator, SimulatorConfig } from './simulator.js';
 import { calculateMetrics } from './metrics.js';
 import { calculateCalibrationBuckets } from './calibration.js';
@@ -121,10 +122,14 @@ export async function runBacktest(
       trades = await backtestTimeDelay(resolvedMarkets, simulator, opts);
       break;
     case 'mispricing':
-      trades = await backtestMispricing(resolvedMarkets, simulator, opts);
+      // MispricingEngine wurde entfernt (V4.0)
+      logger.warn('MispricingEngine wurde in V4.0 entfernt - nutze timeDelay stattdessen');
+      trades = await backtestTimeDelay(resolvedMarkets, simulator, opts);
       break;
     case 'meta':
-      trades = await backtestMeta(resolvedMarkets, simulator, opts);
+      // MetaCombiner wurde entfernt (V4.0)
+      logger.warn('MetaCombiner wurde in V4.0 entfernt - nutze timeDelay stattdessen');
+      trades = await backtestTimeDelay(resolvedMarkets, simulator, opts);
       break;
   }
 
@@ -248,110 +253,34 @@ async function backtestTimeDelay(
   return trades;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// DEPRECATED FUNCTIONS (V4.0 - MispricingEngine und MetaCombiner entfernt)
+// Diese Funktionen werden nicht mehr aufgerufen, da mispricing und meta
+// auf timeDelay zurückfallen. Sie sind hier nur für Kompatibilität.
+// ═══════════════════════════════════════════════════════════════
+
 /**
- * Backtest Mispricing Engine
+ * @deprecated MispricingEngine wurde in V4.0 entfernt
  */
 async function backtestMispricing(
-  markets: HistoricalMarket[],
-  simulator: TradeSimulator,
-  opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
+  _markets: HistoricalMarket[],
+  _simulator: TradeSimulator,
+  _opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
 ): Promise<BacktestTrade[]> {
-  const trades: BacktestTrade[] = [];
-
-  for (const market of markets) {
-    // Hole historische Trades
-    const historicalTrades = getTradesByMarket(market.marketId);
-
-    if (historicalTrades.length === 0) {
-      continue;
-    }
-
-    // Simuliere Mispricing-Signal
-    const signal = simulateMispricingSignal(market, historicalTrades);
-
-    if (signal && signal.predictedEdge >= 0.03) {
-      const resolution = marketOutcomeToResolution(market.outcome);
-      const trade = simulator.simulateTrade(signal, historicalTrades, resolution);
-      trades.push(trade);
-
-      if (opts.verbose) {
-        logger.debug(
-          `Mispricing Trade: ${market.question.substring(0, 40)}... | ` +
-            `PnL=${trade.pnl?.toFixed(2) ?? 'N/A'}`
-        );
-      }
-    }
-  }
-
-  return trades;
+  logger.warn('backtestMispricing ist deprecated (V4.0)');
+  return [];
 }
 
 /**
- * Backtest Meta-Combiner mit Walk-Forward
+ * @deprecated MetaCombiner wurde in V4.0 entfernt
  */
 async function backtestMeta(
-  markets: HistoricalMarket[],
-  simulator: TradeSimulator,
-  opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
+  _markets: HistoricalMarket[],
+  _simulator: TradeSimulator,
+  _opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
 ): Promise<BacktestTrade[]> {
-  const trades: BacktestTrade[] = [];
-  const metaCombiner = new MetaCombiner();
-
-  // Sortiere Märkte nach Close-Datum für Walk-Forward
-  const sortedMarkets = [...markets].sort((a, b) => {
-    const aDate = a.closedAt?.getTime() ?? 0;
-    const bDate = b.closedAt?.getTime() ?? 0;
-    return aDate - bDate;
-  });
-
-  let trainingCount = 0;
-
-  for (const market of sortedMarkets) {
-    const historicalTrades = getTradesByMarket(market.marketId);
-
-    if (historicalTrades.length === 0) {
-      continue;
-    }
-
-    // Generiere Signale von beiden Engines
-    const timeDelaySignal = simulateTimeDelaySignal(market, historicalTrades);
-    const mispricingSignal = simulateMispricingSignal(market, historicalTrades);
-
-    // Kombiniere Signale
-    const combinedSignal = metaCombiner.combineSignals(
-      timeDelaySignal ?? undefined,
-      mispricingSignal ?? undefined
-    );
-
-    if (combinedSignal && combinedSignal.predictedEdge >= 0.02) {
-      const resolution = marketOutcomeToResolution(market.outcome);
-      const trade = simulator.simulateTrade(
-        combinedSignal,
-        historicalTrades,
-        resolution
-      );
-      trades.push(trade);
-
-      // Walk-Forward: Update MetaCombiner mit Outcome
-      if (resolution !== null) {
-        const actualOutcome = resolution === combinedSignal.direction ? 1 : 0;
-        metaCombiner.updateFromOutcome(combinedSignal, actualOutcome as 0 | 1);
-        trainingCount++;
-      }
-
-      if (opts.verbose) {
-        const weights = metaCombiner.getWeights();
-        logger.debug(
-          `Meta Trade #${trainingCount}: ${market.question.substring(0, 30)}... | ` +
-            `Weights: TD=${weights.timeDelay.toFixed(2)}, MP=${weights.mispricing.toFixed(2)}`
-        );
-      }
-    }
-  }
-
-  logger.info(`Meta-Combiner: ${trainingCount} Walk-Forward Updates`);
-
-  return trades;
+  logger.warn('backtestMeta ist deprecated (V4.0)');
+  return [];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -427,70 +356,14 @@ function simulateTimeDelaySignal(
 }
 
 /**
- * Simuliere Mispricing-Signal aus historischen Daten
+ * @deprecated MispricingEngine wurde in V4.0 entfernt
+ * Diese Funktion wird nicht mehr aufgerufen.
  */
 function simulateMispricingSignal(
-  market: HistoricalMarket,
-  trades: HistoricalTrade[]
+  _market: HistoricalMarket,
+  _trades: HistoricalTrade[]
 ): AlphaSignalV2 | null {
-  if (trades.length < 10) {
-    return null;
-  }
-
-  // Verwende frühe Trades für Signal (kein Lookahead)
-  const earlyTrades = trades.slice(0, Math.min(20, Math.floor(trades.length * 0.3)));
-
-  // Durchschnittspreis der frühen Trades
-  const avgPrice =
-    earlyTrades.reduce((sum, t) => sum + t.price, 0) / earlyTrades.length;
-
-  // Mean-Reversion bei extremen Preisen
-  let edge = 0;
-  let direction: 'yes' | 'no' = 'yes';
-
-  if (avgPrice < 0.2) {
-    // Unterbewertet? Könnte steigen
-    edge = Math.min(0.1, (0.3 - avgPrice) * 0.5);
-    direction = 'yes';
-  } else if (avgPrice > 0.8) {
-    // Überbewertet? Könnte fallen
-    edge = Math.min(0.1, (avgPrice - 0.7) * 0.5);
-    direction = 'no';
-  } else {
-    // Mittlerer Bereich: kleine Adjustments
-    const deviation = Math.abs(avgPrice - 0.5);
-    edge = deviation * 0.1;
-    direction = avgPrice > 0.5 ? 'no' : 'yes';
-  }
-
-  if (edge < 0.02) {
-    return null;
-  }
-
-  const signalTime = earlyTrades[earlyTrades.length - 1].timestamp;
-
-  return {
-    signalId: uuidv4(),
-    alphaType: 'mispricing',
-    marketId: market.marketId,
-    question: market.question,
-    direction,
-    predictedEdge: edge,
-    confidence: Math.min(0.85, 0.6 + edge * 2),
-    features: {
-      version: '1.0.0',
-      features: {
-        avgPrice,
-        priceDeviation: Math.abs(avgPrice - 0.5),
-        tradeCount: trades.length,
-      },
-    },
-    reasoning: [
-      `Durchschnittspreis: ${(avgPrice * 100).toFixed(1)}%`,
-      `Mean-Reversion Opportunity`,
-    ],
-    createdAt: signalTime,
-  };
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════

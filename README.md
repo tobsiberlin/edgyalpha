@@ -38,14 +38,16 @@
 
 ## Features
 
-### Core Scanner
+### Core Scanner (V4.0)
 
 | Feature | Status | Beschreibung |
 |---------|--------|--------------|
 | Polymarket Gamma API | `[████]` | Echtzeit-Marktdaten |
-| Alpha-Scoring | `[████]` | Intelligente Signalanalyse |
+| News-Matching (LLM) | `[████]` | KI-validiertes News-zu-Markt Matching |
 | Kelly-Kriterium | `[████]` | Mathematisch optimale Positionsgrößen |
 | Kategorie-Filter | `[████]` | Politik, Wirtschaft, Crypto, Sport |
+| _Dutch-Book Arbitrage_ | `[░░░░]` | _Geplant V4.1_ |
+| _Late-Entry V3 Strategy_ | `[░░░░]` | _Geplant V4.1_ |
 
 ### Live News Ticker - DAUERFEUER MODUS
 

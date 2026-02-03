@@ -4,8 +4,20 @@
  */
 
 import { AlphaSignalV2, Decision, Execution, RiskChecks } from './types.js';
-import { CombinedSignal } from './metaCombiner.js';
 import { logger } from '../utils/logger.js';
+
+// CombinedSignal Interface (früher aus metaCombiner.js, jetzt inline definiert)
+// MetaCombiner wurde entfernt (V4.0)
+export interface CombinedSignal extends AlphaSignalV2 {
+  sourceSignals: {
+    timeDelay?: AlphaSignalV2;
+    mispricing?: AlphaSignalV2;
+  };
+  weights: {
+    timeDelay: number;
+    mispricing: number;
+  };
+}
 
 // ============================================================================
 // Telemetry Event Types
