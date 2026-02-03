@@ -246,7 +246,8 @@ class NewsTicker extends EventEmitter {
       // Berechne Match-Score
       const score = this.calculateMatchScore(newsWords, marketWords, news.keywords);
 
-      if (score > 0.3) {
+      // Erhöhte Schwelle: 50% statt 30% um False Positives zu reduzieren
+      if (score > 0.5) {
         const yesOutcome = market.outcomes.find(o => o.name.toLowerCase() === 'yes');
         matches.push({
           id: market.id,
