@@ -5,6 +5,9 @@ import { polymarketClient } from '../api/polymarket.js';
 import { Market } from '../types/index.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { MarketInfo, SourceInfo } from '../notifications/pushGates.js';
+import { fuzzyMatch, MatchResult } from '../alpha/matching.js';
+import { llmMatcher } from '../alpha/llmMatcher.js';
+import { SourceEvent } from '../alpha/types.js';
 
 // ═══════════════════════════════════════════════════════════════
 //              LIVE NEWS TICKER - DAUERFEUER MODUS
@@ -220,7 +223,7 @@ class NewsTicker extends EventEmitter {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //                     SEMANTIC MATCHING
+  //                     SEMANTIC MATCHING (mit LLM-Validierung)
   // ═══════════════════════════════════════════════════════════════
 
   private async findMatchingMarkets(news: BreakingNewsEvent): Promise<Array<{
@@ -229,105 +232,112 @@ class NewsTicker extends EventEmitter {
     matchScore: number;
     price: number;
   }>> {
-    const matches: Array<{
+    // 1. STAGE 1: Fuzzy-Matching mit Subjekt-Prüfung (kostenlos, schnell)
+    const sourceEvent: SourceEvent = {
+      eventHash: news.id || `${news.source}:${Date.now()}`,
+      sourceId: news.source,
+      sourceName: news.source,
+      url: news.url || null,
+      title: news.title,
+      content: news.content || null,
+      category: news.category,
+      keywords: news.keywords,
+      publishedAt: news.publishedAt || new Date(),
+      ingestedAt: new Date(),
+      reliabilityScore: 0.7,
+    };
+
+    const fuzzyMatches = fuzzyMatch(sourceEvent, this.cachedMarkets);
+
+    // Nur Matches mit Confidence > 50% weiterverarbeiten
+    const candidates = fuzzyMatches
+      .filter(m => m.confidence > 0.5)
+      .slice(0, 5); // Top 5 Kandidaten
+
+    if (candidates.length === 0) {
+      logger.debug(`[TICKER] Keine Fuzzy-Matches über 50% für: ${news.title.substring(0, 40)}...`);
+      return [];
+    }
+
+    logger.info(`[TICKER] ${candidates.length} Fuzzy-Kandidaten für: ${news.title.substring(0, 40)}...`);
+
+    // 2. STAGE 2: LLM-Validierung für Top-Kandidaten (verhindert False Positives)
+    const validatedMatches: Array<{
       id: string;
       question: string;
       matchScore: number;
       price: number;
     }> = [];
 
-    const newsText = `${news.title} ${news.content}`.toLowerCase();
-    const newsWords = this.extractSignificantWords(newsText);
+    // Nur LLM nutzen wenn aktiviert und Budget vorhanden
+    if (llmMatcher.isEnabled()) {
+      logger.info(`[TICKER] LLM-Validierung für ${Math.min(candidates.length, 3)} Kandidaten...`);
 
-    for (const market of this.cachedMarkets) {
-      const marketText = `${market.question} ${market.slug}`.toLowerCase();
-      const marketWords = this.extractSignificantWords(marketText);
+      for (const candidate of candidates.slice(0, 3)) { // Max 3 LLM-Calls pro News
+        const market = this.cachedMarkets.find(m => m.id === candidate.marketId);
+        if (!market) continue;
 
-      // Berechne Match-Score
-      const score = this.calculateMatchScore(newsWords, marketWords, news.keywords);
-
-      // Erhöhte Schwelle: 50% statt 30% um False Positives zu reduzieren
-      if (score > 0.5) {
         const yesOutcome = market.outcomes.find(o => o.name.toLowerCase() === 'yes');
-        matches.push({
+        const currentPrice = yesOutcome?.price || 0.5;
+
+        try {
+          const llmResult = await llmMatcher.matchNewsToMarket(
+            { title: news.title, content: news.content, source: news.source },
+            { id: market.id, question: market.question, currentPrice }
+          );
+
+          if (llmResult.isRelevant) {
+            // LLM bestätigt: News ist relevant für den Markt
+            const combinedScore = (candidate.confidence + llmResult.confidence / 100) / 2;
+
+            validatedMatches.push({
+              id: market.id,
+              question: market.question,
+              matchScore: combinedScore,
+              price: currentPrice,
+            });
+
+            logger.info(
+              `[TICKER] ✅ LLM BESTÄTIGT: "${news.title.substring(0, 30)}..." → ` +
+              `"${market.question.substring(0, 30)}..." (${(combinedScore * 100).toFixed(0)}%)`
+            );
+          } else {
+            logger.info(
+              `[TICKER] ❌ LLM ABGELEHNT: "${news.title.substring(0, 30)}..." → ` +
+              `"${market.question.substring(0, 30)}..." - ${llmResult.reasoning}`
+            );
+          }
+        } catch (err) {
+          logger.debug(`[TICKER] LLM-Fehler für ${market.id}: ${(err as Error).message}`);
+          // Fallback: Fuzzy-Match verwenden wenn LLM fehlschlägt
+          validatedMatches.push({
+            id: market.id,
+            question: market.question,
+            matchScore: candidate.confidence,
+            price: currentPrice,
+          });
+        }
+      }
+    } else {
+      // Kein LLM verfügbar: Nur Fuzzy-Matches mit hoher Confidence (>70%) durchlassen
+      logger.debug(`[TICKER] LLM nicht verfügbar - nutze nur Fuzzy-Matches >70%`);
+
+      for (const candidate of candidates.filter(c => c.confidence > 0.7)) {
+        const market = this.cachedMarkets.find(m => m.id === candidate.marketId);
+        if (!market) continue;
+
+        const yesOutcome = market.outcomes.find(o => o.name.toLowerCase() === 'yes');
+
+        validatedMatches.push({
           id: market.id,
           question: market.question,
-          matchScore: score,
+          matchScore: candidate.confidence,
           price: yesOutcome?.price || 0.5,
         });
       }
     }
 
-    // Top 5 Matches zurückgeben
-    return matches
-      .sort((a, b) => b.matchScore - a.matchScore)
-      .slice(0, 5);
-  }
-
-  private extractSignificantWords(text: string): string[] {
-    // Stopwords entfernen, nur signifikante Wörter behalten
-    const stopwords = new Set([
-      'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-      'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-      'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
-      'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
-      'from', 'up', 'about', 'into', 'over', 'after', 'der', 'die', 'das',
-      'und', 'oder', 'aber', 'wenn', 'weil', 'dass', 'wird', 'werden',
-      'hat', 'haben', 'ist', 'sind', 'war', 'waren', 'sein', 'seine',
-      'einer', 'eine', 'einem', 'einen', 'vor', 'nach', 'bei', 'mit',
-    ]);
-
-    return text
-      .split(/\s+/)
-      .map(w => w.replace(/[^a-zA-ZäöüßÄÖÜ]/g, '').toLowerCase())
-      .filter(w => w.length > 3 && !stopwords.has(w));
-  }
-
-  private calculateMatchScore(newsWords: string[], marketWords: string[], keywords: string[]): number {
-    let score = 0;
-
-    // 1. Direkte Keyword-Matches (höchste Gewichtung)
-    for (const keyword of keywords) {
-      const kwLower = keyword.toLowerCase();
-      if (marketWords.some(w => w.includes(kwLower) || kwLower.includes(w))) {
-        score += 0.3;
-      }
-    }
-
-    // 2. Word Overlap
-    const commonWords = newsWords.filter(w =>
-      marketWords.some(mw =>
-        mw.includes(w) || w.includes(mw) || this.levenshteinSimilar(w, mw)
-      )
-    );
-    score += (commonWords.length / Math.max(newsWords.length, 1)) * 0.4;
-
-    // 3. Fuzzy Name Matching (z.B. "Kompany" -> "Vincent Kompany")
-    for (const newsWord of newsWords) {
-      if (newsWord.length > 4) {
-        for (const marketWord of marketWords) {
-          if (marketWord.includes(newsWord) || newsWord.includes(marketWord)) {
-            score += 0.15;
-          }
-        }
-      }
-    }
-
-    return Math.min(score, 1);
-  }
-
-  private levenshteinSimilar(a: string, b: string): boolean {
-    if (Math.abs(a.length - b.length) > 2) return false;
-
-    let diff = 0;
-    const minLen = Math.min(a.length, b.length);
-
-    for (let i = 0; i < minLen; i++) {
-      if (a[i] !== b[i]) diff++;
-    }
-
-    diff += Math.abs(a.length - b.length);
-    return diff <= 2;
+    return validatedMatches.sort((a, b) => b.matchScore - a.matchScore);
   }
 
   // ═══════════════════════════════════════════════════════════════

@@ -319,5 +319,82 @@ describe('Matching', () => {
       expect(matches[0].reasoning).toBeDefined();
       expect(matches[0].reasoning.length).toBeGreaterThan(0);
     });
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTEXT-AWARENESS TESTS
+    // Das Fuzzy-Matching kann False Positives haben - der LLM-Matcher
+    // filtert diese dann raus. Diese Tests dokumentieren bekannte Limits.
+    // ═══════════════════════════════════════════════════════════════
+
+    it('should NOT match "Bayern Transfer" with "Freiburg Meister" - different teams', () => {
+      const event = createEvent(
+        'FC Bayern verpflichtet Talentspieler',
+        'Bayern München hat einen neuen Spieler aus der Jugend geholt'
+      );
+
+      const markets = [
+        createMarket('market-freiburg', 'Wird Freiburg Deutscher Meister 2025?'),
+        createMarket('market-bayern', 'Will Bayern Munich win the Bundesliga?'),
+      ];
+
+      const matches = fuzzyMatch(event, markets);
+
+      // Freiburg sollte NICHT matchen - anderes Team!
+      const freiburgMatch = matches.find(m => m.marketId === 'market-freiburg');
+      expect(freiburgMatch).toBeUndefined();
+
+      // Bayern SOLLTE matchen - gleiches Team
+      const bayernMatch = matches.find(m => m.marketId === 'market-bayern');
+      expect(bayernMatch).toBeDefined();
+    });
+
+    it('should have LOW confidence for generic league news with specific team markets', () => {
+      const event = createEvent(
+        'Bundesliga Spieltag 20 Zusammenfassung',
+        'Alle Ergebnisse des 20. Spieltags der Bundesliga'
+      );
+
+      const markets = [
+        createMarket('market-dortmund', 'Will Dortmund win the Bundesliga?'),
+        createMarket('market-leipzig', 'Will RB Leipzig finish in top 4?'),
+      ];
+
+      const matches = fuzzyMatch(event, markets);
+
+      // Fuzzy-Matching kann hier Kandidaten finden (wegen "Bundesliga"),
+      // aber die Confidence sollte niedrig sein (<0.5 = unter Alert-Threshold).
+      // Der LLM-Matcher im Ticker filtert solche False Positives zusätzlich.
+      for (const match of matches) {
+        // Kein Match sollte hohe Confidence haben ohne spezifisches Team
+        expect(match.confidence).toBeLessThan(0.7);
+      }
+    });
+
+    it('should NOT match Merz news with Trump markets - different countries', () => {
+      const event = createEvent(
+        'Merz kuendigt Steuerreform an',
+        'CDU-Vorsitzender Friedrich Merz plant grosse Steuerreform'
+      );
+
+      const markets = [
+        createMarket('market-trump', 'Will Trump win the 2024 election?'),
+        createMarket('market-merz', 'Will Merz become German Chancellor?'),
+      ];
+
+      const matches = fuzzyMatch(event, markets);
+
+      // Trump sollte NICHT matchen - völlig anderes Land/Thema
+      const trumpMatch = matches.find(m => m.marketId === 'market-trump');
+      expect(trumpMatch).toBeUndefined();
+
+      // Merz SOLLTE matchen
+      const merzMatch = matches.find(m => m.marketId === 'market-merz');
+      expect(merzMatch).toBeDefined();
+    });
+
+    // HINWEIS: Der "Hamburger Hafen" vs "Hamburger SV" Fall
+    // wird vom Fuzzy-Matching vielleicht noch gematcht (weil "Hamburger" shared ist),
+    // ABER der LLM-Matcher im Ticker filtert diesen False Positive dann raus.
+    // Siehe: ticker/index.ts -> findMatchingMarkets() -> LLM-Validierung
   });
 });
