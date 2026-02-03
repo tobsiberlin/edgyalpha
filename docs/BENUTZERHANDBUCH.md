@@ -79,7 +79,7 @@ EDGY ALPHA ist ein intelligentes Trading-System für **Polymarket** - die weltwe
 │  KI-validiertes  │    │  Risikofreier    │    │  15-Min Crypto   │
 │  News-Matching   │    │  Profit wenn     │    │  Markets, Entry  │
 │  (aktiv)         │    │  YES+NO < $1.00  │    │  in letzten 4min │
-│                  │    │  (geplant V4.1)  │    │  (geplant V4.1)  │
+│                  │    │  (aktiv V4.0)    │    │  (aktiv V4.0)    │
 │  🔍 Intelligent  │    │  💰 Risikofrei   │    │  ⏱️ Taktisch     │
 │                  │    │                  │    │                  │
 └──────────────────┘    └──────────────────┘    └──────────────────┘

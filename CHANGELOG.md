@@ -34,9 +34,18 @@ Die bisherige Alpha-Scoring-Engine wurde entfernt, da sie nicht die gewuenschten
 - Scanner: Vereinfachte Alpha-Signal-Generierung
 - Telegram: AutoTrader-Integration deaktiviert
 
-### Geplant (V4.1+)
-- **Dutch-Book Arbitrage Engine** - Risikofreier Profit wenn YES+NO < $1.00
-- **Late-Entry V3 Strategy** - 15-Min Crypto Markets, Einstieg nur in letzten 4 Minuten
+### Hinzugefuegt (V4.0.1)
+- **Dutch-Book Arbitrage Engine** (`src/arbitrage/`)
+  - Scannt Märkte auf YES+NO < $1.00 Opportunitäten
+  - Automatische Profit-Berechnung und Quality-Scoring
+  - Event-basierte Signal-Generierung
+  - Konfigurierbares Min-Spread, Liquidität, Trade-Size
+
+- **Late-Entry V3 Strategy** (`src/lateEntry/`)
+  - 15-Min Crypto Markets (BTC, ETH, SOL, XRP)
+  - Entry nur in letzten 4 Minuten (konfigurierbar)
+  - Confidence-basiertes Sizing (Preis-Distanz von 50%)
+  - Time-basierter Multiplikator (später = sicherer = größer)
 
 ---
 
