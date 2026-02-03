@@ -3109,12 +3109,22 @@ function handleTickerEvent(event) {
     entry.className = 'log-entry';
 
     if (event.type === 'match_found') {
-        const score = (event.matchResult?.markets?.[0]?.matchScore * 100).toFixed(0);
+        const market = event.matchResult?.markets?.[0];
+        const score = ((market?.matchScore || 0) * 100).toFixed(0);
         const bar = '█'.repeat(Math.round(score / 10)) + '░'.repeat(10 - Math.round(score / 10));
+        const marketId = market?.id || '';
+        const marketUrl = marketId ? `https://polymarket.com/event/${marketId}` : '#';
+        const newsTitle = event.title?.substring(0, 30) || 'News';
+        const marketQuestion = market?.question?.substring(0, 30) || 'Markt';
+
         entry.innerHTML = `
             <span class="log-time">[${time}]</span>
             <span class="log-level success">MATCH</span>
-            <span class="log-message"><span style="color: var(--green-profit); font-family: monospace;">${bar}</span> ${score}% → ${event.matchResult?.markets?.[0]?.question?.substring(0, 40)}...</span>
+            <span class="log-message">
+                "${newsTitle}..." →
+                <a href="${marketUrl}" target="_blank" style="color: var(--accent-primary); text-decoration: none;">"${marketQuestion}..."</a>
+                <span style="color: var(--green-profit); font-family: monospace; margin-left: 8px;">${bar} ${score}%</span>
+            </span>
         `;
     } else if (event.type === 'news_in') {
         entry.innerHTML = `
@@ -3845,8 +3855,8 @@ async function loadPipelineHealth() {
         overallDot.className = 'status-dot ' + (statusClass[overallStatus] || 'error');
         overallText.textContent = statusText[overallStatus] || 'UNKNOWN';
 
-        // Update each pipeline
-        res.pipelines.forEach(p => {
+        // Update each pipeline (defensiv gegen undefined)
+        (res.pipelines || []).forEach(p => {
             updatePipelineCard(p.name, p);
         });
 
