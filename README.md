@@ -38,7 +38,7 @@
 
 ## Features
 
-### Core Scanner (V4.0)
+### Core Scanner (V4.2)
 
 | Feature | Status | Beschreibung |
 |---------|--------|--------------|
@@ -48,6 +48,12 @@
 | Kategorie-Filter | `[████]` | Politik, Wirtschaft, Crypto, Sport |
 | Dutch-Book Arbitrage | `[████]` | Risikofreier Profit wenn YES+NO < $1.00 |
 | Late-Entry V3 Strategy | `[████]` | 15-Min Crypto, Einstieg in letzten 4min |
+| Semi-Auto Trading | `[████]` | Confidence-basiertes Auto-Trading |
+| Performance Tracking | `[████]` | Persistente Stats & Trade-Historie |
+| Trade Resolution | `[████]` | Automatische Win/Loss Auswertung |
+| **Trade History** | `[████]` | **Vollständige History mit Filtern (NEU V4.2!)** |
+| **Toast Notifications** | `[████]` | **Feedback-System im Dashboard (NEU V4.2!)** |
+| **Bot Commands Menu** | `[████]` | **Telegram Dropdown-Menü (NEU V4.2!)** |
 
 ### Live News Ticker - DAUERFEUER MODUS
 
@@ -128,12 +134,94 @@ Die "EUSSR-Tracker"-Seite im Web-Interface zeigt das Herzstück des Features:
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
+### Semi-Auto Trading System (V4.1 - NEU!)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║     S E M I - A U T O   T R A D I N G   S Y S T E M               ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  MODI:                                                            ║
+║  ├── Option A: Push & Manual (alle Trades manuell bestätigen)    ║
+║  ├── Option B: Semi-Auto (Confidence >= X% → Auto, sonst Manual) ║
+║  └── Option C: Full-Auto (alle Signale automatisch getradet)     ║
+║                                                                   ║
+║  FEATURES:                                                        ║
+║  > Confidence-Schwelle editierbar (default: 80%)                 ║
+║  > Paper Mode persistent (überlebt Neustarts)                    ║
+║  > Performance Tracking mit Win Rate, PnL, ROI                   ║
+║  > Auto-Trade Notifications mit allen Details                    ║
+║  > Trade Resolution: Automatische Win/Loss Auswertung            ║
+║                                                                   ║
+║  TELEGRAM COMMANDS:                                               ║
+║  > /stats     - Performance Dashboard mit ASCII Art              ║
+║  > /settings  - Paper/Live Mode, Auto-Trading Schwelle           ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
+### Performance Tracking (V4.1 - NEU!)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║     P E R F O R M A N C E   T R A C K I N G                      ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  PERSISTENTE DATEN:                                               ║
+║  > data/settings.json - Bot-Settings (überlebt Neustarts)        ║
+║  > data/trades.json   - Trade-Historie (letzte 1000)             ║
+║  > data/stats.json    - Aggregierte Performance Stats            ║
+║                                                                   ║
+║  METRIKEN:                                                        ║
+║  > Win Rate (%)            > Total Volume ($)                    ║
+║  > Expected Profit ($)     > Actual Profit ($)                   ║
+║  > ROI (%)                 > Trades by Strategy                  ║
+║                                                                   ║
+║  TRADE RESOLUTION:                                                ║
+║  > Automatisches Prüfen auf Markt-Resolution                     ║
+║  > Win/Loss Berechnung basierend auf Markt-Outcome               ║
+║  > Benachrichtigung bei Trade-Abschluss                          ║
+║  > Paper Mode: Simulate-Funktion für Testing                     ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
 ### Interfaces
 
 - **Trading Desk Console** - Bloomberg/Palantir-Style UI (Dark-First, Three-Column Layout)
-- **Telegram Bot** - Inline-Buttons, 1-Click Trading, Runtime Controls
+- **Telegram Bot** - Inline-Buttons, 1-Click Trading, Runtime Controls, Performance Dashboard, History
 - **REST API** - WebSocket-Support fuer Live-Updates + Runtime State Events
-- **Browser Notifications** - Desktop Push-Alerts fuer wichtige Events (NEU!)
+- **Browser Notifications** - Desktop Push-Alerts fuer wichtige Events
+
+### Telegram Bot Commands (V4.2)
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║         T E L E G R A M   B O T   C O M M A N D S                 ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  TRADING:                                                         ║
+║  /start      - Willkommen & Hauptmenü                            ║
+║  /scan       - Alpha Scan starten                                 ║
+║  /signals    - Aktuelle Signale anzeigen                         ║
+║  /wallet     - Wallet Balance & Status                           ║
+║  /positions  - Offene Positionen                                  ║
+║                                                                   ║
+║  MONITORING:                                                      ║
+║  /stats      - Performance Dashboard                             ║
+║  /history    - Trade History mit Filtern (NEU V4.2!)             ║
+║  /settings   - Bot-Einstellungen                                 ║
+║                                                                   ║
+║  RISK CONTROLS:                                                   ║
+║  /kill       - Kill-Switch aktivieren                            ║
+║  /resume     - Trading fortsetzen                                ║
+║  /mode       - Execution Mode (paper/shadow/live)                ║
+║                                                                   ║
+║  > Commands erscheinen im Telegram Dropdown-Menu (V4.2)          ║
+║  > Typing-Indicator bei langen Operationen                       ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
 
 ### Browser Push-Notifications (NEU!)
 
@@ -555,6 +643,10 @@ RSS_FEEDS_ENABLED=true
 | `/api/backtest` | `POST` | Backtest starten |
 | `/api/backtest/status` | `GET` | Backtest Progress |
 | `/api/backtest/results` | `GET` | Ergebnisse (JSON/CSV/MD) (V3.0!) |
+| `/api/performance/stats` | `GET` | Performance Stats (V4.1!) |
+| `/api/performance/settings` | `GET/POST` | Bot Settings (V4.1!) |
+| `/api/performance/trades` | `GET` | Trade Historie (V4.1!) |
+| `/api/performance/resolution/*` | `POST` | Trade Resolution (V4.1!) |
 
 ### WebSocket Events
 

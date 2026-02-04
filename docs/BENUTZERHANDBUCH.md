@@ -28,7 +28,9 @@
 7. [Backtesting](#7-backtesting)
 8. [Performance Dashboard](#8-performance-dashboard)
 9. [Häufige Fragen (FAQ)](#9-häufige-fragen-faq)
-10. [Glossar](#10-glossar)
+10. [Live Trading Setup](#10-live-trading-setup) *(NEU V4.2)*
+11. [Trade History & Tracking](#11-trade-history--tracking) *(NEU V4.2)*
+12. [Glossar](#12-glossar)
 
 ---
 
@@ -1054,7 +1056,231 @@ Wenn ein starkes Signal erkannt wird, erhältst du eine Push-Nachricht:
 
 ---
 
-## 10. Glossar
+## 10. Live Trading Setup
+
+### 10.1 Voraussetzungen für Live Trading
+
+Bevor du von Paper Trading zu Live Trading wechselst, stelle sicher:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     LIVE TRADING CHECKLISTE                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ☑ Polygon Wallet mit USDC eingerichtet                                    │
+│  ☑ Mindestens 0.1 MATIC für Gas-Gebühren                                   │
+│  ☑ Polymarket Account connected                                            │
+│  ☑ 50+ Paper Trades mit positivem PnL                                      │
+│  ☑ 2+ Wochen Paper Trading Erfahrung                                       │
+│                                                                             │
+│  WALLET SETUP:                                                              │
+│  ─────────────                                                              │
+│  1. Erstelle Polygon Wallet (MetaMask oder ähnlich)                        │
+│  2. Übertrage USDC auf Polygon Network                                      │
+│  3. Kleine Menge MATIC für Gas (~$1-2 reicht)                              │
+│  4. Trage WALLET_PRIVATE_KEY in .env ein                                   │
+│  5. Trage WALLET_ADDRESS in .env ein                                       │
+│                                                                             │
+│  ⚠️ WICHTIG: Private Key NIE teilen oder committen!                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Von Paper zu Live wechseln
+
+**Via Telegram Bot:**
+```
+/mode live
+```
+
+**Via Web Dashboard:**
+1. Navigiere zu SETTINGS
+2. Wähle "LIVE - Echte Trades" im Execution Mode Dropdown
+3. Klicke SPEICHERN
+
+**Wichtig:** Der erste Live-Trade erfordert extra Bestätigung.
+
+### 10.3 Order-Typen
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ORDER-TYPEN                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  MARKET ORDER (Standard)                                                    │
+│  ═══════════════════════                                                    │
+│  • Sofortige Ausführung zum aktuellen Marktpreis                           │
+│  • Schnell, aber mit Slippage-Risiko                                       │
+│  • Ideal für: Zeitkritische Trades, hohe Liquidität                        │
+│                                                                             │
+│  LIMIT ORDER                                                                │
+│  ═══════════                                                                │
+│  • Ausführung nur bei Zielpreis oder besser                                │
+│  • Kein Slippage-Risiko, aber keine Garantie auf Fill                      │
+│  • Ideal für: Größere Positionen, geduldige Trader                         │
+│                                                                             │
+│  SLIPPAGE PROTECTION                                                        │
+│  ═══════════════════                                                        │
+│  • System berechnet maximalen akzeptablen Slippage (2% default)            │
+│  • Order wird abgelehnt wenn Slippage zu hoch                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.4 Gas Management
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         GAS MANAGEMENT                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Polymarket läuft auf Polygon - Gas-Kosten sind minimal:                   │
+│                                                                             │
+│  • Typische Transaktion: 0.001 - 0.01 MATIC (~$0.001 - $0.01)              │
+│  • Empfohlenes Minimum: 0.1 MATIC                                          │
+│                                                                             │
+│  WARNUNG:                                                                   │
+│  Das System prüft vor jedem Trade ob genug MATIC vorhanden ist.            │
+│  Bei < 0.05 MATIC wird eine Warnung angezeigt.                             │
+│                                                                             │
+│  MATIC NACHFÜLLEN:                                                          │
+│  1. Via Polygon Bridge von Ethereum                                         │
+│  2. Direkt auf Polygon kaufen (z.B. QuickSwap)                             │
+│  3. Von CEX mit Polygon-Withdrawal                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.5 Troubleshooting Live Trading
+
+| Problem | Lösung |
+|---------|--------|
+| "Insufficient Balance" | Mehr USDC auf Polygon Wallet einzahlen |
+| "Order Timeout" | Markt möglicherweise zu illiquide - kleinere Size probieren |
+| "Price Moved" | Slippage zu hoch - erneut versuchen oder Limit Order nutzen |
+| "CLOB not ready" | Server neu starten oder auf Polymarket-API-Status prüfen |
+| "Gas estimation failed" | MATIC nachfüllen |
+
+---
+
+## 11. Trade History & Tracking
+
+### 11.1 Trade History im Web Dashboard
+
+Das neue Trade History Feature (V4.2) bietet:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TRADE HISTORY FEATURES                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  FILTER-OPTIONEN:                                                           │
+│  ────────────────                                                           │
+│  • Status: Alle | Offen | Gewonnen | Verloren                              │
+│  • Strategie: Alle | Arbitrage | Late-Entry | Time-Delay | Manual          │
+│  • Mode: Alle | Paper | Live                                               │
+│                                                                             │
+│  ANZEIGE PRO TRADE:                                                         │
+│  ──────────────────                                                         │
+│  • Datum & Uhrzeit                                                          │
+│  • Markt-Frage                                                              │
+│  • Direction (YES/NO)                                                       │
+│  • Size in USDC                                                             │
+│  • Entry-Preis                                                              │
+│  • Exit-Preis (wenn resolved)                                               │
+│  • Profit/Loss                                                              │
+│  • Status (Offen/Won/Lost)                                                  │
+│  • Strategie                                                                │
+│                                                                             │
+│  EXPORT:                                                                    │
+│  ───────                                                                    │
+│  • CSV Export für eigene Analyse                                           │
+│  • Enthält alle Trade-Details                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 Trade History im Telegram Bot
+
+Nutze `/history` um die letzten Trades zu sehen:
+
+```
+/history         - Letzte 10 Trades anzeigen
+[✅ Wins]        - Nur gewonnene Trades
+[❌ Losses]      - Nur verlorene Trades
+[⏳ Pending]     - Noch offene Trades
+[Weiter ▶️]      - Nächste Seite laden
+```
+
+### 11.3 Trade Resolution
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TRADE RESOLUTION                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Das System prüft automatisch ob Märkte resolved wurden:                    │
+│                                                                             │
+│  1. PENDING     - Trade wurde platziert, Markt noch offen                  │
+│  2. FILLED      - Order wurde ausgeführt                                   │
+│  3. RESOLVED    - Markt ist beendet, Gewinn/Verlust berechnet              │
+│                                                                             │
+│  AUTOMATISCHE RESOLUTION:                                                   │
+│  ────────────────────────                                                   │
+│  • System prüft alle 5 Minuten auf Markt-Resolutions                       │
+│  • Bei Resolution wird PnL automatisch berechnet                           │
+│  • Telegram-Benachrichtigung bei Gewinn/Verlust                            │
+│                                                                             │
+│  PAPER MODE:                                                                │
+│  ───────────                                                                │
+│  • Trades können manuell als Won/Lost markiert werden                      │
+│  • Oder automatisch simuliert (basierend auf Fair Value)                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.4 Performance Tracking (V4.1)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PERFORMANCE TRACKING                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Das System trackt automatisch:                                             │
+│                                                                             │
+│  GESAMT-STATISTIKEN:                                                        │
+│  ───────────────────                                                        │
+│  • Total Trades (Paper + Live)                                             │
+│  • Win Rate                                                                 │
+│  • ROI (Return on Investment)                                               │
+│  • Total Volume                                                             │
+│  • Total Expected Profit                                                    │
+│  • Total Actual Profit                                                      │
+│                                                                             │
+│  PRO STRATEGIE:                                                             │
+│  ──────────────                                                             │
+│  • Arbitrage: Trades, Profit                                               │
+│  • Late-Entry: Trades, Profit                                              │
+│  • Time-Delay: Trades, Profit                                              │
+│                                                                             │
+│  ZEITRÄUME:                                                                 │
+│  ──────────                                                                 │
+│  • Heute                                                                    │
+│  • Diese Woche                                                              │
+│  • Gesamt                                                                   │
+│                                                                             │
+│  ABRUF VIA:                                                                 │
+│  ──────────                                                                 │
+│  • Telegram: /stats                                                        │
+│  • Web: PERFORMANCE View                                                    │
+│  • API: /api/performance/stats                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. Glossar
 
 | Begriff | Erklärung |
 |---------|-----------|
@@ -1104,4 +1330,4 @@ Bei Fragen oder Problemen:
 
 ---
 
-*Letzte Aktualisierung: 2026-02-02 | Version 3.0.0*
+*Letzte Aktualisierung: 2026-02-04 | Version 4.2.0*

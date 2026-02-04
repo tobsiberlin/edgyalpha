@@ -87,10 +87,10 @@ describe('Config Secure Defaults', () => {
     expect(config.telegram.enabled).toBe(false);
   });
 
-  it('WEB_AUTH_ENABLED defaults to true', async () => {
+  it('WEB_AUTH_ENABLED defaults to false (einfaches Setup)', async () => {
     delete process.env.WEB_AUTH_ENABLED;
     const { WEB_AUTH_ENABLED } = await import('../src/utils/config.js');
-    expect(WEB_AUTH_ENABLED).toBe(true);
+    expect(WEB_AUTH_ENABLED).toBe(false);
   });
 
   it('BACKTEST_MODE defaults to false', async () => {

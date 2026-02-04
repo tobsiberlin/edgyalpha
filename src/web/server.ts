@@ -1817,6 +1817,159 @@ app.post('/api/llm/shutdown', requireAuth, (_req: Request, res: Response) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+//               V4.0: PERFORMANCE TRACKING API
+// ═══════════════════════════════════════════════════════════════
+
+import { performanceTracker, tradeResolutionService } from '../tracking/index.js';
+
+// API: Performance Stats
+app.get('/api/performance/stats', requireAuth, (_req: Request, res: Response) => {
+  const stats = performanceTracker.getStats();
+  res.json(stats);
+});
+
+// API: Bot Settings
+app.get('/api/performance/settings', requireAuth, (_req: Request, res: Response) => {
+  const settings = performanceTracker.getSettings();
+  res.json(settings);
+});
+
+// API: Update Bot Settings
+app.post('/api/performance/settings', requireAuth, (req: Request, res: Response) => {
+  const updates = req.body;
+  const newSettings = performanceTracker.updateSettings(updates);
+  res.json({ success: true, settings: newSettings });
+});
+
+// API: Recent Trades
+app.get('/api/performance/trades', requireAuth, (req: Request, res: Response) => {
+  const limit = parseInt(req.query.limit as string) || 50;
+  const trades = performanceTracker.getTrades(limit);
+  res.json({ trades, count: trades.length });
+});
+
+// API: Trade History mit Filtern (fuer Web Dashboard)
+app.get('/api/trades/history', requireAuth, (req: Request, res: Response) => {
+  const limit = parseInt(req.query.limit as string) || 20;
+  const offset = parseInt(req.query.offset as string) || 0;
+  const statusFilter = req.query.status as string;
+  const strategyFilter = req.query.strategy as string;
+  const modeFilter = req.query.mode as string;
+
+  // Alle Trades holen (mit hohem Limit fuer Filterung)
+  let trades = performanceTracker.getTrades(1000);
+
+  // Filter anwenden
+  if (statusFilter) {
+    switch (statusFilter) {
+      case 'pending':
+        trades = trades.filter(t => t.status === 'pending' || t.status === 'filled');
+        break;
+      case 'won':
+        trades = trades.filter(t => t.status === 'won');
+        break;
+      case 'lost':
+        trades = trades.filter(t => t.status === 'lost');
+        break;
+    }
+  }
+
+  if (strategyFilter) {
+    trades = trades.filter(t => t.strategy === strategyFilter);
+  }
+
+  if (modeFilter) {
+    const isPaper = modeFilter === 'paper';
+    trades = trades.filter(t => t.isPaper === isPaper);
+  }
+
+  // Stats berechnen (nach Filterung)
+  const totalTrades = trades.length;
+  const resolvedTrades = trades.filter(t => t.status === 'won' || t.status === 'lost');
+  const wonTrades = resolvedTrades.filter(t => t.status === 'won');
+  const winRate = resolvedTrades.length > 0 ? wonTrades.length / resolvedTrades.length : 0;
+  const totalPnL = trades.reduce((sum, t) => sum + (t.actualProfit || 0), 0);
+  const totalVolume = trades.reduce((sum, t) => sum + t.size, 0);
+
+  // Pagination
+  const paginatedTrades = trades.slice(offset, offset + limit);
+
+  res.json({
+    trades: paginatedTrades,
+    total: totalTrades,
+    offset,
+    limit,
+    stats: {
+      totalTrades,
+      winRate,
+      totalPnL,
+      totalVolume,
+      wonCount: wonTrades.length,
+      lostCount: resolvedTrades.length - wonTrades.length,
+      pendingCount: trades.filter(t => t.status === 'pending' || t.status === 'filled').length,
+    },
+  });
+});
+
+// API: Trades by Strategy
+app.get('/api/performance/trades/:strategy', requireAuth, (req: Request, res: Response) => {
+  const strategy = req.params.strategy as 'arbitrage' | 'lateEntry' | 'timeDelay' | 'manual';
+  const limit = parseInt(req.query.limit as string) || 50;
+  const trades = performanceTracker.getTradesByStrategy(strategy, limit);
+  res.json({ trades, count: trades.length, strategy });
+});
+
+// API: Pending Trades
+app.get('/api/performance/trades/pending', requireAuth, (_req: Request, res: Response) => {
+  const trades = performanceTracker.getPendingTrades();
+  res.json({ trades, count: trades.length });
+});
+
+// API: Resolution Status
+app.get('/api/performance/resolution/status', requireAuth, (_req: Request, res: Response) => {
+  res.json({
+    active: tradeResolutionService.isActive(),
+    cachedResolutions: tradeResolutionService.getCachedResolutions().length,
+  });
+});
+
+// API: Manual Trade Resolution (for testing)
+app.post('/api/performance/resolution/resolve', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { tradeId, won } = req.body;
+  if (!tradeId || typeof won !== 'boolean') {
+    res.status(400).json({ error: 'tradeId und won (boolean) erforderlich' });
+    return;
+  }
+  const result = await tradeResolutionService.manualResolve(tradeId, won);
+  if (result) {
+    res.json({ success: true, result });
+  } else {
+    res.status(404).json({ error: 'Trade nicht gefunden' });
+  }
+});
+
+// API: Simulate Resolution (Paper Mode)
+app.post('/api/performance/resolution/simulate', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { tradeId } = req.body;
+  if (!tradeId) {
+    res.status(400).json({ error: 'tradeId erforderlich' });
+    return;
+  }
+  const result = await tradeResolutionService.simulateResolution(tradeId);
+  if (result) {
+    res.json({ success: true, result });
+  } else {
+    res.status(404).json({ error: 'Trade nicht gefunden' });
+  }
+});
+
+// API: Formatted Stats (for display)
+app.get('/api/performance/formatted', requireAuth, (_req: Request, res: Response) => {
+  const formatted = performanceTracker.getStatsFormatted();
+  res.json({ formatted });
+});
+
+// ═══════════════════════════════════════════════════════════════
 //                        ERROR HANDLING
 // ═══════════════════════════════════════════════════════════════
 

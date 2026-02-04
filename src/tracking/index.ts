@@ -365,8 +365,9 @@ export class PerformanceTracker extends EventEmitter {
     });
   }
 
-  getTrades(limit = 50): TrackedTrade[] {
-    return this.trades.slice(-limit).reverse();
+  getTrades(limit = 50, offset = 0): TrackedTrade[] {
+    const reversed = [...this.trades].reverse();
+    return reversed.slice(offset, offset + limit);
   }
 
   getTradesByStrategy(strategy: TradeStrategy, limit = 50): TrackedTrade[] {
@@ -553,3 +554,6 @@ export class PerformanceTracker extends EventEmitter {
 
 export const performanceTracker = new PerformanceTracker();
 export default performanceTracker;
+
+// Re-export resolution service
+export * from './resolution.js';

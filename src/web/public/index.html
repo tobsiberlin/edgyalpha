@@ -1993,21 +1993,25 @@ body {
 
                     <!-- Zwei-Spalten Layout -->
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                        <!-- Engine Performance -->
+                        <!-- Engine Performance V4.0 -->
                         <div class="panel">
-                            <div class="panel-header">ENGINE PERFORMANCE</div>
+                            <div class="panel-header">STRATEGY PERFORMANCE (V4.0)</div>
                             <div class="panel-body" id="perf-engines">
                                 <div class="data-row">
-                                    <span class="data-label">TIME_DELAY</span>
+                                    <span class="data-label">💰 ARBITRAGE</span>
+                                    <span class="data-value" id="perf-arbitrage">-- trades, $--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">⏱️ LATE-ENTRY</span>
+                                    <span class="data-value" id="perf-lateentry">-- trades, $--</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">⚡ TIME_DELAY</span>
                                     <span class="data-value" id="perf-timedelay">-- trades, $--</span>
                                 </div>
                                 <div class="data-row">
-                                    <span class="data-label">MISPRICING</span>
-                                    <span class="data-value" id="perf-mispricing">-- trades, $--</span>
-                                </div>
-                                <div class="data-row">
-                                    <span class="data-label">META</span>
-                                    <span class="data-value" id="perf-meta">-- trades, $--</span>
+                                    <span class="data-label">📝 PAPER/LIVE</span>
+                                    <span class="data-value" id="perf-mode">--</span>
                                 </div>
                             </div>
                         </div>
@@ -2083,10 +2087,99 @@ body {
             <div class="viewport-content" id="view-history">
                 <div class="viewport-header">
                     <div class="viewport-title">TRADE HISTORY</div>
+                    <div class="viewport-actions">
+                        <button class="btn" onclick="exportHistoryCSV()">CSV EXPORT</button>
+                        <button class="btn primary" onclick="refreshHistory()">AKTUALISIEREN</button>
+                    </div>
                 </div>
-                <div class="console-log" style="padding: 40px; text-align: center;">
-                    <span style="color: var(--text-muted);">> History view coming soon...</span>
-                    <span class="console-cursor"></span>
+                <div style="padding: 16px; overflow-y: auto; height: calc(100% - 44px);">
+                    <!-- Filters -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">STATUS</label>
+                            <select id="history-filter-status" onchange="refreshHistory()" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
+                                <option value="">Alle</option>
+                                <option value="pending">Offen</option>
+                                <option value="won">Gewonnen</option>
+                                <option value="lost">Verloren</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">STRATEGIE</label>
+                            <select id="history-filter-strategy" onchange="refreshHistory()" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
+                                <option value="">Alle</option>
+                                <option value="arbitrage">Arbitrage</option>
+                                <option value="lateEntry">Late-Entry</option>
+                                <option value="timeDelay">Time-Delay</option>
+                                <option value="manual">Manual</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">MODE</label>
+                            <select id="history-filter-mode" onchange="refreshHistory()" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
+                                <option value="">Alle</option>
+                                <option value="paper">Paper</option>
+                                <option value="live">Live</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Stats Summary -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                        <div class="stat-card" style="background: var(--bg-terminal); padding: 12px; border: 1px solid var(--border-dim);">
+                            <div style="font-size: 9px; color: var(--text-muted);">TOTAL TRADES</div>
+                            <div id="history-total-trades" style="font-size: 20px; font-weight: bold; color: var(--text-primary);">--</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-terminal); padding: 12px; border: 1px solid var(--border-dim);">
+                            <div style="font-size: 9px; color: var(--text-muted);">WIN RATE</div>
+                            <div id="history-win-rate" style="font-size: 20px; font-weight: bold; color: var(--green-profit);">--</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-terminal); padding: 12px; border: 1px solid var(--border-dim);">
+                            <div style="font-size: 9px; color: var(--text-muted);">TOTAL P/L</div>
+                            <div id="history-total-pnl" style="font-size: 20px; font-weight: bold;">--</div>
+                        </div>
+                        <div class="stat-card" style="background: var(--bg-terminal); padding: 12px; border: 1px solid var(--border-dim);">
+                            <div style="font-size: 9px; color: var(--text-muted);">VOLUME</div>
+                            <div id="history-volume" style="font-size: 20px; font-weight: bold; color: var(--text-primary);">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Trade Table -->
+                    <div class="panel" style="overflow: hidden;">
+                        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>TRADES</span>
+                            <span id="history-count" style="font-size: 10px; color: var(--text-muted);">0 Trades</span>
+                        </div>
+                        <div class="panel-body" style="padding: 0; overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                                <thead>
+                                    <tr style="background: var(--bg-terminal); border-bottom: 1px solid var(--border-mid);">
+                                        <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: var(--text-muted);">DATUM</th>
+                                        <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: var(--text-muted);">MARKT</th>
+                                        <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: var(--text-muted);">DIR</th>
+                                        <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: var(--text-muted);">SIZE</th>
+                                        <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: var(--text-muted);">ENTRY</th>
+                                        <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: var(--text-muted);">EXIT</th>
+                                        <th style="padding: 10px 8px; text-align: right; font-weight: 500; color: var(--text-muted);">P/L</th>
+                                        <th style="padding: 10px 8px; text-align: center; font-weight: 500; color: var(--text-muted);">STATUS</th>
+                                        <th style="padding: 10px 8px; text-align: left; font-weight: 500; color: var(--text-muted);">STRATEGIE</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-tbody">
+                                    <tr>
+                                        <td colspan="9" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                                            Lade Trade History...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div id="history-pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 16px;">
+                        <!-- Pagination buttons werden dynamisch eingefuegt -->
+                    </div>
                 </div>
             </div>
 
@@ -3999,15 +4092,32 @@ let executionQualityData = null;
 
 async function loadPerformanceData() {
     try {
-        // Load multiple APIs in parallel
-        const [tradingRes, equityRes, executionRes] = await Promise.all([
+        // Load multiple APIs in parallel (including V4.0 Performance API)
+        const [tradingRes, equityRes, executionRes, v4StatsRes] = await Promise.all([
             fetch('/api/stats/trading', { credentials: 'include' }).then(r => r.json()),
             fetch('/api/stats/equity', { credentials: 'include' }).then(r => r.json()),
             fetch('/api/execution/quality', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+            fetch('/api/performance/stats', { credentials: 'include' }).then(r => r.json()).catch(() => null),
         ]);
 
         performanceData = { trading: tradingRes, equity: equityRes };
         executionQualityData = executionRes;
+
+        // V4.0: Update Strategy Performance from Tracker
+        if (v4StatsRes && v4StatsRes.byStrategy) {
+            const arb = v4StatsRes.byStrategy.arbitrage || {};
+            const late = v4StatsRes.byStrategy.lateEntry || {};
+            const td = v4StatsRes.byStrategy.timeDelay || {};
+
+            document.getElementById('perf-arbitrage').textContent =
+                `${arb.trades || 0} trades, $${(arb.profit || 0).toFixed(2)}`;
+            document.getElementById('perf-lateentry').textContent =
+                `${late.trades || 0} trades, $${(late.profit || 0).toFixed(2)}`;
+            document.getElementById('perf-timedelay').textContent =
+                `${td.trades || 0} trades, $${(td.profit || 0).toFixed(2)}`;
+            document.getElementById('perf-mode').textContent =
+                `${v4StatsRes.paperTrades || 0} Paper / ${v4StatsRes.liveTrades || 0} Live`;
+        }
 
         // Update KPI Cards
         const daily = tradingRes.daily || {};
@@ -5039,6 +5149,278 @@ document.addEventListener('keydown', function(e) {
         closeMobileMenu();
     }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        TOAST NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container') || createToastContainer();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const iconMap = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+
+    const colorMap = {
+        success: 'var(--green-profit)',
+        error: 'var(--red-risk)',
+        warning: 'var(--amber-watch)',
+        info: 'var(--cyan-info)'
+    };
+
+    toast.innerHTML = `
+        <span style="margin-right: 8px;">${iconMap[type] || iconMap.info}</span>
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" style="margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px;">&times;</button>
+    `;
+
+    toast.style.cssText = `
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        background: var(--bg-terminal);
+        border: 1px solid ${colorMap[type] || colorMap.info};
+        border-left: 4px solid ${colorMap[type] || colorMap.info};
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        margin-bottom: 8px;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+    `;
+
+    container.appendChild(toast);
+
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    return toast;
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = `
+        position: fixed;
+        top: 60px;
+        right: 16px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+    `;
+    document.body.appendChild(container);
+
+    // Animation styles
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    return container;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//                        TRADE HISTORY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let historyData = { trades: [], total: 0, offset: 0, limit: 20 };
+
+async function loadHistory(offset = 0) {
+    const statusFilter = document.getElementById('history-filter-status')?.value || '';
+    const strategyFilter = document.getElementById('history-filter-strategy')?.value || '';
+    const modeFilter = document.getElementById('history-filter-mode')?.value || '';
+
+    const params = new URLSearchParams();
+    params.append('limit', '20');
+    params.append('offset', offset.toString());
+    if (statusFilter) params.append('status', statusFilter);
+    if (strategyFilter) params.append('strategy', strategyFilter);
+    if (modeFilter) params.append('mode', modeFilter);
+
+    try {
+        const response = await fetch(`/api/trades/history?${params}`);
+        const data = await response.json();
+
+        historyData = {
+            trades: data.trades || [],
+            total: data.total || 0,
+            offset: offset,
+            limit: 20,
+            stats: data.stats || {}
+        };
+
+        renderHistory();
+    } catch (err) {
+        console.error('History laden fehlgeschlagen:', err);
+        showToast('History laden fehlgeschlagen', 'error');
+    }
+}
+
+function renderHistory() {
+    const tbody = document.getElementById('history-tbody');
+    const stats = historyData.stats || {};
+
+    // Update Stats
+    document.getElementById('history-total-trades').textContent = stats.totalTrades || historyData.trades.length;
+    document.getElementById('history-win-rate').textContent = stats.winRate ? `${(stats.winRate * 100).toFixed(1)}%` : '--';
+
+    const pnl = stats.totalPnL || 0;
+    const pnlEl = document.getElementById('history-total-pnl');
+    pnlEl.textContent = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+    pnlEl.style.color = pnl >= 0 ? 'var(--green-profit)' : 'var(--red-risk)';
+
+    document.getElementById('history-volume').textContent = `$${(stats.totalVolume || 0).toFixed(0)}`;
+    document.getElementById('history-count').textContent = `${historyData.total} Trades`;
+
+    // Render Trades
+    if (historyData.trades.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                    Keine Trades gefunden
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = historyData.trades.map(t => {
+        const date = new Date(t.entryTime).toLocaleString('de-DE', {
+            day: '2-digit', month: '2-digit', year: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        const dirIcon = t.direction === 'yes' ? '🟢' : '🔴';
+        const statusIcon = t.status === 'pending' ? '⏳' : t.won ? '✅' : '❌';
+        const statusText = t.status === 'pending' ? 'Offen' : t.won ? 'Won' : 'Lost';
+
+        const strategyEmoji = {
+            arbitrage: '💰',
+            lateEntry: '⏱️',
+            timeDelay: '⚡',
+            manual: '👤'
+        }[t.strategy] || '📊';
+
+        const pnl = t.actualProfit;
+        const pnlText = pnl !== null ? (pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`) : '--';
+        const pnlColor = pnl !== null ? (pnl >= 0 ? 'var(--green-profit)' : 'var(--red-risk)') : 'var(--text-muted)';
+
+        const marketQuestion = t.marketQuestion || t.marketId?.substring(0, 20) || '--';
+
+        return `
+            <tr style="border-bottom: 1px solid var(--border-dim);">
+                <td style="padding: 10px 8px; color: var(--text-secondary);">${date}</td>
+                <td style="padding: 10px 8px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${marketQuestion}">${marketQuestion.substring(0, 30)}...</td>
+                <td style="padding: 10px 8px; text-align: center;">${dirIcon}</td>
+                <td style="padding: 10px 8px; text-align: right;">$${t.size.toFixed(2)}</td>
+                <td style="padding: 10px 8px; text-align: right;">${(t.entryPrice * 100).toFixed(1)}%</td>
+                <td style="padding: 10px 8px; text-align: right;">${t.exitPrice !== null ? (t.exitPrice * 100).toFixed(1) + '%' : '--'}</td>
+                <td style="padding: 10px 8px; text-align: right; color: ${pnlColor}; font-weight: 500;">${pnlText}</td>
+                <td style="padding: 10px 8px; text-align: center;">${statusIcon} ${statusText}</td>
+                <td style="padding: 10px 8px;">${strategyEmoji} ${t.strategy}</td>
+            </tr>
+        `;
+    }).join('');
+
+    // Pagination
+    renderHistoryPagination();
+}
+
+function renderHistoryPagination() {
+    const pagination = document.getElementById('history-pagination');
+    const totalPages = Math.ceil(historyData.total / historyData.limit);
+    const currentPage = Math.floor(historyData.offset / historyData.limit) + 1;
+
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+
+    // Previous
+    if (currentPage > 1) {
+        html += `<button class="btn" onclick="loadHistory(${(currentPage - 2) * historyData.limit})">◀️</button>`;
+    }
+
+    // Page numbers
+    for (let i = 1; i <= totalPages && i <= 5; i++) {
+        const isActive = i === currentPage;
+        html += `<button class="btn${isActive ? ' primary' : ''}" onclick="loadHistory(${(i - 1) * historyData.limit})">${i}</button>`;
+    }
+
+    // Next
+    if (currentPage < totalPages) {
+        html += `<button class="btn" onclick="loadHistory(${currentPage * historyData.limit})">▶️</button>`;
+    }
+
+    pagination.innerHTML = html;
+}
+
+function refreshHistory() {
+    loadHistory(0);
+    showToast('History aktualisiert', 'success', 2000);
+}
+
+function exportHistoryCSV() {
+    if (historyData.trades.length === 0) {
+        showToast('Keine Trades zum Exportieren', 'warning');
+        return;
+    }
+
+    const headers = ['Datum', 'Markt', 'Richtung', 'Size', 'Entry', 'Exit', 'P/L', 'Status', 'Strategie', 'Mode'];
+    const rows = historyData.trades.map(t => [
+        new Date(t.entryTime).toISOString(),
+        t.marketQuestion || t.marketId,
+        t.direction,
+        t.size,
+        t.entryPrice,
+        t.exitPrice || '',
+        t.actualProfit || '',
+        t.status,
+        t.strategy,
+        t.mode
+    ]);
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `edgyalpha-trades-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+    showToast('CSV exportiert', 'success');
+}
+
+// Load history when view is shown
+const originalShowView = window.showView || showView;
+window.showView = function(viewId) {
+    originalShowView(viewId);
+    if (viewId === 'history') {
+        loadHistory(0);
+    }
+};
 
     </script>
 </body>

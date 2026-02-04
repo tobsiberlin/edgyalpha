@@ -4,6 +4,7 @@ import logger from '../utils/logger.js';
 import { AlphaSignal, TradeRecommendation, ScanResult, ExecutionMode } from '../types/index.js';
 import { scanner } from '../scanner/index.js';
 import { tradingClient } from '../api/trading.js';
+import { polymarketClient } from '../api/polymarket.js';
 import { germanySources, BreakingNewsEvent } from '../germany/index.js';
 import { newsTicker, TickerEvent } from '../ticker/index.js';
 import { EventEmitter } from 'events';
@@ -57,7 +58,7 @@ type AutoTradeResult = {
 import { timeAdvantageService } from '../alpha/timeAdvantageService.js';
 import { dutchBookEngine, ArbitrageOpportunity, ArbitrageSignal } from '../arbitrage/index.js';
 import { lateEntryEngine, LateEntrySignal, MarketWindow } from '../lateEntry/index.js';
-import { performanceTracker, TrackedTrade, TradeStrategy } from '../tracking/index.js';
+import { performanceTracker, TrackedTrade, TradeStrategy, tradeResolutionService, ResolutionResult } from '../tracking/index.js';
 
 // ═══════════════════════════════════════════════════════════════
 //           EDGY ALPHA SCANNER - TELEGRAM BOT
@@ -203,6 +204,25 @@ export class TelegramAlertBot extends EventEmitter {
 
     try {
       this.bot = new TelegramBot(config.telegram.botToken, { polling: true });
+
+      // ═══════════════════════════════════════════════════════════════
+      // BOT COMMANDS MENU - Zeigt Commands im Telegram Dropdown
+      // ═══════════════════════════════════════════════════════════════
+      await this.bot.setMyCommands([
+        { command: 'start', description: 'Willkommen & Hauptmenü' },
+        { command: 'scan', description: 'Alpha Scan starten' },
+        { command: 'signals', description: 'Aktuelle Signale' },
+        { command: 'stats', description: 'Performance Dashboard' },
+        { command: 'wallet', description: 'Wallet & Balance' },
+        { command: 'positions', description: 'Offene Positionen' },
+        { command: 'history', description: 'Trade History' },
+        { command: 'settings', description: 'Einstellungen' },
+        { command: 'kill', description: 'Kill-Switch aktivieren' },
+        { command: 'resume', description: 'Trading fortsetzen' },
+        { command: 'help', description: 'Hilfe & Commands' },
+      ]);
+      logger.info('Bot Commands Menu registriert');
+
       this.setupCommands();
       this.setupCallbackHandlers();
       this.setupScannerEvents();
@@ -311,10 +331,20 @@ ${this.DIVIDER}
           { text: `${modeEmoji} Mode: ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
         ],
         [
+          { text: '📈 Stats', callback_data: 'action:stats' },
+          { text: '📜 History', callback_data: 'action:history' },
+        ],
+        [
           { text: '⚙️ Settings', callback_data: 'action:settings' },
+          { text: '🖥️ Web Dashboard', url: this.getWebDashboardUrl() },
         ],
       ],
     };
+  }
+
+  private getWebDashboardUrl(): string {
+    // Web Dashboard URL aus Umgebungsvariable oder Default
+    return process.env.WEB_DASHBOARD_URL || `http://localhost:${process.env.PORT || 3000}`;
   }
 
   private getBackButton(): InlineKeyboardMarkup {
@@ -953,60 +983,15 @@ _Nutze /settings um Push-Benachrichtigungen zu konfigurieren._`;
       await this.handlePerformanceDashboard(msg.chat.id.toString());
     });
 
+    // /history - Trade History
+    this.bot.onText(/\/history/, async (msg) => {
+      await this.handleTradeHistory(msg.chat.id.toString());
+    });
+
     // /help - Kommando-Übersicht
     this.bot.onText(/\/help/, async (msg) => {
       const chatId = msg.chat.id.toString();
-
-      const message = `${this.HEADER}
-
-📖 *KOMMANDOS*
-
-${this.DIVIDER}
-
-\`\`\`
-┌─────────────────────────────────┐
-│  TRADING CONTROLS               │
-├─────────────────────────────────┤
-│  /kill [grund] - Stop All       │
-│  /resume       - Resume Trading │
-│  /cooldown     - Drawdown-Pause │
-│  /mode [m]     - paper/shadow/  │
-│                  live           │
-├─────────────────────────────────┤
-│  MONITORING                     │
-├─────────────────────────────────┤
-│  /stats        - Performance    │
-│  /pnl          - Tages-PnL      │
-│  /positions    - Offene Pos.    │
-│  /status       - System Status  │
-│  /signals      - Aktive Signale │
-├─────────────────────────────────┤
-│  NOTIFICATIONS                  │
-├─────────────────────────────────┤
-│  /settings     - Push Settings  │
-│  /push [mode]  - Push-Modus     │
-│  /quiet [on/off] - Quiet Hours  │
-│  /digest       - Signal Digest  │
-├─────────────────────────────────┤
-│  SCANNER                        │
-├─────────────────────────────────┤
-│  /scan         - Scan starten   │
-│  /wallet       - Wallet Balance │
-├─────────────────────────────────┤
-│  EUSSR-TRACKER                       │
-├─────────────────────────────────┤
-│  /polls        - Wahlumfragen   │
-│  /news         - Deutsche News  │
-│  /edge         - Zeitvorsprung  │
-├─────────────────────────────────┤
-│  SONSTIGES                      │
-├─────────────────────────────────┤
-│  /menu         - Hauptmenü      │
-│  /help         - Diese Hilfe    │
-└─────────────────────────────────┘
-\`\`\``;
-
-      await this.sendMessage(message, chatId);
+      await this.handleHelpMenu(chatId);
     });
 
     // Text-Input für Einstellungen
@@ -1053,10 +1038,10 @@ ${this.DIVIDER}
             await this.handleSkip(params[0], chatId, query.message?.message_id);
             break;
           case 'details':
-            await this.handleDetails(params[0], chatId);
+            await this.handleDetails(params[0], chatId, query.message?.message_id);
             break;
           case 'research':
-            await this.handleResearch(params[0], chatId);
+            await this.handleResearch(params[0], chatId, query.message?.message_id);
             break;
           case 'setting':
             await this.handleSettingChange(params[0], chatId, query.message?.message_id);
@@ -1104,10 +1089,10 @@ ${this.DIVIDER}
             await this.handleQuickBuyCancel(chatId, query.message?.message_id);
             break;
           case 'watch':
-            await this.handleWatch(params[0], chatId);
+            await this.handleWatch(params[0], chatId, query.message?.message_id);
             break;
           case 'chart':
-            await this.handleChart(params[0], chatId);
+            await this.handleChart(params[0], chatId, query.message?.message_id);
             break;
           // V4.0: Arbitrage Callbacks
           case 'arb':
@@ -1118,6 +1103,18 @@ ${this.DIVIDER}
           case 'late':
             // late:direction:signalId:amount
             await this.handleLateEntryAction(params[0] as 'yes' | 'no', params[1], parseFloat(params[2]), chatId, query.message?.message_id);
+            break;
+          case 'history_page':
+            // history_page:offset
+            await this.handleTradeHistory(chatId, query.message?.message_id, parseInt(params[0], 10));
+            break;
+          case 'history_filter':
+            // history_filter:status (won/lost/pending)
+            await this.handleTradeHistoryFiltered(chatId, query.message?.message_id, params[0]);
+            break;
+          case 'help':
+            // help:topic
+            await this.handleHelpTopic(params[0], chatId, query.message?.message_id);
             break;
         }
       } catch (err) {
@@ -1175,6 +1172,9 @@ ${this.DIVIDER}
         runtimeState.resetCooldown('telegram');
         await this.sendMessage('✅ Cooldown zurückgesetzt. Trading wieder möglich.', chatId);
         break;
+      case 'history':
+        await this.handleTradeHistory(chatId, messageId);
+        break;
     }
   }
 
@@ -1211,6 +1211,9 @@ Wähle eine Aktion:`;
   }
 
   private async handleScan(chatId: string, messageId?: number): Promise<void> {
+    // Typing Indicator während Scan
+    await this.bot?.sendChatAction(chatId, 'typing');
+
     // Scanning animation
     const scanningMsg = `${this.HEADER}
 
@@ -1372,6 +1375,9 @@ Tippe auf ein Signal für Details:`;
   }
 
   private async handleWallet(chatId: string, messageId?: number): Promise<void> {
+    // Typing Indicator während Balance geladen wird
+    await this.bot?.sendChatAction(chatId, 'typing');
+
     // Live Balance holen
     const balance = await tradingClient.getWalletBalance();
     const walletAddr = tradingClient.getWalletAddress();
@@ -1875,6 +1881,595 @@ ${stats.lastTradeAt ? `_Letzter Trade: ${stats.lastTradeAt.toLocaleString('de-DE
       await this.editMessage(chatId, messageId, message, keyboard);
     } else {
       await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      TRADE HISTORY
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleTradeHistory(chatId: string, messageId?: number, offset: number = 0): Promise<void> {
+    // Typing Indicator
+    await this.bot?.sendChatAction(chatId, 'typing');
+
+    const limit = 10;
+    const trades = performanceTracker.getTrades(limit + 1, offset);
+    const hasMore = trades.length > limit;
+    const displayTrades = trades.slice(0, limit);
+
+    if (displayTrades.length === 0) {
+      const emptyMessage = `${this.HEADER}
+
+📜 *TRADE HISTORY*
+
+${this.DIVIDER}
+
+_Noch keine Trades aufgezeichnet._
+
+Starte mit /scan um Signale zu finden.`;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '🔥 Scan starten', callback_data: 'action:scan' }],
+          [{ text: '◀️ Menü', callback_data: 'action:menu' }],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, emptyMessage, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(emptyMessage, keyboard, chatId);
+      }
+      return;
+    }
+
+    // Trades formatieren
+    const tradeLines = displayTrades.map((t, i) => {
+      const num = offset + i + 1;
+      const statusEmoji = t.status === 'pending' || t.status === 'filled' ? '⏳' : t.status === 'won' ? '✅' : '❌';
+      const dirEmoji = t.direction === 'yes' ? '🟢' : '🔴';
+      const stratEmoji = t.strategy === 'arbitrage' ? '💰' : t.strategy === 'lateEntry' ? '⏱️' : '⚡';
+      const pnl = t.actualProfit !== undefined ? (t.actualProfit >= 0 ? `+$${t.actualProfit.toFixed(2)}` : `-$${Math.abs(t.actualProfit).toFixed(2)}`) : '--';
+      const date = t.createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+      return `${num}\\. ${statusEmoji} ${dirEmoji} ${stratEmoji} $${t.size.toFixed(0)} @ ${(t.entryPrice * 100).toFixed(0)}% | ${pnl} \\(${date}\\)`;
+    }).join('\n');
+
+    const message = `${this.HEADER}
+
+📜 *TRADE HISTORY*
+
+${this.DIVIDER}
+
+*Letzte ${displayTrades.length} Trades${offset > 0 ? ` (ab #${offset + 1})` : ''}:*
+
+${tradeLines}
+
+${this.DIVIDER}
+
+_Legende: ✅ Won | ❌ Lost | ⏳ Pending_
+_💰 Arb | ⏱️ Late | ⚡ Time\\-Delay_`;
+
+    const buttons: InlineKeyboardButton[][] = [];
+
+    // Paging Buttons
+    const pagingRow: InlineKeyboardButton[] = [];
+    if (offset > 0) {
+      pagingRow.push({ text: '◀️ Zurück', callback_data: `history_page:${Math.max(0, offset - limit)}` });
+    }
+    if (hasMore) {
+      pagingRow.push({ text: 'Weiter ▶️', callback_data: `history_page:${offset + limit}` });
+    }
+    if (pagingRow.length > 0) {
+      buttons.push(pagingRow);
+    }
+
+    // Filter Buttons
+    buttons.push([
+      { text: '✅ Wins', callback_data: 'history_filter:won' },
+      { text: '❌ Losses', callback_data: 'history_filter:lost' },
+      { text: '⏳ Pending', callback_data: 'history_filter:pending' },
+    ]);
+
+    buttons.push([
+      { text: '🔄 Aktualisieren', callback_data: 'action:history' },
+      { text: '◀️ Menü', callback_data: 'action:menu' },
+    ]);
+
+    const keyboard: InlineKeyboardMarkup = { inline_keyboard: buttons };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  private async handleTradeHistoryFiltered(chatId: string, messageId: number | undefined, filter: string): Promise<void> {
+    await this.bot?.sendChatAction(chatId, 'typing');
+
+    let trades = performanceTracker.getTrades(100);
+
+    // Filter anwenden
+    switch (filter) {
+      case 'won':
+        trades = trades.filter(t => t.status === 'won');
+        break;
+      case 'lost':
+        trades = trades.filter(t => t.status === 'lost');
+        break;
+      case 'pending':
+        trades = trades.filter(t => t.status === 'pending' || t.status === 'filled');
+        break;
+    }
+
+    trades = trades.slice(0, 10);
+    const filterEmoji = filter === 'won' ? '✅' : filter === 'lost' ? '❌' : '⏳';
+    const filterLabel = filter === 'won' ? 'Gewonnen' : filter === 'lost' ? 'Verloren' : 'Offen';
+
+    if (trades.length === 0) {
+      const emptyMessage = `${this.HEADER}
+
+📜 *TRADE HISTORY* \\- ${filterEmoji} ${filterLabel}
+
+${this.DIVIDER}
+
+_Keine ${filterLabel.toLowerCase()}en Trades gefunden\\._`;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '📜 Alle anzeigen', callback_data: 'action:history' }],
+          [{ text: '◀️ Menü', callback_data: 'action:menu' }],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, emptyMessage, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(emptyMessage, keyboard, chatId);
+      }
+      return;
+    }
+
+    const tradeLines = trades.map((t, i) => {
+      const num = i + 1;
+      const statusEmoji = t.status === 'pending' || t.status === 'filled' ? '⏳' : t.status === 'won' ? '✅' : '❌';
+      const dirEmoji = t.direction === 'yes' ? '🟢' : '🔴';
+      const stratEmoji = t.strategy === 'arbitrage' ? '💰' : t.strategy === 'lateEntry' ? '⏱️' : '⚡';
+      const pnl = t.actualProfit !== undefined ? (t.actualProfit >= 0 ? `+$${t.actualProfit.toFixed(2)}` : `-$${Math.abs(t.actualProfit).toFixed(2)}`) : '--';
+      const date = t.createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+      return `${num}\\. ${statusEmoji} ${dirEmoji} ${stratEmoji} $${t.size.toFixed(0)} @ ${(t.entryPrice * 100).toFixed(0)}% | ${pnl} \\(${date}\\)`;
+    }).join('\n');
+
+    const message = `${this.HEADER}
+
+📜 *TRADE HISTORY* \\- ${filterEmoji} ${filterLabel}
+
+${this.DIVIDER}
+
+${tradeLines}
+
+${this.DIVIDER}
+
+_${trades.length} ${filterLabel.toLowerCase()}e Trades_`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '✅ Wins', callback_data: 'history_filter:won' },
+          { text: '❌ Losses', callback_data: 'history_filter:lost' },
+          { text: '⏳ Pending', callback_data: 'history_filter:pending' },
+        ],
+        [
+          { text: '📜 Alle anzeigen', callback_data: 'action:history' },
+          { text: '◀️ Menü', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //                      TELEGRAM HANDBUCH
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleHelpMenu(chatId: string, messageId?: number): Promise<void> {
+    const message = `${this.HEADER}
+
+📚 *EDGY ALPHA HANDBUCH V4\\.2*
+
+${this.DIVIDER}
+
+Willkommen beim interaktiven Handbuch\\!
+Wähle ein Thema:
+
+🚀 *Schnellstart* \\- Erste Schritte
+📈 *Trading* \\- Wie du tradest
+💰 *Live Trading* \\- Echtes Geld Setup
+🎯 *Strategien* \\- Arbitrage, Late\\-Entry
+📜 *History* \\- Trade\\-Verlauf nutzen
+🛡️ *Risk* \\- Sicherheit & Limits
+📋 *Commands* \\- Alle Befehle
+
+${this.DIVIDER}
+
+_Tippe auf einen Button für Details\\._`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '🚀 Schnellstart', callback_data: 'help:quickstart' },
+          { text: '📈 Trading', callback_data: 'help:trading' },
+        ],
+        [
+          { text: '💰 Live Trading', callback_data: 'help:live' },
+          { text: '🎯 Strategien', callback_data: 'help:strategies' },
+        ],
+        [
+          { text: '📜 History', callback_data: 'help:history' },
+          { text: '🛡️ Risk', callback_data: 'help:risk' },
+        ],
+        [
+          { text: '📋 Commands', callback_data: 'help:commands' },
+        ],
+        [
+          { text: '◀️ Menü', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, keyboard);
+    } else {
+      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    }
+  }
+
+  private async handleHelpTopic(topic: string, chatId: string, messageId?: number): Promise<void> {
+    let message = '';
+    const backButton: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: '📚 Zurück zum Handbuch', callback_data: 'help:menu' }],
+        [{ text: '◀️ Hauptmenü', callback_data: 'action:menu' }],
+      ],
+    };
+
+    switch (topic) {
+      case 'menu':
+        await this.handleHelpMenu(chatId, messageId);
+        return;
+
+      case 'quickstart':
+        message = `${this.HEADER}
+
+🚀 *SCHNELLSTART*
+
+${this.DIVIDER}
+
+*In 3 Schritten zum ersten Trade:*
+
+*1\\. Scan starten*
+\`/scan\` oder 🔥 ALPHA JAGEN Button
+
+*2\\. Signal prüfen*
+\\- Edge \\> 5% ist interessant
+\\- Confidence \\> 70% ist gut
+\\- Grüne Risk Gates = Go\\!
+
+*3\\. Trade ausführen*
+\\- 🚀 JA BALLERN für YES
+\\- Betrag wählen \\($5\\-$50\\)
+\\- Bestätigen
+
+${this.DIVIDER}
+
+*Wichtige Commands:*
+\`/stats\` \\- Deine Performance
+\`/wallet\` \\- Dein Guthaben
+\`/history\` \\- Vergangene Trades
+
+${this.DIVIDER}
+
+⚠️ _Starte im Paper Mode \\(/mode paper\\)_`;
+        break;
+
+      case 'trading':
+        message = `${this.HEADER}
+
+📈 *TRADING ANLEITUNG*
+
+${this.DIVIDER}
+
+*Der Trading\\-Flow:*
+
+\`\`\`
+Signal gefunden
+      ↓
+[🚀 JA BALLERN] klicken
+      ↓
+Betrag wählen: [$5] [$10] [$25]
+      ↓
+[✅ Bestätigen]
+      ↓
+Trade ausgeführt!
+\`\`\`
+
+${this.DIVIDER}
+
+*Signal verstehen:*
+
+📊 *Edge* \\- Dein Vorteil vs\\. Markt
+   \\>5% = interessant, \\>10% = sehr gut
+
+🎯 *Confidence* \\- Wie sicher das Signal
+   \\>70% = gut, \\>85% = sehr gut
+
+💰 *Kelly Size* \\- Empfohlener Betrag
+   Mathematisch optimal berechnet
+
+${this.DIVIDER}
+
+*Execution Modes:*
+📝 PAPER \\- Simulation \\(kein echtes Geld\\)
+👻 SHADOW \\- Loggt, tradet nicht
+🚀 LIVE \\- Echtes Trading
+
+Wechseln mit: \`/mode paper|shadow|live\``;
+        break;
+
+      case 'live':
+        message = `${this.HEADER}
+
+💰 *LIVE TRADING SETUP*
+
+${this.DIVIDER}
+
+*Voraussetzungen:*
+
+☑️ Polygon Wallet \\(MetaMask etc\\.\\)
+☑️ USDC auf Polygon Network
+☑️ ~0\\.1 MATIC für Gas
+☑️ 50\\+ Paper Trades gemacht
+☑️ Positive Win Rate
+
+${this.DIVIDER}
+
+*Wallet einrichten:*
+
+1\\. Private Key in \\.env:
+\`WALLET\\_PRIVATE\\_KEY=0x\\.\\.\\.\`
+
+2\\. Adresse in \\.env:
+\`WALLET\\_ADDRESS=0x\\.\\.\\.\`
+
+3\\. Server neustarten
+
+${this.DIVIDER}
+
+*Zu Live wechseln:*
+\`/mode live\`
+
+*Zurück zu Paper:*
+\`/mode paper\`
+
+${this.DIVIDER}
+
+*Troubleshooting:*
+❌ "Insufficient Balance" → Mehr USDC
+❌ "Gas failed" → MATIC nachfüllen
+❌ "CLOB not ready" → Server restart
+
+${this.DIVIDER}
+
+⚠️ _Starte mit kleinen Beträgen\\!_`;
+        break;
+
+      case 'strategies':
+        message = `${this.HEADER}
+
+🎯 *TRADING STRATEGIEN*
+
+${this.DIVIDER}
+
+*💰 Dutch\\-Book Arbitrage*
+\`\`\`
+Wenn YES + NO < $1.00
+→ Kaufe BEIDE
+→ Garantierter Profit!
+
+Beispiel:
+YES @ 45% + NO @ 52% = 97%
+Profit: 3% risikofrei
+\`\`\`
+
+${this.DIVIDER}
+
+*⏱️ Late\\-Entry V3*
+\`\`\`
+15-Minuten Crypto Märkte
+Einstieg in letzten 4 Minuten
+Wenn Trend klar erkennbar
+
+Vorteil: Kurze Haltezeit
+Risiko: Schnelle Bewegungen
+\`\`\`
+
+${this.DIVIDER}
+
+*⚡ Time\\-Delay \\(News\\)*
+\`\`\`
+Deutsche News → Polymarket
+Zeitvorsprung nutzen!
+
+1. News auf Tagesschau
+2. Markt reagiert noch nicht
+3. Schnell kaufen
+4. Profit wenn Markt aufholt
+\`\`\`
+
+${this.DIVIDER}
+
+Aktivieren in \`/settings\``;
+        break;
+
+      case 'history':
+        message = `${this.HEADER}
+
+📜 *TRADE HISTORY*
+
+${this.DIVIDER}
+
+*History anzeigen:*
+\`/history\`
+
+*Filter nutzen:*
+\\[✅ Wins\\] \\- Nur Gewinne
+\\[❌ Losses\\] \\- Nur Verluste
+\\[⏳ Pending\\] \\- Offene Trades
+
+*Paging:*
+\\[Weiter ▶️\\] \\- Nächste Seite
+
+${this.DIVIDER}
+
+*Trade\\-Status:*
+⏳ *Pending* \\- Markt noch offen
+✅ *Won* \\- Gewonnen
+❌ *Lost* \\- Verloren
+
+${this.DIVIDER}
+
+*Strategie\\-Icons:*
+💰 Arbitrage
+⏱️ Late\\-Entry
+⚡ Time\\-Delay
+
+${this.DIVIDER}
+
+*Im Web Dashboard:*
+\\- Vollständige Tabelle
+\\- CSV Export
+\\- Erweiterte Filter
+
+Link: 🖥️ Web Dashboard Button`;
+        break;
+
+      case 'risk':
+        message = `${this.HEADER}
+
+🛡️ *RISK MANAGEMENT*
+
+${this.DIVIDER}
+
+*Kill\\-Switch:*
+\`/kill\` \\- Stoppt ALLE Trades
+\`/resume\` \\- Aktiviert wieder
+
+${this.DIVIDER}
+
+*Automatische Limits:*
+
+📉 *Daily Loss Limit*
+   Stoppt bei \\-$100/Tag \\(default\\)
+
+📊 *Max Positions*
+   Max 10 offene Trades
+
+💰 *Max pro Markt*
+   Max $50 pro Markt
+
+${this.DIVIDER}
+
+*Cooldown System:*
+Nach 3 Verlusten in Folge
+→ 15 Min Pause
+→ \`/cooldown reset\` zum Überspringen
+
+${this.DIVIDER}
+
+*Risk Gates:*
+Jedes Signal wird geprüft:
+✅ Genug Balance?
+✅ Unter Daily Limit?
+✅ Position noch offen?
+✅ Markt liquid?
+
+Nur wenn ALLE ✅ → Trade möglich
+
+${this.DIVIDER}
+
+*Empfehlung:*
+🟢 Paper Mode zum Lernen
+🟡 Shadow Mode zum Testen
+🔴 Live Mode erst bei \\>55% Win Rate`;
+        break;
+
+      case 'commands':
+        message = `${this.HEADER}
+
+📋 *ALLE COMMANDS*
+
+${this.DIVIDER}
+
+*TRADING:*
+\`/scan\` \\- Alpha Scan starten
+\`/signals\` \\- Aktuelle Signale
+\`/wallet\` \\- Balance anzeigen
+\`/positions\` \\- Offene Positionen
+
+${this.DIVIDER}
+
+*MONITORING:*
+\`/stats\` \\- Performance Dashboard
+\`/history\` \\- Trade History
+\`/status\` \\- System Status
+\`/pnl\` \\- Tages\\-PnL
+
+${this.DIVIDER}
+
+*RISK CONTROLS:*
+\`/kill \\[grund\\]\` \\- Stop All
+\`/resume\` \\- Trading fortsetzen
+\`/cooldown\` \\- Cooldown Status
+\`/mode \\[m\\]\` \\- paper/shadow/live
+
+${this.DIVIDER}
+
+*NOTIFICATIONS:*
+\`/settings\` \\- Push Settings
+\`/push \\[mode\\]\` \\- Push\\-Modus
+\`/quiet\` \\- Quiet Hours
+\`/digest\` \\- Signal Digest
+
+${this.DIVIDER}
+
+*EUSSR\\-TRACKER:*
+\`/polls\` \\- Wahlumfragen
+\`/news\` \\- Deutsche News
+\`/edge\` \\- Zeitvorsprung
+
+${this.DIVIDER}
+
+*SONSTIGES:*
+\`/menu\` \\- Hauptmenü
+\`/help\` \\- Dieses Handbuch`;
+        break;
+
+      default:
+        await this.handleHelpMenu(chatId, messageId);
+        return;
+    }
+
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, backButton);
+    } else {
+      await this.sendMessageWithKeyboard(message, backButton, chatId);
     }
   }
 
@@ -2639,7 +3234,12 @@ Möchtest du diesen Trade ausführen?`;
     const entry = this.pendingTrades.get(signalId);
 
     if (!entry) {
-      await this.sendMessage('⚠️ Signal nicht mehr verfügbar', chatId);
+      const errorMsg = '⚠️ Signal nicht mehr verfügbar\n\n_Signal ist abgelaufen oder wurde bereits verarbeitet._';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
       return;
     }
 
@@ -2648,7 +3248,12 @@ Möchtest du diesen Trade ausführen?`;
 
     // Kill-Switch Check
     if (state.killSwitchActive) {
-      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      const errorMsg = '❌ *Trade abgebrochen*\n\n_Kill-Switch ist aktiv. Alle Trades gestoppt._';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
       this.pendingTrades.delete(signalId);
       return;
     }
@@ -2821,12 +3426,17 @@ _Zurück zum Hauptmenü_`;
     }
   }
 
-  private async handleDetails(signalId: string, chatId: string): Promise<void> {
+  private async handleDetails(signalId: string, chatId: string, messageId?: number): Promise<void> {
     const result = scanner.getLastResult();
     const signal = result?.signalsFound.find((s) => s.id === signalId);
 
     if (!signal) {
-      await this.sendMessage('Signal nicht gefunden', chatId);
+      const errorMsg = '❌ Signal nicht gefunden';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessage(errorMsg, chatId);
+      }
       return;
     }
 
@@ -2880,7 +3490,12 @@ ${this.DIVIDER}
 
 ${this.formatSignalReasoning(signal)}`;
 
-    await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signalId), chatId);
+    // Single Message Pattern: Edit statt neue Message
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getSignalKeyboard(signalId));
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getSignalKeyboard(signalId), chatId);
+    }
   }
 
   /**
@@ -2921,7 +3536,7 @@ ${this.formatSignalReasoning(signal)}`;
     return text;
   }
 
-  private async handleResearch(_signalId: string, chatId: string): Promise<void> {
+  private async handleResearch(_signalId: string, chatId: string, messageId?: number): Promise<void> {
     const message = `${this.HEADER}
 
 🔬 *RESEARCH*
@@ -2938,7 +3553,12 @@ ${this.DIVIDER}
 └─────────────────────────────────┘
 \`\`\``;
 
-    await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    // Single Message Pattern: Edit statt neue Message
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -3517,6 +4137,18 @@ ${riskGates}`;
     });
 
     logger.info('[TELEGRAM] V4.0 Trading Strategien Events registriert (Semi-Auto Mode)');
+
+    // ═══════════════════════════════════════════════════════════════
+    // V4.1: TRADE RESOLUTION SERVICE
+    // Prüft Märkte auf Resolution und aktualisiert Win/Loss
+    // ═══════════════════════════════════════════════════════════════
+    tradeResolutionService.start();
+
+    tradeResolutionService.on('trade_resolved', async (result: ResolutionResult) => {
+      await this.sendResolutionNotification(result);
+    });
+
+    logger.info('[TELEGRAM] Trade Resolution Service gestartet');
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -4133,6 +4765,92 @@ ${this.DIVIDER}
     logger.info(`[TELEGRAM] 🤖 Auto-Trade Notification: ${strategy} | ${signal.direction} | $${signal.size.toFixed(2)} | Confidence: ${(signal.confidence * 100).toFixed(0)}%`);
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //      🎯 TRADE RESOLUTION NOTIFICATION - V4.1
+  //      Wird gesendet wenn ein Trade resolved (gewonnen/verloren)
+  // ═══════════════════════════════════════════════════════════════
+
+  private async sendResolutionNotification(result: ResolutionResult): Promise<void> {
+    const { tradeId, won, payout, profit, resolvedAt } = result;
+
+    const winEmoji = won ? '🎉✅' : '💔❌';
+    const resultText = won ? 'GEWONNEN' : 'VERLOREN';
+    const profitText = profit >= 0 ? `+$${profit.toFixed(2)}` : `-$${Math.abs(profit).toFixed(2)}`;
+    const profitEmoji = profit >= 0 ? '📈' : '📉';
+
+    // Updated Stats
+    const stats = performanceTracker.getStats();
+
+    const asciiArt = won
+      ? `
+\`\`\`
+╔═══════════════════════════════════════╗
+║  ██╗    ██╗██╗███╗   ██╗██╗           ║
+║  ██║    ██║██║████╗  ██║██║           ║
+║  ██║ █╗ ██║██║██╔██╗ ██║██║           ║
+║  ██║███╗██║██║██║╚██╗██║╚═╝           ║
+║  ╚███╔███╔╝██║██║ ╚████║██╗           ║
+║   ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚═╝           ║
+║         🎉 TRADE WON! 🎉              ║
+╚═══════════════════════════════════════╝
+\`\`\``
+      : `
+\`\`\`
+╔═══════════════════════════════════════╗
+║  ██╗      ██████╗ ███████╗███████╗    ║
+║  ██║     ██╔═══██╗██╔════╝██╔════╝    ║
+║  ██║     ██║   ██║███████╗███████╗    ║
+║  ██║     ██║   ██║╚════██║╚════██║    ║
+║  ███████╗╚██████╔╝███████║███████║    ║
+║  ╚══════╝ ╚═════╝ ╚══════╝╚══════╝    ║
+║         💔 TRADE LOST 💔              ║
+╚═══════════════════════════════════════╝
+\`\`\``;
+
+    const message = `
+${winEmoji} *TRADE ${resultText}* ${winEmoji}
+${asciiArt}
+
+${this.DIVIDER}
+
+*RESULT:*
+\`\`\`
+┌─────────────────────────────────┐
+│  Trade:    ${tradeId.substring(0, 12)}...      │
+│  Result:   ${resultText.padEnd(18)}│
+│  Payout:   $${payout.toFixed(2).padEnd(17)}│
+│  Profit:   ${profitText.padEnd(18)}│
+└─────────────────────────────────┘
+\`\`\`
+
+${profitEmoji} *P/L:* ${profitText}
+
+${this.DIVIDER}
+
+*UPDATED STATS:*
+• Win Rate: ${(stats.winRate * 100).toFixed(1)}%
+• Total Profit: $${stats.totalActualProfit.toFixed(2)}
+• ROI: ${stats.roi.toFixed(2)}%
+
+${this.DIVIDER}
+
+_Resolved: ${resolvedAt.toLocaleString('de-DE')}_
+
+📊 Nutze /stats für vollständiges Dashboard`;
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: '📊 Stats', callback_data: 'action:stats' },
+          { text: '◀️ Menü', callback_data: 'action:menu' },
+        ],
+      ],
+    };
+
+    await this.sendMessageWithKeyboard(message, keyboard);
+    logger.info(`[TELEGRAM] 🎯 Resolution Notification: ${tradeId.substring(0, 8)}... ${won ? 'WON' : 'LOST'} | Profit: ${profitText}`);
+  }
+
   /**
    * Handelt SAFE BET Button-Klicks
    * @param directionOrAction - 'yes', 'no', oder 'custom'
@@ -4413,9 +5131,14 @@ _Wirklich ausführen?_`;
   ): Promise<void> {
     const state = runtimeState.getState();
 
-    // Kill-Switch Check
+    // Kill-Switch Check - Single Message Pattern
     if (state.killSwitchActive) {
-      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      const errorMsg = '❌ *Trade abgebrochen*\n\n_Kill-Switch ist aktiv. Alle Trades gestoppt._';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
       return;
     }
 
@@ -4616,19 +5339,205 @@ _Der Trade wurde nicht ausgeführt._`;
   /**
    * Watch-Handler: Markt zur Watchlist hinzufügen
    */
-  private async handleWatch(signalId: string, chatId: string): Promise<void> {
+  private async handleWatch(signalId: string, chatId: string, messageId?: number): Promise<void> {
     // TODO: Implementiere Watchlist-Funktionalität
-    await this.sendMessage(`👀 *Watchlist*\n\nMarkt \`${signalId.substring(0, 16)}...\` wird beobachtet.\n\n_Watchlist-Feature kommt bald!_`, chatId);
+    const message = `👀 *Watchlist*\n\nMarkt \`${signalId.substring(0, 16)}...\` wird beobachtet.\n\n_Watchlist-Feature kommt bald!_`;
+
+    // Single Message Pattern: Edit statt neue Message
+    if (messageId) {
+      await this.editMessage(chatId, messageId, message, this.getBackButton());
+    } else {
+      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+    }
     logger.info(`[WATCH] Added to watchlist: ${signalId}`);
   }
 
   /**
-   * Chart-Handler: Zeigt Preis-Chart für Markt
+   * Chart-Handler: Zeigt Preis-Chart für Markt via QuickChart.io
    */
-  private async handleChart(marketId: string, chatId: string): Promise<void> {
-    const chartUrl = `https://polymarket.com/event/${marketId}`;
-    await this.sendMessage(`📈 *Chart*\n\n[Chart auf Polymarket öffnen](${chartUrl})`, chatId);
-    logger.info(`[CHART] Opened chart: ${marketId}`);
+  private async handleChart(marketId: string, chatId: string, messageId?: number): Promise<void> {
+    // Typing Indicator während Chart generiert wird
+    await this.bot?.sendChatAction(chatId, 'typing');
+
+    // Loading State anzeigen
+    const loadingMsg = `${this.HEADER}\n\n⏳ *Chart wird geladen...*\n\n_Hole Preisdaten..._`;
+    if (messageId) {
+      await this.editMessage(chatId, messageId, loadingMsg);
+    }
+
+    try {
+      // Hole Markt-Info für Token ID und Namen
+      const result = scanner.getLastResult();
+      const signal = result?.signalsFound.find((s) => s.id === marketId || s.market.id === marketId);
+
+      // Token ID bestimmen (YES outcome)
+      let tokenId = marketId;
+      let marketName = 'Markt';
+
+      if (signal?.market) {
+        const yesOutcome = signal.market.outcomes?.find(o => o.name.toLowerCase() === 'yes');
+        if (yesOutcome?.id) {
+          tokenId = yesOutcome.id;
+        }
+        marketName = signal.market.question.substring(0, 40) + (signal.market.question.length > 40 ? '...' : '');
+      }
+
+      // Hole Price History (letzte 24h, stündlich)
+      const priceHistory = await polymarketClient.getPriceHistory(tokenId, 60);
+
+      if (!priceHistory || priceHistory.length < 2) {
+        // Fallback: Nur Link anzeigen
+        const polymarketUrl = `https://polymarket.com/event/${marketId}`;
+        const fallbackMsg = `${this.HEADER}\n\n📈 *Chart*\n\n_Keine Preisdaten verfügbar._\n\n[Auf Polymarket ansehen](${polymarketUrl})`;
+        const keyboard: InlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📈 Polymarket öffnen', url: polymarketUrl }],
+            [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+          ],
+        };
+        if (messageId) {
+          await this.editMessage(chatId, messageId, fallbackMsg, keyboard);
+        } else {
+          await this.sendMessageWithKeyboard(fallbackMsg, keyboard, chatId);
+        }
+        return;
+      }
+
+      // Daten für Chart vorbereiten (letzte 24 Punkte max)
+      const chartData = priceHistory.slice(-24);
+      const labels = chartData.map(p => {
+        const date = new Date(p.timestamp);
+        return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+      });
+      const prices = chartData.map(p => (p.price * 100).toFixed(1));
+
+      // Preis-Statistiken
+      const currentPrice = chartData[chartData.length - 1]?.price || 0;
+      const startPrice = chartData[0]?.price || 0;
+      const priceChange = currentPrice - startPrice;
+      const priceChangePercent = startPrice > 0 ? (priceChange / startPrice) * 100 : 0;
+      const minPrice = Math.min(...chartData.map(p => p.price));
+      const maxPrice = Math.max(...chartData.map(p => p.price));
+
+      // Trend-Farbe
+      const trendColor = priceChange >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+      const trendEmoji = priceChange >= 0 ? '📈' : '📉';
+
+      // QuickChart.io Konfiguration
+      const chartConfig = {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'YES Preis (%)',
+            data: prices,
+            borderColor: trendColor,
+            backgroundColor: priceChange >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: marketName,
+              color: '#fff',
+              font: { size: 14 },
+            },
+          },
+          scales: {
+            y: {
+              min: Math.max(0, (minPrice * 100) - 5),
+              max: Math.min(100, (maxPrice * 100) + 5),
+              grid: { color: 'rgba(255,255,255,0.1)' },
+              ticks: { color: '#fff', callback: (v: number) => v + '%' },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#999', maxTicksLimit: 6 },
+            },
+          },
+        },
+      };
+
+      // QuickChart URL (mit encoding)
+      const chartConfigEncoded = encodeURIComponent(JSON.stringify(chartConfig));
+      const quickChartUrl = `https://quickchart.io/chart?c=${chartConfigEncoded}&w=600&h=300&bkg=rgb(17,24,39)`;
+
+      // Polymarket Link
+      const polymarketUrl = `https://polymarket.com/event/${marketId}`;
+
+      // Caption mit Stats
+      const caption = `${this.HEADER}
+
+${trendEmoji} *PREIS-CHART (24h)*
+
+${this.DIVIDER}
+
+\`\`\`
+┌─────────────────────────────────┐
+│  STATISTIK                      │
+├─────────────────────────────────┤
+│  Aktuell:   ${(currentPrice * 100).toFixed(1).padStart(6)}%            │
+│  Änderung:  ${priceChange >= 0 ? '+' : ''}${(priceChange * 100).toFixed(1).padStart(5)}% (${priceChangePercent >= 0 ? '+' : ''}${priceChangePercent.toFixed(1)}%)  │
+│  Min (24h): ${(minPrice * 100).toFixed(1).padStart(6)}%            │
+│  Max (24h): ${(maxPrice * 100).toFixed(1).padStart(6)}%            │
+└─────────────────────────────────┘
+\`\`\``;
+
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '🔄 Aktualisieren', callback_data: `chart:${marketId}` }],
+          [{ text: '📈 Polymarket', url: polymarketUrl }],
+          [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+        ],
+      };
+
+      // Sende Chart als Foto
+      if (this.bot) {
+        // Lösche alte Message wenn vorhanden
+        if (messageId) {
+          try {
+            await this.bot.deleteMessage(parseInt(chatId), messageId);
+          } catch {
+            // Ignoriere Fehler beim Löschen
+          }
+        }
+
+        // Sende neues Foto mit Chart
+        await this.bot.sendPhoto(chatId, quickChartUrl, {
+          caption,
+          parse_mode: 'Markdown',
+          reply_markup: keyboard,
+        });
+      }
+
+      logger.info(`[CHART] Generated chart for ${marketId}: ${(currentPrice * 100).toFixed(1)}% (${priceChange >= 0 ? '+' : ''}${(priceChange * 100).toFixed(1)}%)`);
+
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[CHART] Error generating chart: ${error.message}`);
+
+      // Fallback bei Fehler
+      const polymarketUrl = `https://polymarket.com/event/${marketId}`;
+      const errorMsg = `${this.HEADER}\n\n❌ *Chart-Fehler*\n\n_${error.message}_`;
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '📈 Polymarket öffnen', url: polymarketUrl }],
+          [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, keyboard, chatId);
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -4647,9 +5556,14 @@ _Der Trade wurde nicht ausgeführt._`;
   ): Promise<void> {
     const state = runtimeState.getState();
 
-    // Kill-Switch Check
+    // Kill-Switch Check - Single Message Pattern
     if (state.killSwitchActive) {
-      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      const errorMsg = '❌ *Trade abgebrochen*\n\n_Kill-Switch ist aktiv. Alle Trades gestoppt._';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
       return;
     }
 
@@ -4726,9 +5640,14 @@ ${performanceTracker.isPaperMode()
   ): Promise<void> {
     const state = runtimeState.getState();
 
-    // Kill-Switch Check
+    // Kill-Switch Check - Single Message Pattern
     if (state.killSwitchActive) {
-      await this.sendMessage('❌ Trade abgebrochen: Kill-Switch aktiv', chatId);
+      const errorMsg = '❌ *Trade abgebrochen*\n\n_Kill-Switch ist aktiv. Alle Trades gestoppt._';
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
       return;
     }
 

@@ -7,6 +7,140 @@ und das Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [4.2.0] - 2026-02-04
+
+### TOP NOTCH UX Update
+
+Umfassende UX-Verbesserungen für Telegram Bot und Web Dashboard.
+
+### Hinzugefügt
+
+#### Telegram Bot - UX Essentials
+- **Bot Commands Menu** - `setMyCommands()` registriert 11 Commands im Telegram Dropdown
+  - /start, /scan, /signals, /stats, /wallet, /positions, /history, /settings, /kill, /resume, /help
+- **Typing Indicators** - `sendChatAction('typing')` bei langen Operationen
+  - handleScan, handleWallet, handleChart zeigen jetzt "tippt..."
+- **Web Dashboard Button** - Direkter Link zum Web Dashboard im Hauptmenü
+- **/history Command** - Trade History mit Paging und Filtern
+  - Letzte 10 Trades anzeigen
+  - Filter: ✅ Wins, ❌ Losses, ⏳ Pending
+  - Paging mit [Weiter ▶️] Buttons
+  - Strategie-Emojis: 💰 Arb, ⏱️ Late, ⚡ Time-Delay
+
+#### Web Dashboard - History View
+- **Vollständige History View** - Ersetzt "coming soon" Placeholder
+  - Filter: Status, Strategie, Mode
+  - Statistik-Karten: Total Trades, Win Rate, P/L, Volume
+  - Sortierbare Tabelle mit allen Trade-Details
+  - Pagination
+- **CSV Export** - Alle Trades als CSV herunterladen
+- **Toast Notification System** - Feedback bei Aktionen
+  - 4 Types: success, error, warning, info
+  - Auto-hide nach 5 Sekunden
+  - Slide-In Animation
+
+#### API Endpoints
+- **GET /api/trades/history** - Trade History mit Filtern
+  - Query: limit, offset, status, strategy, mode
+  - Response: Paginierte Trades + aggregierte Stats
+
+#### Dokumentation
+- **Kapitel 10: Live Trading Setup** - Vollständige Anleitung
+  - Wallet-Konfiguration
+  - Order-Typen (Market, Limit)
+  - Gas Management
+  - Troubleshooting
+- **Kapitel 11: Trade History & Tracking** - Neue Features erklärt
+  - History View Nutzung
+  - Trade Resolution
+  - Performance Tracking
+
+### Geändert
+- `performanceTracker.getTrades()` unterstützt jetzt `offset` Parameter für Pagination
+- Inhaltsverzeichnis im Benutzerhandbuch aktualisiert (12 Kapitel)
+
+### Technische Details
+- 157 Tests bestanden
+- TypeScript strict mode
+- Keine Breaking Changes
+
+---
+
+## [4.1.0] - 2026-02-03
+
+### Semi-Auto Trading + Performance Tracking
+
+Das größte Update seit V4.0 - vollständiges Trading-System mit automatischer Ausführung und Performance-Monitoring.
+
+### Hinzugefügt
+
+#### Performance Tracking System (`src/tracking/`)
+- **PerformanceTracker** - Persistentes Tracking aller Trades
+  - Speichert Settings in `data/settings.json` (überlebt Neustarts)
+  - Speichert Trades in `data/trades.json` (letzte 1000)
+  - Aggregierte Stats in `data/stats.json`
+  - Separate Tracking für Paper vs Live Mode
+
+- **TradeResolutionService** - Automatische Trade-Auflösung
+  - Prüft Märkte auf Resolution (gewonnen/verloren)
+  - Berechnet echte PnL basierend auf Markt-Outcomes
+  - Benachrichtigt bei Trade-Resolution (mit ASCII Art!)
+  - Simulate-Funktion für Paper-Mode Testing
+
+#### Semi-Auto Trading (Option B)
+- **Confidence-basiertes Auto-Trading**
+  - Trades mit Confidence >= Schwelle werden automatisch ausgeführt
+  - Schwelle editierbar in /settings (default: 80%)
+  - Trades unter Schwelle erhalten manuellen Alert mit Buttons
+  - Auto-Trade Notifications mit vollständigen Details
+
+#### Full-Auto Mode (Option C)
+- **Optionales vollautomatisches Trading**
+  - Toggle in /settings: ⚡ Full-Auto
+  - Ignoriert Confidence-Schwelle - alle Signale werden getradet
+  - Empfohlen nur im Paper Mode
+
+#### Telegram Commands
+- **/stats** - Neues Performance Dashboard
+  - ASCII Art Header
+  - Trades (Total/Paper/Live)
+  - Win Rate mit Progress Bar
+  - Financials (Volume, Expected, Actual, ROI)
+  - By Strategy Breakdown (Arbitrage, Late-Entry, Time-Delay)
+
+- **/settings** erweitert
+  - Paper Mode / Live Mode Toggle
+  - Semi-Auto / Full-Auto Toggle
+  - Min Confidence editierbar
+
+#### Notifications
+- **Auto-Trade Notification** - Bei automatischen Trades
+  - Trade Details (ID, Direction, Size, Expected Profit)
+  - Erklärt warum Auto-Trade (Confidence >= Schwelle)
+
+- **Resolution Notification** - Bei Trade-Auflösung
+  - WIN/LOSS mit ASCII Art
+  - Profit/Loss Berechnung
+  - Updated Stats (Win Rate, Total Profit, ROI)
+
+#### Web API (`/api/performance/*`)
+- `GET /stats` - Performance Stats
+- `GET /settings` - Bot Settings
+- `POST /settings` - Update Settings
+- `GET /trades` - Recent Trades
+- `GET /trades/:strategy` - Trades by Strategy
+- `GET /trades/pending` - Pending Trades
+- `GET /resolution/status` - Resolution Service Status
+- `POST /resolution/resolve` - Manual Resolution (Testing)
+- `POST /resolution/simulate` - Simulate Resolution (Paper Mode)
+
+### Geändert
+- **runtimeSettings** synchronisiert jetzt mit PerformanceTracker
+- **Settings sind persistent** (überleben Neustarts)
+- **Web Dashboard** zeigt V4.0 Strategien statt alter Engines
+
+---
+
 ## [4.0.0] - 2026-02-03
 
 ### BREAKING CHANGE: Alpha-Bereich entfernt
