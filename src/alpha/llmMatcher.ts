@@ -15,7 +15,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger.js';
 import { config } from '../utils/config.js';
 import type { Market } from '../types/index.js';
-import type { SourceEvent } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // PRICING (Claude 3.5 Haiku - Stand 2026)

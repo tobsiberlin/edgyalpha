@@ -29,7 +29,7 @@ vi.mock('../utils/logger.js', () => ({
   },
 }));
 
-import { TradeResolutionService, MarketResolution, ResolutionResult } from '../tracking/resolution.js';
+import { TradeResolutionService } from '../tracking/resolution.js';
 import { polymarketClient } from '../api/polymarket.js';
 import { performanceTracker, TrackedTrade } from '../tracking/index.js';
 

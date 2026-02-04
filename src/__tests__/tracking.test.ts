@@ -5,7 +5,6 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fs module BEFORE any imports that use it
 vi.mock('fs', async () => {
@@ -31,29 +30,6 @@ vi.mock('../utils/logger.js', () => ({
 
 // Type definitions (not imported to avoid singleton instantiation)
 type TradeStrategy = 'arbitrage' | 'lateEntry' | 'timeDelay' | 'manual';
-type TradeStatus = 'pending' | 'filled' | 'won' | 'lost' | 'expired';
-type ExecutionType = 'auto' | 'manual';
-
-interface TrackedTrade {
-  id: string;
-  strategy: TradeStrategy;
-  executionType: ExecutionType;
-  marketId: string;
-  question: string;
-  direction: 'yes' | 'no';
-  entryPrice: number;
-  exitPrice?: number;
-  size: number;
-  expectedProfit: number;
-  actualProfit?: number;
-  confidence: number;
-  createdAt: Date;
-  filledAt?: Date;
-  resolvedAt?: Date;
-  status: TradeStatus;
-  isPaper: boolean;
-  reasoning: string[];
-}
 
 // Import class dynamically to avoid singleton instantiation side effects
 let PerformanceTracker: typeof import('../tracking/index.js').PerformanceTracker;

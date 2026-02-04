@@ -20,7 +20,6 @@ import { polymarketClient } from '../api/polymarket.js';
 import { Market } from '../types/index.js';
 import logger from '../utils/logger.js';
 import {
-  SupportedCoin,
   MarketWindow,
   LateEntrySignal,
   LateEntryTrade,

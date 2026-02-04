@@ -5,7 +5,6 @@
  */
 
 import axios from 'axios';
-import { initDatabase, isDatabaseInitialized, getDatabase } from '../storage/db.js';
 import {
   bulkAddToWatchlist,
   getWatchlistStats,

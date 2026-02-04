@@ -2,8 +2,16 @@ import { polymarketClient } from '../api/polymarket.js';
 import { germanySources } from '../germany/index.js';
 import { config } from '../utils/config.js';
 
-// scanner/alpha.js wurde entfernt (V4.0) - Trading über neue Strategien (Arbitrage/Late-Entry)
-// Einfache Fallback-Funktionen für Kompatibilität
+// ═══════════════════════════════════════════════════════════════════════════
+// V4.2: STRATEGIE-FOKUSSIERTER SCANNER
+// ═══════════════════════════════════════════════════════════════════════════
+// Der Scanner generiert KEINE eigenen "Preis-basierten" Signale mehr.
+// Echte Signale kommen NUR von den 3 spezialisierten Strategien:
+//   1. TimeDelayEngine  → Wissensvorsprung durch deutsche News
+//   2. DutchBookEngine  → Arbitrage (YES + NO < $1.00)
+//   3. LateEntryEngine  → 15-Min Crypto Markets
+// ═══════════════════════════════════════════════════════════════════════════
+
 import {
   Market,
   AlphaSignal,
@@ -12,44 +20,6 @@ import {
   MarketCategory,
 } from '../types/index.js';
 
-function createAlphaSignal(market: Market, _options: unknown): AlphaSignal | null {
-  // Vereinfachtes Alpha-Signal für Kompatibilität
-  const yesOutcome = market.outcomes?.find(o => o.name?.toLowerCase() === 'yes');
-  const price = yesOutcome?.price || 0.5;
-
-  // Nur ein Signal wenn Preis weit von 50% entfernt (potentielles Edge)
-  const edge = Math.abs(price - 0.5);
-  if (edge < 0.1) return null;
-
-  return {
-    id: `alpha-${market.id}-${Date.now()}`,
-    market,
-    score: edge,
-    edge,
-    confidence: 0.5 + edge,
-    direction: price < 0.5 ? 'YES' : 'NO',
-    reasoning: 'Preis-basiertes Alpha (vereinfacht)',
-    sources: ['scanner'],
-    timestamp: new Date(),
-  };
-}
-
-function analyzeNewsForMarket(_market: Market, _news: unknown[]): { matchCount: number } {
-  // Vereinfachte News-Analyse - die eigentliche Logik ist im Ticker
-  return { matchCount: 0 };
-}
-
-function createTradeRecommendation(signal: AlphaSignal, maxBankroll: number): TradeRecommendation {
-  const positionSize = Math.min(maxBankroll * signal.edge * 0.25, maxBankroll * 0.1);
-  return {
-    signal,
-    positionSize,
-    kellyFraction: signal.edge * 0.25,
-    expectedValue: signal.edge * positionSize,
-    maxLoss: positionSize,
-    riskRewardRatio: signal.edge > 0 ? (1 / signal.edge) : 2,
-  };
-}
 import logger from '../utils/logger.js';
 import { EventEmitter } from 'events';
 import { runtimeState } from '../runtime/state.js';
@@ -147,44 +117,15 @@ export class AlphaScanner extends EventEmitter {
         }
       }
 
-      // 5. Alpha Scoring für jeden Markt (mit ALLEN Quellen!)
-      let newsMatches = 0;
-      for (const market of markets) {
-        try {
-          const germanSourcesData = germanData?.get(market.id);
+      // ═══════════════════════════════════════════════════════════════
+      // V4.2: KEINE preis-basierten Signale mehr!
+      // Signale kommen NUR von den 3 Strategien:
+      // - TimeDelayEngine (unten)
+      // - DutchBookEngine (läuft parallel, eigene Events)
+      // - LateEntryEngine (läuft parallel, eigene Events)
+      // ═══════════════════════════════════════════════════════════════
 
-          // NEWS-ALPHA: Alle News gegen diesen Markt matchen
-          const newsAlpha = analyzeNewsForMarket(market, allNews);
-          if (newsAlpha.matchCount > 0) {
-            newsMatches++;
-          }
-
-          const signal = createAlphaSignal(market, {
-            germanSources: germanSourcesData,
-            newsAlpha, // NEU: News-basierte Alpha-Daten
-          });
-
-          if (signal) {
-            signals.push(signal);
-            this.emit('signal_found', signal);
-
-            // Trade Recommendation erstellen
-            const recommendation = createTradeRecommendation(
-              signal,
-              config.trading.maxBankrollUsdc
-            );
-
-            if (recommendation.positionSize > 0) {
-              recommendations.push(recommendation);
-            }
-          }
-        } catch (err) {
-          const error = err as Error;
-          logger.debug(`Markt-Analyse Fehler: ${error.message}`);
-        }
-      }
-
-      logger.info(`📊 ${newsMatches} Märkte mit News-Matches`);
+      logger.info(`📊 Märkte bereit für Strategie-Matching (${markets.length} Märkte, ${allNews.length} News)`);
 
       // ═══════════════════════════════════════════════════════════════
       // TIME_DELAY ENGINE: Bessere Signal-Generierung

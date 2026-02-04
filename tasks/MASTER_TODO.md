@@ -167,10 +167,10 @@
 |-----|----------|--------|
 | Deutsche News zeigt englische Quellen | BLOCKER | TODO |
 | Backtest: `no such table: historical_trades` | BLOCKER | TODO |
-| Telegram sendet alle 5 Min Menü | KRITISCH | TODO |
+| Telegram sendet alle 5 Min Menü | KRITISCH | ✅ FIXED (V4.2.1) |
 | Risk State in-memory (verliert bei Restart) | KRITISCH | TODO |
-| Alpha alle +30% (hardcoded?) | HOCH | TODO |
-| Confidence alle 87-95% (keine Differenzierung) | HOCH | TODO |
+| Alpha alle +30% (hardcoded?) | HOCH | ✅ FIXED (V4.2.1) - Fake signals removed |
+| Confidence alle 87-95% (keine Differenzierung) | HOCH | ✅ FIXED (V4.2.1) - Only real strategies |
 | Volatility hardcoded 0.15 | HOCH | TODO |
 | Pipeline "HEALTHY" ohne echte Daten | HOCH | TODO |
 | JSON Parse Error in Pipeline | HOCH | TODO |
@@ -181,6 +181,10 @@
 | Benutzerhandbuch hässlich | NIEDRIG | TODO |
 | Keine Settings-Seite | MITTEL | TODO |
 | Keine Browser Notifications | NIEDRIG | TODO |
+| Deep Dive placeholder | HOCH | ✅ FIXED (V4.2.1) |
+| Charts nicht funktional | HOCH | ✅ FIXED (V4.2.1) |
+| Web nicht iPhone responsive | MITTEL | ✅ FIXED (V4.2.1) |
+| 47 ESLint Errors | MITTEL | ✅ FIXED (V4.2.1) - Down to 2 |
 
 ---
 

@@ -8,7 +8,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
   BacktestResult,
-  CalibrationBucket,
   ExtendedBacktestResult,
   ValidationResult,
   MonteCarloResult,
@@ -16,7 +15,6 @@ import {
 import {
   interpretBrierScore,
   analyzeCalibration,
-  formatBucket,
   calculateECE,
   interpretECE,
 } from './calibration.js';

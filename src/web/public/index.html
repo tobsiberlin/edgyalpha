@@ -1404,6 +1404,211 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   IPHONE SPECIFIC STYLES (max-width: 480px)
+   Optimiert für iPhone SE, iPhone 12/13/14/15 Mini und Standard
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+    /* Safe Area für iPhone Notch */
+    .header-bar {
+        padding-top: env(safe-area-inset-top, 0);
+        padding-left: max(var(--sp-xs), env(safe-area-inset-left, 0));
+        padding-right: max(var(--sp-xs), env(safe-area-inset-right, 0));
+    }
+
+    .footer-bar {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    /* Header ultra-kompakt */
+    .header-bar {
+        height: auto;
+        min-height: 40px;
+        flex-wrap: wrap;
+        gap: var(--sp-xs);
+    }
+
+    .brand-logo {
+        font-size: 11px;
+        letter-spacing: 0.5px;
+    }
+
+    .brand-tag {
+        display: none;
+    }
+
+    /* Alle Header Metrics minimieren */
+    .header-metrics .status-badge:not(:first-child) {
+        display: none;
+    }
+
+    .header-status .metric {
+        display: none;
+    }
+
+    .header-status .status-badge:nth-child(n+2) {
+        display: none;
+    }
+
+    /* Signal Items noch kompakter */
+    .signal-item {
+        grid-template-columns: 40px 1fr;
+        padding: var(--sp-xs);
+        gap: var(--sp-xs);
+    }
+
+    .signal-score {
+        font-size: 14px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .signal-question {
+        font-size: 11px;
+        -webkit-line-clamp: 2;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .signal-tags {
+        gap: 2px;
+    }
+
+    .signal-tag {
+        font-size: 9px;
+        padding: 1px 4px;
+    }
+
+    /* Buttons für Daumen optimiert */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 12px;
+        padding: var(--sp-sm);
+    }
+
+    /* Panels volle Breite */
+    .panel {
+        margin: var(--sp-xs) 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+
+    .panel-header {
+        font-size: 10px;
+        padding: var(--sp-xs) var(--sp-sm);
+    }
+
+    /* Data Rows kompakter */
+    .data-row {
+        padding: var(--sp-xs) var(--sp-sm);
+        font-size: 11px;
+    }
+
+    /* Stats Grid single column */
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Chart noch kleiner */
+    .chart-container {
+        height: 150px;
+    }
+
+    /* Viewport Header */
+    .viewport-header {
+        padding: var(--sp-xs);
+    }
+
+    .viewport-title {
+        font-size: 11px;
+    }
+
+    /* Filter als Dropdown statt inline */
+    .filter-bar {
+        display: none;
+    }
+
+    /* Footer minimal */
+    .footer-bar {
+        font-size: 9px;
+        height: 24px;
+    }
+
+    .footer-stats > span:nth-child(n+2) {
+        display: none;
+    }
+
+    /* Tabellen vertikal statt horizontal */
+    .data-table th,
+    .data-table td {
+        padding: var(--sp-xs);
+        font-size: 10px;
+    }
+
+    /* Input Felder größer für Touch */
+    input, select, textarea {
+        font-size: 16px !important; /* Verhindert Zoom auf iOS */
+        min-height: 44px;
+    }
+
+    /* Sidebar volle Breite */
+    .sidebar-nav {
+        width: 100vw;
+        left: -100vw;
+    }
+
+    .sidebar-nav.open {
+        left: 0;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IPHONE SE / MINI STYLES (max-width: 375px)
+   Ultra-kompakt für kleinste iPhones
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 375px) {
+    .brand-logo {
+        font-size: 10px;
+    }
+
+    .signal-item {
+        grid-template-columns: 36px 1fr;
+    }
+
+    .signal-score {
+        font-size: 12px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .signal-question {
+        font-size: 10px;
+    }
+
+    .btn {
+        font-size: 11px;
+        padding: var(--sp-xs);
+    }
+
+    .panel-header {
+        font-size: 9px;
+    }
+
+    .data-row {
+        font-size: 10px;
+    }
+
+    /* Verstecke mehr Status-Elemente */
+    .header-metrics {
+        display: none;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    TABLET STYLES (769px - 1024px)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1865,9 +2070,8 @@ body {
                                 <div style="margin-bottom: 12px;">
                                     <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">ENGINE</label>
                                     <select id="bt-engine" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-primary); padding: 8px; font-family: var(--font-mono); font-size: 11px;">
-                                        <option value="meta">META (Combined)</option>
-                                        <option value="timeDelay">TIME_DELAY (News)</option>
-                                        <option value="mispricing">MISPRICING (Value)</option>
+                                        <option value="timeDelay">⚡ TIME_DELAY (News-Vorsprung)</option>
+                                        <option value="meta">📊 ALLE STRATEGIEN</option>
                                     </select>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
@@ -4380,18 +4584,26 @@ async function loadSignalMarkers(marketId) {
         if (!res.signals || res.signals.length === 0) return;
 
         // Convert signals to Lightweight-Charts marker format
+        // V4.2: Nur noch 3 Strategien - TimeDelay (News), Arbitrage, Late-Entry
         const markers = res.signals.map(s => {
             const time = Math.floor(new Date(s.createdAt).getTime() / 1000);
             const isUp = s.direction === 'BUY' || s.direction === 'YES';
-            const isMispricing = s.alphaType === 'MISPRICING';
             const edgePct = (s.predictedEdge * 100).toFixed(1);
+
+            // Strategie-basierte Farben
+            const strategyColors = {
+                'timeDelay': '#ff9900',    // Orange - News-Vorsprung
+                'arbitrage': '#00ff88',    // Grün - Arbitrage
+                'lateEntry': '#00d4ff',    // Cyan - Late-Entry
+            };
+            const color = strategyColors[s.alphaType] || strategyColors[s.strategy] || '#ff9900';
 
             return {
                 time,
                 position: isUp ? 'belowBar' : 'aboveBar',
-                color: isMispricing ? '#00d4ff' : '#ff9900',
+                color,
                 shape: isUp ? 'arrowUp' : 'arrowDown',
-                text: `${s.alphaType.substring(0, 3)} ${edgePct}%`,
+                text: `${(s.alphaType || s.strategy || 'SIG').substring(0, 3).toUpperCase()} ${edgePct}%`,
             };
         });
 

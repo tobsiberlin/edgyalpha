@@ -6,10 +6,8 @@
 import {
   AlphaSignalV2,
   BacktestTrade,
-  MarketQuality,
   HistoricalTrade,
 } from '../alpha/types.js';
-import { estimateSlippage, DEFAULT_SLIPPAGE_MODEL } from '../alpha/sizing.js';
 import { logger } from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════

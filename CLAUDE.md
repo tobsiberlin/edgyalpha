@@ -1,5 +1,7 @@
 # CLAUDE.md - Polymarket Alpha Scanner
 
+**Version:** 4.2.1 (2026-02-04)
+
 ## Projekt-Kontext
 
 **Zweck:** Polymarket Prediction Markets Scanner mit KI-Research und ALMANIEN-EUSSR-Tracker
@@ -51,10 +53,18 @@ src/
 
 - TypeScript strict mode
 - ESLint + Prettier
-- Alle UI-Texte auf Deutsch
+- UI-Texte: Meme-Culture English (nicht mehr Boomer-Deutsch)
 - Logging mit Timestamps: `[YYYY-MM-DD HH:mm:ss]`
 - Async/Await bevorzugen
 - Error Handling mit try/catch
+
+## Aktive Strategien (V4.2.1)
+
+1. **TimeDelayEngine** - Wissensvorsprung durch deutsche News
+2. **DutchBookEngine** - Arbitrage (YES + NO < $1.00)
+3. **LateEntryEngine** - 15-Min Crypto, Einstieg in letzten 4min
+
+**WICHTIG**: Scanner generiert KEINE eigenen "preis-basierten" Signale mehr!
 
 ## Bekannte Fehler & Lösungen
 

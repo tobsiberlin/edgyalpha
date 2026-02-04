@@ -9,7 +9,6 @@ import {
   newsItemsToGermanSources,
   getHealthSummary,
   computeNewsHash,
-  type NewsItem,
   WORKING_RSS_FEEDS,
 } from './rss.js';
 import { getDatabase, initDatabase, isDatabaseInitialized } from '../storage/db.js';
@@ -992,7 +991,7 @@ class GermanySources extends EventEmitter {
     };
 
     // Prüfe ob beide in der GLEICHEN Kategorie sind
-    for (const [_category, keywords] of Object.entries(categories)) {
+    for (const keywords of Object.values(categories)) {
       const newsInCategory = keywords.some((kw) => newsLower.includes(kw));
       const marketInCategory = keywords.some((kw) => marketLower.includes(kw));
 

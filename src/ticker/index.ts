@@ -5,7 +5,7 @@ import { polymarketClient } from '../api/polymarket.js';
 import { Market } from '../types/index.js';
 import { notificationService } from '../notifications/notificationService.js';
 import { MarketInfo, SourceInfo } from '../notifications/pushGates.js';
-import { fuzzyMatch, MatchResult } from '../alpha/matching.js';
+import { fuzzyMatch } from '../alpha/matching.js';
 import { llmMatcher } from '../alpha/llmMatcher.js';
 import { SourceEvent } from '../alpha/types.js';
 

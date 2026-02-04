@@ -13,12 +13,12 @@ import { PolymarketClient } from '../api/polymarket.js';
 
 const polymarketClient = new PolymarketClient();
 import { newsTicker, TickerEvent } from '../ticker/index.js';
-import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode, GermanSource } from '../types/index.js';
+import { AlphaSignal, ScanResult, SystemStatus, ExecutionMode } from '../types/index.js';
 import { runtimeState, StateChangeEvent } from '../runtime/state.js';
 import { watchdog } from '../runtime/watchdog.js';
 import { runBacktest, BacktestOptions, generateJsonReport, generateMarkdownReport } from '../backtest/index.js';
 import { BacktestResult, SourceEvent } from '../alpha/types.js';
-import { fuzzyMatch, MatchResult } from '../alpha/matching.js';
+import { fuzzyMatch } from '../alpha/matching.js';
 import { getStats } from '../storage/repositories/historical.js';
 import { initDatabase } from '../storage/db.js';
 import { getSystemHealthDashboard } from '../storage/repositories/pipelineHealth.js';
@@ -1133,7 +1133,7 @@ app.get('/api/system/health', requireAuth, (_req: Request, res: Response) => {
   try {
     const dashboard = getSystemHealthDashboard();
     res.json(dashboard);
-  } catch (err) {
+  } catch {
     // Fallback wenn DB nicht verfügbar
     const state = runtimeState.getState();
     res.json({
@@ -1486,9 +1486,9 @@ app.post('/api/backtest', requireAuth, async (req: Request, res: Response) => {
 
   const { engine, from, to, bankroll, slippage } = req.body;
 
-  // Validierung
-  if (!['timeDelay', 'mispricing', 'meta'].includes(engine)) {
-    res.status(400).json({ error: 'engine muss "timeDelay", "mispricing" oder "meta" sein' });
+  // Validierung - V4.2: Nur noch timeDelay und meta (Mispricing entfernt)
+  if (!['timeDelay', 'meta'].includes(engine)) {
+    res.status(400).json({ error: 'engine muss "timeDelay" oder "meta" sein' });
     return;
   }
 
@@ -1526,7 +1526,7 @@ app.post('/api/backtest', requireAuth, async (req: Request, res: Response) => {
     io.emit('backtest_progress', { progress: 10, phase: backtestState.currentPhase });
 
     const options: BacktestOptions = {
-      engine: engine as 'timeDelay' | 'mispricing' | 'meta',
+      engine: engine as 'timeDelay' | 'meta',
       from: from ? new Date(from) : new Date('2024-01-01'),
       to: to ? new Date(to) : new Date(),
       initialBankroll: bankroll || 1000,

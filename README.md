@@ -38,7 +38,7 @@
 
 ## Features
 
-### Core Scanner (V4.2)
+### Core Scanner (V4.2.1)
 
 | Feature | Status | Beschreibung |
 |---------|--------|--------------|
@@ -51,9 +51,9 @@
 | Semi-Auto Trading | `[████]` | Confidence-basiertes Auto-Trading |
 | Performance Tracking | `[████]` | Persistente Stats & Trade-Historie |
 | Trade Resolution | `[████]` | Automatische Win/Loss Auswertung |
-| **Trade History** | `[████]` | **Vollständige History mit Filtern (NEU V4.2!)** |
-| **Toast Notifications** | `[████]` | **Feedback-System im Dashboard (NEU V4.2!)** |
-| **Bot Commands Menu** | `[████]` | **Telegram Dropdown-Menü (NEU V4.2!)** |
+| **Deep Dive** | `[████]` | **Vollständige Marktanalyse im Bot (NEU V4.2.1!)** |
+| **iPhone Responsive** | `[████]` | **100% Mobile-optimiert (NEU V4.2.1!)** |
+| **Modern Language** | `[████]` | **Meme-Culture statt Boomer-Deutsch (NEU V4.2.1!)** |
 
 ### Live News Ticker - DAUERFEUER MODUS
 
@@ -193,7 +193,7 @@ Die "EUSSR-Tracker"-Seite im Web-Interface zeigt das Herzstück des Features:
 - **REST API** - WebSocket-Support fuer Live-Updates + Runtime State Events
 - **Browser Notifications** - Desktop Push-Alerts fuer wichtige Events
 
-### Telegram Bot Commands (V4.2)
+### Telegram Bot Commands (V4.2.1)
 
 ```
 ╔═══════════════════════════════════════════════════════════════════╗

@@ -17,7 +17,6 @@
  */
 
 import { MarketQuality, SlippageModel, SignalCertainty } from './types.js';
-import logger from '../utils/logger.js';
 
 // ═══════════════════════════════════════════════════════════════
 //                         INTERFACES

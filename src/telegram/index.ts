@@ -6,7 +6,7 @@ import { scanner } from '../scanner/index.js';
 import { tradingClient } from '../api/trading.js';
 import { polymarketClient } from '../api/polymarket.js';
 import { germanySources, BreakingNewsEvent } from '../germany/index.js';
-import { newsTicker, TickerEvent } from '../ticker/index.js';
+import { newsTicker } from '../ticker/index.js';
 import { EventEmitter } from 'events';
 import {
   AlphaSignalV2,
@@ -16,12 +16,10 @@ import {
   formatRiskGates,
   formatRiskGatesDetailed,
   getPolymarketUrl,
-  buildTelegramAlert,
 } from '../alpha/index.js';
 import { runtimeState } from '../runtime/state.js';
 import { notificationService, PushReadyNotification } from '../notifications/notificationService.js';
 import {
-  canPush,
   getNotificationSettings,
   updateNotificationSettings,
   PushMode,
@@ -29,35 +27,9 @@ import {
 import { timeDelayEngine } from '../alpha/timeDelayEngine.js';
 
 // AutoTrader wurde entfernt (V4.0) - Ersetzt durch Dutch-Book Arbitrage & Late-Entry Strategien
-// Dummy für Kompatibilität
-const autoTraderDisabled = {
-  setEnabled: (_enabled: boolean) => { /* No-op */ },
-  getConfig: () => ({ minEdge: 0.05, maxSize: 50 }),
-  on: (_event: string, _handler: (...args: unknown[]) => void) => { /* No-op */ },
-};
-// Erweiterter Typ für Kompatibilität (Funktion wird nicht mehr aufgerufen)
-type AutoTradeResult = {
-  executed: boolean;
-  reason?: string;
-  signal: {
-    certainty: string;
-    direction?: 'yes' | 'no';
-    marketId?: string;
-    question?: string;
-    predictedEdge?: number;
-  };
-  execution?: {
-    fillPrice?: number;
-    slippage?: number;
-    executionId?: string;
-  };
-  decision?: {
-    sizeUsdc?: number;
-  };
-};
 import { timeAdvantageService } from '../alpha/timeAdvantageService.js';
 import { dutchBookEngine, ArbitrageOpportunity, ArbitrageSignal } from '../arbitrage/index.js';
-import { lateEntryEngine, LateEntrySignal, MarketWindow } from '../lateEntry/index.js';
+import { lateEntryEngine, LateEntrySignal } from '../lateEntry/index.js';
 import { performanceTracker, TrackedTrade, TradeStrategy, tradeResolutionService, ResolutionResult } from '../tracking/index.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -183,7 +155,7 @@ export class TelegramAlertBot extends EventEmitter {
 \`\`\`
 ╔══════════════════════════════════╗
 ║       EDGY ALPHA                 ║
-║     Alman Heimvorteil aktiviert  ║
+║        🇩🇪 DE Intel Active        ║
 ╚══════════════════════════════════╝
 \`\`\``;
   }
@@ -210,7 +182,7 @@ export class TelegramAlertBot extends EventEmitter {
       // ═══════════════════════════════════════════════════════════════
       await this.bot.setMyCommands([
         { command: 'start', description: 'Willkommen & Hauptmenü' },
-        { command: 'scan', description: 'Alpha Scan starten' },
+        { command: 'scan', description: 'Start alpha scan' },
         { command: 'signals', description: 'Aktuelle Signale' },
         { command: 'stats', description: 'Performance Dashboard' },
         { command: 'wallet', description: 'Wallet & Balance' },
@@ -274,22 +246,22 @@ export class TelegramAlertBot extends EventEmitter {
   private async sendWelcome(): Promise<void> {
     const message = `${this.HEADER}
 
-🟢 *Maschine läuft. Alman Heimvorteil aktiviert.*
+🟢 *Online. German intel advantage locked in.*
 
 ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  KAMPFKONFIGURATION             │
+│  CONFIG                         │
 ├─────────────────────────────────┤
-│  Scan:     alle 5 Min           │
-│  Ziele:    Politik, Wirtschaft  │
-│  DE-Edge:  Scharf geschaltet    │
-│  Trading:  Ein Klick zum Geld   │
+│  Scan:     every 5 min          │
+│  Focus:    Politics, Markets    │
+│  DE Edge:  Armed & ready        │
+│  Trading:  1-click execution    │
 └─────────────────────────────────┘
 \`\`\`
 
-*Was soll's sein, Chef?*`;
+*what's the move?*`;
 
     const keyboard = this.getMainMenu();
     const sentMessage = await this.sendMessageWithKeyboard(message, keyboard);
@@ -311,24 +283,24 @@ ${this.DIVIDER}
     return {
       inline_keyboard: [
         [
-          { text: '🔥 ALPHA JAGEN', callback_data: 'action:scan' },
+          { text: '🔥 SCAN', callback_data: 'action:scan' },
           { text: '📊 Status', callback_data: 'action:status' },
         ],
         [
-          { text: '🎯 Signale', callback_data: 'action:signals' },
-          { text: '💰 Kriegskasse', callback_data: 'action:wallet' },
+          { text: '🎯 Signals', callback_data: 'action:signals' },
+          { text: '💰 Wallet', callback_data: 'action:wallet' },
         ],
         [
-          { text: '📡 LIVE TICKER', callback_data: 'action:ticker' },
-          { text: '📰 Alman News', callback_data: 'action:news' },
+          { text: '📡 LIVE FEED', callback_data: 'action:ticker' },
+          { text: '📰 DE News', callback_data: 'action:news' },
         ],
         [
-          { text: '🇩🇪 Sonntagsfrage', callback_data: 'action:polls' },
-          { text: '📈 Zeitvorsprung', callback_data: 'action:edge' },
+          { text: '🇩🇪 Polls', callback_data: 'action:polls' },
+          { text: '⚡ Time Edge', callback_data: 'action:edge' },
         ],
         [
           { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
-          { text: `${modeEmoji} Mode: ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
+          { text: `${modeEmoji} ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
         ],
         [
           { text: '📈 Stats', callback_data: 'action:stats' },
@@ -336,7 +308,7 @@ ${this.DIVIDER}
         ],
         [
           { text: '⚙️ Settings', callback_data: 'action:settings' },
-          { text: '🖥️ Web Dashboard', url: this.getWebDashboardUrl() },
+          { text: '🖥️ Dashboard', url: this.getWebDashboardUrl() },
         ],
       ],
     };
@@ -350,7 +322,7 @@ ${this.DIVIDER}
   private getBackButton(): InlineKeyboardMarkup {
     return {
       inline_keyboard: [
-        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
   }
@@ -359,8 +331,8 @@ ${this.DIVIDER}
     return {
       inline_keyboard: [
         [
-          { text: '🚀 JA BALLERN', callback_data: `trade:yes:${signalId}` },
-          { text: '💀 NEIN BALLERN', callback_data: `trade:no:${signalId}` },
+          { text: '🟢 APE YES', callback_data: `trade:yes:${signalId}` },
+          { text: '🔴 APE NO', callback_data: `trade:no:${signalId}` },
         ],
         [
           { text: '📊 Details', callback_data: `details:${signalId}` },
@@ -377,8 +349,8 @@ ${this.DIVIDER}
     return {
       inline_keyboard: [
         [
-          { text: '✅ Bestätigen', callback_data: `confirm:${direction}:${signalId}` },
-          { text: '❌ Abbrechen', callback_data: `cancel:${signalId}` },
+          { text: '✅ Confirm', callback_data: `confirm:${direction}:${signalId}` },
+          { text: '❌ Cancel', callback_data: `cancel:${signalId}` },
         ],
       ],
     };
@@ -477,12 +449,12 @@ ${this.DIVIDER}
         await this.bot?.sendMessage(chatId, '❌ Nicht autorisiert.');
         return;
       }
-      await this.sendMessage('🔥 *Starte Scan...*\n\n_Die Maschine rattert..._', chatId);
+      await this.sendMessage('🔥 *Starting scan...*\n\n_scanning for alpha..._', chatId);
 
       try {
         const result = await scanner.scan();
         await this.sendScanResult(result, chatId);
-      } catch (err) {
+      } catch {
         await this.sendMessage('❌ Scan fehlgeschlagen. Deutsche Infrastruktur halt.', chatId);
       }
     });
@@ -727,7 +699,7 @@ ${dashboard.canTrade.allowed ? '✅ Trading erlaubt' : `⚠️ ${dashboard.canTr
               `• ${o.side} ${o.size.toFixed(2)} @ $${o.price.toFixed(4)}`
             ).join('\n');
         }
-      } catch (err) {
+      } catch {
         positionsText = '_Fehler beim Abrufen der Positionen._';
       }
 
@@ -1185,7 +1157,7 @@ _Nutze /settings um Push-Benachrichtigungen zu konfigurieren._`;
   private async sendMainMenu(chatId: string, messageId?: number): Promise<void> {
     const message = `${this.HEADER}
 
-Wähle eine Aktion:`;
+what's the play?`;
 
     // Nutze gespeicherte messageId falls vorhanden
     const effectiveMessageId = messageId || this.lastMenuMessageId.get(chatId);
@@ -1223,14 +1195,14 @@ Wähle eine Aktion:`;
 ${this.progressBar(0)} 0%
 \`\`\`
 
-_Die Maschine rattert..._`;
+_scanning for alpha..._`;
 
     if (messageId) {
       await this.editMessage(chatId, messageId, scanningMsg);
     }
 
     // Progress updates
-    const phases = ['Polymarket wird durchsucht...', 'Alman-Daten laden...', 'Dawum-Umfragen checken...', 'Edge berechnen...', 'Alpha identifizieren...'];
+    const phases = ['Polymarket wird durchsucht...', 'loading DE intel...', 'Dawum-Umfragen checken...', 'Edge berechnen...', 'Alpha identifizieren...'];
     for (let i = 1; i <= 5; i++) {
       await this.sleep(400);
       const pct = i * 20;
@@ -1304,26 +1276,39 @@ ${this.DIVIDER}
   private async handleSignals(chatId: string, messageId?: number): Promise<void> {
     const result = scanner.getLastResult();
 
+    // V4.2: Der Scanner generiert keine automatischen Signale mehr.
+    // Echte Trading-Signale kommen über die 3 Strategien als Push-Alerts:
+    // 1. TimeDelay (deutsche News)
+    // 2. Arbitrage (Dutch-Book)
+    // 3. Late-Entry (15-Min Crypto)
     if (!result || result.signalsFound.length === 0) {
       const message = `${this.HEADER}
 
-📭 *Keine Signale*
+📡 *LIVE SIGNALE V4\\.2*
 
 ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│                                 │
-│    Keine aktiven Signale        │
-│    Starte einen Scan            │
-│                                 │
+│  AKTIVE STRATEGIEN              │
+├─────────────────────────────────┤
+│  ⚡ TimeDelay   ${runtimeSettings.timeDelayEnabled ? '🟢 AKTIV' : '🔴 AUS  '}     │
+│  💰 Arbitrage   ${runtimeSettings.arbitrageEnabled ? '🟢 AKTIV' : '🔴 AUS  '}     │
+│  ⏱️  Late-Entry  ${runtimeSettings.lateEntryEnabled ? '🟢 AKTIV' : '🔴 AUS  '}     │
 └─────────────────────────────────┘
-\`\`\``;
+\`\`\`
+
+*Signale werden automatisch gepusht!*
+
+_Aktiviere Strategien in den Settings._
+_Alerts erscheinen als Push-Benachrichtigung._`;
 
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
-          [{ text: '🔍 Jetzt scannen', callback_data: 'action:scan' }],
-          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+          [{ text: '📡 Live Ticker', callback_data: 'action:ticker' }],
+          [{ text: '⚙️ Strategien aktivieren', callback_data: 'action:settings' }],
+          [{ text: '📊 Performance', callback_data: 'action:stats' }],
+          [{ text: '◀️ Back', callback_data: 'action:menu' }],
         ],
       };
 
@@ -1360,12 +1345,12 @@ ${this.DIVIDER}
 ${signalsList}
 ${this.DIVIDER}
 
-Tippe auf ein Signal für Details:`;
+tap a signal for details:`;
 
     const signalButtons: InlineKeyboardButton[][] = signals.map((s, i) => [
       { text: `${s.germanSource ? '🇩🇪' : '📊'} Signal #${i + 1}: ${s.direction}`, callback_data: `details:${s.id}` },
     ]);
-    signalButtons.push([{ text: '◀️ Zurück', callback_data: 'action:menu' }]);
+    signalButtons.push([{ text: '◀️ Back', callback_data: 'action:menu' }]);
 
     if (messageId) {
       await this.editMessage(chatId, messageId, message, { inline_keyboard: signalButtons });
@@ -1382,24 +1367,21 @@ Tippe auf ein Signal für Details:`;
     const balance = await tradingClient.getWalletBalance();
     const walletAddr = tradingClient.getWalletAddress();
 
-    let statusEmoji = '🟢';
     let statusText = 'Verbunden';
     let shortAddr = 'Nicht konfiguriert';
 
     if (!walletAddr) {
-      statusEmoji = '🔴';
       statusText = 'Offline';
     } else {
       shortAddr = `${walletAddr.slice(0, 6)}...${walletAddr.slice(-4)}`;
       if (balance.usdc === 0 && balance.matic === 0) {
-        statusEmoji = '🟡';
         statusText = 'Leer';
       }
     }
 
     const message = `${this.HEADER}
 
-💰 *KRIEGSKASSE*
+💰 *WALLET*
 
 ${this.DIVIDER}
 
@@ -1428,12 +1410,12 @@ ${this.DIVIDER}
 
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
-        [{ text: '🔄 Aktualisieren', callback_data: 'action:wallet' }],
+        [{ text: '🔄 Refresh', callback_data: 'action:wallet' }],
         [
           { text: '💵 Max Bet', callback_data: 'setting:maxbet' },
           { text: '📊 Risiko', callback_data: 'setting:risk' },
         ],
-        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
 
@@ -1531,15 +1513,15 @@ ${this.DIVIDER}`;
       if (messageId) {
         await this.editMessage(chatId, messageId, emptyMessage, {
           inline_keyboard: [
-            [{ text: '🔄 Neu laden', callback_data: 'action:news' }],
-            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+            [{ text: '🔄 Reload', callback_data: 'action:news' }],
+            [{ text: '◀️ Back', callback_data: 'action:menu' }],
           ],
         });
       } else {
         await this.sendMessageWithKeyboard(emptyMessage, {
           inline_keyboard: [
-            [{ text: '🔄 Neu laden', callback_data: 'action:news' }],
-            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+            [{ text: '🔄 Reload', callback_data: 'action:news' }],
+            [{ text: '◀️ Back', callback_data: 'action:menu' }],
           ],
         }, chatId);
       }
@@ -1576,15 +1558,15 @@ _Aktualisiert: ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minut
     if (messageId) {
       await this.editMessage(chatId, messageId, message, {
         inline_keyboard: [
-          [{ text: '🔄 Aktualisieren', callback_data: 'action:news' }],
-          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+          [{ text: '🔄 Refresh', callback_data: 'action:news' }],
+          [{ text: '◀️ Back', callback_data: 'action:menu' }],
         ],
       });
     } else {
       await this.sendMessageWithKeyboard(message, {
         inline_keyboard: [
-          [{ text: '🔄 Aktualisieren', callback_data: 'action:news' }],
-          [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+          [{ text: '🔄 Refresh', callback_data: 'action:news' }],
+          [{ text: '◀️ Back', callback_data: 'action:menu' }],
         ],
       }, chatId);
     }
@@ -1626,7 +1608,7 @@ _Warte auf Breaking News..._`;
       // Formatiere Quellen-Tabelle
       let sourceTable = '';
       if (dashboard.bySource.length > 0) {
-        sourceTable = '\n*Top Quellen:*\n\`\`\`\n';
+        sourceTable = '\n*Top Quellen:*\n```\n';
         sourceTable += 'Quelle          | # | Adv.  | Acc.\n';
         sourceTable += '----------------|---|-------|-----\n';
 
@@ -1637,7 +1619,7 @@ _Warte auf Breaking News..._`;
           const acc = src.accuracy > 0 ? `${src.accuracy.toFixed(0)}%`.padStart(4) : '  - ';
           sourceTable += `${name} |${count} |${adv} |${acc}\n`;
         }
-        sourceTable += '\`\`\`';
+        sourceTable += '```';
       }
 
       // Formatiere letzte Trackings
@@ -1680,7 +1662,7 @@ ${this.DIVIDER}
 
 \`\`\`
 ┌─────────────────────────────────┐
-│  ALMAN EDGE BEWEIS              │
+│  DE INTEL PROOF              │
 ├─────────────────────────────────┤
 │  Getrackte News:     ${dashboard.totalTracked.toString().padStart(7)} │
 │  Mit Markt-Match:    ${dashboard.totalMatched.toString().padStart(7)} │
@@ -1704,8 +1686,8 @@ _Letzte Aktualisierung: ${new Date().toLocaleTimeString('de-DE')}_`;
 
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
-        [{ text: '🔄 Aktualisieren', callback_data: 'action:edge' }],
-        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        [{ text: '🔄 Refresh', callback_data: 'action:edge' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
 
@@ -1760,10 +1742,10 @@ _Auto-Update alle 60 Sekunden_`;
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
         [
-          { text: '🔄 Aktualisieren', callback_data: 'action:ticker' },
+          { text: '🔄 Refresh', callback_data: 'action:ticker' },
         ],
         [
-          { text: '◀️ Zurück zum Menü', callback_data: 'action:menu' },
+          { text: '◀️ Back', callback_data: 'action:menu' },
         ],
       ],
     };
@@ -1790,9 +1772,6 @@ _Auto-Update alle 60 Sekunden_`;
     // Win Rate Bar
     const winRatePercent = Math.round(stats.winRate * 100);
     const winRateBar = '█'.repeat(Math.round(winRatePercent / 10)) + '░'.repeat(10 - Math.round(winRatePercent / 10));
-
-    // ROI Color
-    const roiEmoji = stats.roi >= 0 ? '📈' : '📉';
 
     const message = `${this.HEADER}
 
@@ -1868,7 +1847,7 @@ ${stats.lastTradeAt ? `_Letzter Trade: ${stats.lastTradeAt.toLocaleString('de-DE
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
         [
-          { text: '🔄 Aktualisieren', callback_data: 'action:stats' },
+          { text: '🔄 Refresh', callback_data: 'action:stats' },
         ],
         [
           { text: '⚙️ Settings', callback_data: 'action:settings' },
@@ -1910,7 +1889,7 @@ Starte mit /scan um Signale zu finden.`;
 
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
-          [{ text: '🔥 Scan starten', callback_data: 'action:scan' }],
+          [{ text: '🔥 Start Scan', callback_data: 'action:scan' }],
           [{ text: '◀️ Menü', callback_data: 'action:menu' }],
         ],
       };
@@ -1955,7 +1934,7 @@ _💰 Arb | ⏱️ Late | ⚡ Time\\-Delay_`;
     // Paging Buttons
     const pagingRow: InlineKeyboardButton[] = [];
     if (offset > 0) {
-      pagingRow.push({ text: '◀️ Zurück', callback_data: `history_page:${Math.max(0, offset - limit)}` });
+      pagingRow.push({ text: '◀️ Back', callback_data: `history_page:${Math.max(0, offset - limit)}` });
     }
     if (hasMore) {
       pagingRow.push({ text: 'Weiter ▶️', callback_data: `history_page:${offset + limit}` });
@@ -1972,7 +1951,7 @@ _💰 Arb | ⏱️ Late | ⚡ Time\\-Delay_`;
     ]);
 
     buttons.push([
-      { text: '🔄 Aktualisieren', callback_data: 'action:history' },
+      { text: '🔄 Refresh', callback_data: 'action:history' },
       { text: '◀️ Menü', callback_data: 'action:menu' },
     ]);
 
@@ -2418,7 +2397,7 @@ ${this.DIVIDER}
 ${this.DIVIDER}
 
 *TRADING:*
-\`/scan\` \\- Alpha Scan starten
+\`/scan\` \\- Start alpha scan
 \`/signals\` \\- Aktuelle Signale
 \`/wallet\` \\- Balance anzeigen
 \`/positions\` \\- Offene Positionen
@@ -2475,6 +2454,9 @@ ${this.DIVIDER}
 
   private async handleSettings(chatId: string, messageId?: number): Promise<void> {
     this.editingField = null; // Reset editing mode
+
+    // Falls keine messageId übergeben, nutze die gespeicherte Menü-Message
+    const effectiveMessageId = messageId || this.lastMenuMessageId.get(chatId);
 
     // Module Status Emojis
     const tdStatus = runtimeSettings.timeDelayEnabled ? '🟢' : '🔴';
@@ -2578,14 +2560,24 @@ _Tippe auf ein Modul zum Umschalten:_`;
           { text: `$${runtimeSettings.minVolume}`, callback_data: 'noop' },
           { text: `✏️`, callback_data: 'edit:minVolume' },
         ],
-        [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
 
-    if (messageId) {
-      await this.editMessage(chatId, messageId, message, keyboard);
-    } else {
-      await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    if (effectiveMessageId) {
+      try {
+        await this.editMessage(chatId, effectiveMessageId, message, keyboard);
+        this.setLastMenuMessageId(chatId, effectiveMessageId);
+        return;
+      } catch {
+        // Edit fehlgeschlagen - sende neue Nachricht
+        this.lastMenuMessageId.delete(chatId);
+      }
+    }
+    // Sende neue Nachricht und speichere messageId
+    const sentMessage = await this.sendMessageWithKeyboard(message, keyboard, chatId);
+    if (sentMessage?.message_id) {
+      this.setLastMenuMessageId(chatId, sentMessage.message_id);
     }
   }
 
@@ -2776,12 +2768,12 @@ _Tippe den neuen Wert ein:_`;
   }
 
   // Fallback für alte Callback-Daten
-  private async handleSetValue(_setting: string, _value: string, chatId: string, _messageId?: number): Promise<void> {
-    await this.handleSettings(chatId);
+  private async handleSetValue(_setting: string, _value: string, chatId: string, messageId?: number): Promise<void> {
+    await this.handleSettings(chatId, messageId);
   }
 
-  private async handleSettingChange(_setting: string, chatId: string, _messageId?: number): Promise<void> {
-    await this.handleSettings(chatId);
+  private async handleSettingChange(_setting: string, chatId: string, messageId?: number): Promise<void> {
+    await this.handleSettings(chatId, messageId);
   }
 
   private async handleTextInput(text: string, chatId: string): Promise<void> {
@@ -2854,7 +2846,7 @@ _Tippe den neuen Wert ein:_`;
     const message = `✅ Gespeichert!`;
     await this.sendMessage(message, chatId);
 
-    // Zurück zu Settings
+    // Back to Settings
     await this.handleSettings(chatId);
   }
 
@@ -2864,12 +2856,6 @@ _Tippe den neuen Wert ein:_`;
 
   private async handleRiskDashboard(chatId: string, messageId?: number): Promise<void> {
     const dashboard = runtimeState.getRiskDashboard();
-    const state = runtimeState.getState();
-
-    // Kill-Switch Status
-    const killSwitchStatus = dashboard.killSwitch.active
-      ? `🔴 AKTIV (${dashboard.killSwitch.reason || 'Manuell'})`
-      : '🟢 Inaktiv';
 
     // Mode Badge
     const modeBadge: Record<string, string> = {
@@ -2928,10 +2914,10 @@ ${dashboard.canTrade.allowed ? '✅ Trading erlaubt' : `⚠️ ${dashboard.canTr
           },
         ],
         [
-          { text: '🔄 Aktualisieren', callback_data: 'action:risk' },
+          { text: '🔄 Refresh', callback_data: 'action:risk' },
           { text: '🗑️ Daily Reset', callback_data: 'killswitch:reset' },
         ],
-        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
 
@@ -2979,7 +2965,7 @@ Wähle den Modus:`;
             callback_data: `setmode:${mode}`,
           },
         ]),
-        [{ text: '◀️ Zurück zum Menü', callback_data: 'action:menu' }],
+        [{ text: '◀️ Back', callback_data: 'action:menu' }],
       ],
     };
 
@@ -3107,7 +3093,7 @@ _Änderung sofort aktiv._`;
       if (messageId) {
         await this.editMessage(chatId, messageId, message, {
           inline_keyboard: [
-            [{ text: '⚙️ Zurück zu Settings', callback_data: 'action:settings' }],
+            [{ text: '⚙️ Back to Settings', callback_data: 'action:settings' }],
             [{ text: '🔙 Menü', callback_data: 'action:menu' }],
           ],
         });
@@ -3130,7 +3116,7 @@ ${newState
         if (messageId) {
           await this.editMessage(chatId, messageId, message, {
             inline_keyboard: [
-              [{ text: '⚙️ Zurück zu Settings', callback_data: 'action:settings' }],
+              [{ text: '⚙️ Back to Settings', callback_data: 'action:settings' }],
               [{ text: '🔙 Menü', callback_data: 'action:menu' }],
             ],
           });
@@ -3536,29 +3522,172 @@ ${this.formatSignalReasoning(signal)}`;
     return text;
   }
 
-  private async handleResearch(_signalId: string, chatId: string, messageId?: number): Promise<void> {
-    const message = `${this.HEADER}
+  private async handleResearch(signalId: string, chatId: string, messageId?: number): Promise<void> {
+    // Loading State
+    const loadingMsg = `${this.HEADER}\n\n⏳ *Deep Dive lädt...*\n\n_Analysiere Markt und sammle Daten..._`;
+    if (messageId) {
+      await this.editMessage(chatId, messageId, loadingMsg);
+    }
 
-🔬 *RESEARCH*
+    try {
+      // 1. Signal finden
+      const result = scanner.getLastResult();
+      const signal = result?.signalsFound.find((s) => s.id === signalId);
+
+      if (!signal) {
+        const errorMsg = `${this.HEADER}\n\n❌ *Signal nicht gefunden*\n\n_Das Signal ist nicht mehr verfügbar._`;
+        if (messageId) {
+          await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+        } else {
+          await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+        }
+        return;
+      }
+
+      const market = signal.market;
+      const marketQuestion = market.question || 'Unbekannte Frage';
+      const polymarketUrl = `https://polymarket.com/event/${market.id}`;
+
+      // 2. Passende News suchen
+      const allNews = germanySources.getLatestNews();
+      const relevantNews = allNews.filter(n => {
+        const title = n.title.toLowerCase();
+        const question = marketQuestion.toLowerCase();
+        // Einfaches Keyword-Matching
+        const keywords = question.split(' ').filter(w => w.length > 4);
+        return keywords.some(kw => title.includes(kw));
+      }).slice(0, 3);
+
+      // 3. Umfragen prüfen (für Politik-Märkte)
+      let pollInfo = '';
+      const isPolitical = GERMANY_KEYWORDS.some(kw => marketQuestion.toLowerCase().includes(kw));
+      if (isPolitical) {
+        try {
+          const pollData = germanySources.getLatestPolls();
+          if (pollData && pollData.length > 0) {
+            const latestPoll = pollData[0];
+            pollInfo = `\n📊 *Aktuelle Umfragen:*\n`;
+            // Zeige Top-Parteien falls vorhanden
+            if (latestPoll.results) {
+              const topResults = Object.entries(latestPoll.results)
+                .sort((a, b) => (b[1] as number) - (a[1] as number))
+                .slice(0, 5);
+              for (const [party, value] of topResults) {
+                pollInfo += `• ${party}: ${value}%\n`;
+              }
+              pollInfo += `_Quelle: ${latestPoll.institute || 'Dawum'}_\n`;
+            }
+          }
+        } catch {
+          // Ignoriere Fehler bei Umfragen
+        }
+      }
+
+      // 4. Zeitvorsprung-Daten
+      let edgeInfo = '';
+      try {
+        const edgeDashboard = timeAdvantageService.getDashboard();
+        if (edgeDashboard.totalTracked > 0) {
+          const avgAdvantage = Math.round(edgeDashboard.avgTimeAdvantageMinutes);
+          edgeInfo = `\n⚡ *Zeitvorsprung-Status:*\n• Ø ${avgAdvantage} Min Vorsprung\n• ${edgeDashboard.totalTracked} News getrackt\n• ${edgeDashboard.totalMatched} mit Match\n`;
+        }
+      } catch {
+        // Ignoriere Fehler bei Zeitvorsprung-Daten
+      }
+
+      // 5. Preis-Info
+      const yesOutcome = market.outcomes?.find(o => o.name?.toLowerCase() === 'yes');
+      const noOutcome = market.outcomes?.find(o => o.name?.toLowerCase() === 'no');
+      const yesPrice = yesOutcome?.price ? (yesOutcome.price * 100).toFixed(1) : '?';
+      const noPrice = noOutcome?.price ? (noOutcome.price * 100).toFixed(1) : '?';
+
+      // 6. News-Liste
+      let newsSection = '';
+      if (relevantNews.length > 0) {
+        newsSection = `\n📰 *Relevante News:*\n`;
+        for (const news of relevantNews) {
+          const source = (news.data.source as string) || 'Quelle';
+          const title = news.title.substring(0, 50) + (news.title.length > 50 ? '...' : '');
+          const age = Math.round((Date.now() - new Date(news.publishedAt || new Date()).getTime()) / 60000);
+          newsSection += `• _${source}_ (${age}m): ${this.escapeMarkdown(title)}\n`;
+        }
+      } else {
+        newsSection = `\n📰 *Keine aktuellen News gefunden*\n_Markt wird nicht durch deutsche Quellen abgedeckt._\n`;
+      }
+
+      // 7. Message zusammenbauen
+      const message = `${this.HEADER}
+
+🔬 *DEEP DIVE*
 
 ${this.DIVIDER}
 
+*Markt:* ${this.escapeMarkdown(marketQuestion.substring(0, 80))}${marketQuestion.length > 80 ? '...' : ''}
+
 \`\`\`
 ┌─────────────────────────────────┐
-│                                 │
-│  KI-Research wird vorbereitet   │
-│  Claude/Perplexity Integration  │
-│  kommt in nächstem Update       │
-│                                 │
+│  AKTUELLER PREIS                │
+├─────────────────────────────────┤
+│  YES:  ${yesPrice.padStart(6)}%                  │
+│  NO:   ${noPrice.padStart(6)}%                  │
+├─────────────────────────────────┤
+│  Signal:   ${signal.direction.padEnd(4)} @ ${(signal.score * 100).toFixed(0)}% Score   │
+│  Edge:     ${signal.edge >= 0 ? '+' : ''}${(signal.edge * 100).toFixed(1)}%               │
+│  Konfidenz: ${(signal.confidence * 100).toFixed(0)}%                 │
 └─────────────────────────────────┘
-\`\`\``;
+\`\`\`
+${newsSection}${pollInfo}${edgeInfo}
+${this.DIVIDER}
 
-    // Single Message Pattern: Edit statt neue Message
-    if (messageId) {
-      await this.editMessage(chatId, messageId, message, this.getBackButton());
-    } else {
-      await this.sendMessageWithKeyboard(message, this.getBackButton(), chatId);
+*Strategie-Empfehlung:*
+${signal.direction === 'YES'
+  ? `📈 Markt könnte unterbewertet sein`
+  : `📉 Markt könnte überbewertet sein`}
+${signal.germanSource ? `🇩🇪 _Mit deutschem Wissensvorsprung_` : ''}`;
+
+      // 8. Keyboard mit Aktionen
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: `🚀 ${signal.direction} KAUFEN`, callback_data: `trade:${signal.direction.toLowerCase()}:${signalId}` },
+          ],
+          [
+            { text: '📈 Chart', callback_data: `chart:${market.id}` },
+            { text: '🔗 Polymarket', url: polymarketUrl },
+          ],
+          [
+            { text: '🔄 Refresh', callback_data: `research:${signalId}` },
+            { text: '◀️ Back', callback_data: 'action:signals' },
+          ],
+        ],
+      };
+
+      if (messageId) {
+        await this.editMessage(chatId, messageId, message, keyboard);
+      } else {
+        await this.sendMessageWithKeyboard(message, keyboard, chatId);
+      }
+
+      logger.info(`[DEEP DIVE] Analyse für ${signalId}: ${marketQuestion.substring(0, 50)}`);
+
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`[DEEP DIVE] Fehler: ${error.message}`);
+
+      const errorMsg = `${this.HEADER}\n\n❌ *Deep Dive Fehler*\n\n_${error.message}_`;
+      if (messageId) {
+        await this.editMessage(chatId, messageId, errorMsg, this.getBackButton());
+      } else {
+        await this.sendMessageWithKeyboard(errorMsg, this.getBackButton(), chatId);
+      }
     }
+  }
+
+  /**
+   * Escaped Markdown-Sonderzeichen für Telegram
+   */
+  private escapeMarkdown(text: string): string {
+    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -3606,14 +3735,14 @@ ${signalPreview}└────────────────────�
 \`\`\`
 
 ${hasSignals
-    ? (highAlpha > 0 ? `*${highAlpha} fette Gelegenheiten warten! Zuschlagen?*` : `${signalCount} Signale. Schau sie dir an.`)
-    : `_Markt ist ruhig. Warten wir ab._`}`;
+    ? (highAlpha > 0 ? `*${highAlpha} high-alpha opportunities. time to ape?*` : `${signalCount} signals found. check them out.`)
+    : `_market quiet. no alpha rn._`}`;
 
     const keyboard: InlineKeyboardMarkup = hasSignals
       ? {
           inline_keyboard: [
-            [{ text: '🎯 SIGNALE CHECKEN', callback_data: 'action:signals' }],
-            [{ text: '◀️ Zurück', callback_data: 'action:menu' }],
+            [{ text: '🎯 VIEW SIGNALS', callback_data: 'action:signals' }],
+            [{ text: '◀️ Back', callback_data: 'action:menu' }],
           ],
         }
       : this.getBackButton();
@@ -3782,7 +3911,7 @@ ${riskGatesDetailed.join('\n')}
           { text: '⏭️ Skip', callback_data: `skipv2:${signal.signalId}` },
         ],
         [
-          { text: '◀️ Zurück zum Menü', callback_data: 'action:menu' },
+          { text: '◀️ Back', callback_data: 'action:menu' },
         ],
       ],
     };
@@ -4208,22 +4337,13 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
   // ═══════════════════════════════════════════════════════════════
 
   private async sendTimeDelayAlert(notification: PushReadyNotification): Promise<void> {
-    const { candidate, market, whyNow, asOf } = notification;
+    const { candidate, market, whyNow } = notification;
 
     // Prüfe Deutschland-Bezug - nur bei Relevanz senden
     if (!hasGermanyRelevance(market.question)) {
       logger.info(`[TELEGRAM] Überspringe Alert - kein Deutschland-Bezug: ${market.question.substring(0, 50)}...`);
       return;
     }
-
-    // Format as_of Zeit
-    const asOfStr = asOf.toLocaleString('de-DE', {
-      timeZone: 'Europe/Berlin',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
 
     // Market URL
     const marketUrl = market.marketId
@@ -5105,7 +5225,7 @@ _Wirklich ausführen?_`;
           { text: '❌ Abbrechen', callback_data: `quickbuy_cancel:${signalId}` },
         ],
         [
-          { text: '◀️ Zurück', callback_data: 'action:menu' },
+          { text: '◀️ Back', callback_data: 'action:menu' },
         ],
       ],
     };
@@ -5366,13 +5486,13 @@ _Der Trade wurde nicht ausgeführt._`;
     }
 
     try {
-      // Hole Markt-Info für Token ID und Namen
-      const result = scanner.getLastResult();
-      const signal = result?.signalsFound.find((s) => s.id === marketId || s.market.id === marketId);
-
-      // Token ID bestimmen (YES outcome)
+      // Token ID und Marktname bestimmen
       let tokenId = marketId;
       let marketName = 'Markt';
+
+      // Strategie 1: Aus Scanner-Result (falls vorhanden)
+      const result = scanner.getLastResult();
+      const signal = result?.signalsFound.find((s) => s.id === marketId || s.market.id === marketId);
 
       if (signal?.market) {
         const yesOutcome = signal.market.outcomes?.find(o => o.name.toLowerCase() === 'yes');
@@ -5380,6 +5500,20 @@ _Der Trade wurde nicht ausgeführt._`;
           tokenId = yesOutcome.id;
         }
         marketName = signal.market.question.substring(0, 40) + (signal.market.question.length > 40 ? '...' : '');
+      } else {
+        // Strategie 2: Direkt von Polymarket holen
+        try {
+          const market = await polymarketClient.getMarketById(marketId);
+          if (market) {
+            const yesOutcome = market.outcomes?.find(o => o.name?.toLowerCase() === 'yes');
+            if (yesOutcome?.id) {
+              tokenId = yesOutcome.id;
+            }
+            marketName = market.question?.substring(0, 40) + (market.question?.length > 40 ? '...' : '') || 'Markt';
+          }
+        } catch {
+          logger.debug(`[CHART] Konnte Markt ${marketId} nicht von Polymarket laden`);
+        }
       }
 
       // Hole Price History (letzte 24h, stündlich)
@@ -5392,7 +5526,7 @@ _Der Trade wurde nicht ausgeführt._`;
         const keyboard: InlineKeyboardMarkup = {
           inline_keyboard: [
             [{ text: '📈 Polymarket öffnen', url: polymarketUrl }],
-            [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+            [{ text: '◀️ Back', callback_data: 'action:signals' }],
           ],
         };
         if (messageId) {
@@ -5491,9 +5625,9 @@ ${this.DIVIDER}
 
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
-          [{ text: '🔄 Aktualisieren', callback_data: `chart:${marketId}` }],
+          [{ text: '🔄 Refresh', callback_data: `chart:${marketId}` }],
           [{ text: '📈 Polymarket', url: polymarketUrl }],
-          [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+          [{ text: '◀️ Back', callback_data: 'action:signals' }],
         ],
       };
 
@@ -5528,7 +5662,7 @@ ${this.DIVIDER}
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
           [{ text: '📈 Polymarket öffnen', url: polymarketUrl }],
-          [{ text: '◀️ Zurück', callback_data: 'action:signals' }],
+          [{ text: '◀️ Back', callback_data: 'action:signals' }],
         ],
       };
 
@@ -5734,15 +5868,6 @@ ${performanceTracker.isPaperMode()
 
     const primary = germanyRelevant[0];
     const additional = germanyRelevant.slice(1);
-
-    // Format as_of Zeit
-    const asOfStr = primary.asOf.toLocaleString('de-DE', {
-      timeZone: 'Europe/Berlin',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
 
     // Verbesserte "Why now?" Texte
     const improvedWhyNow = [

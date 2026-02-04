@@ -9,7 +9,7 @@ import { logger } from '../utils/logger.js';
 import { runtimeState } from '../runtime/state.js';
 import { getSystemHealthDashboard } from '../storage/repositories/pipelineHealth.js';
 import { GateResult, GateResults, NewsCandidate } from '../storage/repositories/newsCandidates.js';
-import { getNotificationSettings, NotificationSettings, isCategoryEnabled } from './rateLimiter.js';
+import { getNotificationSettings, isCategoryEnabled } from './rateLimiter.js';
 
 // ═══════════════════════════════════════════════════════════════
 // GATE THRESHOLDS (Defaults)
@@ -432,7 +432,7 @@ function evaluateSystemHealthGate(): GateResult {
       threshold: 'healthy|degraded',
       reason: `System OK (${health.overall})`,
     };
-  } catch (err) {
+  } catch {
     return {
       passed: true, // Fail open - don't block pushes on health check errors
       value: 'error',

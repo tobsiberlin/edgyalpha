@@ -7,7 +7,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
   AlphaSignalV2,
-  BacktestResult,
   BacktestTrade,
   HistoricalTrade,
   HistoricalMarket,
@@ -15,11 +14,9 @@ import {
   ValidationResult,
   MonteCarloResult,
 } from '../alpha/types.js';
-import { TimeDelayEngine } from '../alpha/timeDelayEngine.js';
 // MispricingEngine und MetaCombiner wurden entfernt (V4.0)
 // Backtest unterstützt nur noch timeDelay Engine
-import { CombinedSignal } from '../alpha/telemetry.js';
-import { TradeSimulator, SimulatorConfig } from './simulator.js';
+import { TradeSimulator } from './simulator.js';
 import { calculateMetrics } from './metrics.js';
 import { calculateCalibrationBuckets } from './calibration.js';
 import {
@@ -29,7 +26,6 @@ import {
 } from './validation.js';
 import {
   getTradesByMarket,
-  getMarketResolution,
   getStats,
 } from '../storage/repositories/historical.js';
 import { getDatabase, initDatabase } from '../storage/db.js';
@@ -254,36 +250,6 @@ async function backtestTimeDelay(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DEPRECATED FUNCTIONS (V4.0 - MispricingEngine und MetaCombiner entfernt)
-// Diese Funktionen werden nicht mehr aufgerufen, da mispricing und meta
-// auf timeDelay zurückfallen. Sie sind hier nur für Kompatibilität.
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @deprecated MispricingEngine wurde in V4.0 entfernt
- */
-async function backtestMispricing(
-  _markets: HistoricalMarket[],
-  _simulator: TradeSimulator,
-  _opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
-): Promise<BacktestTrade[]> {
-  logger.warn('backtestMispricing ist deprecated (V4.0)');
-  return [];
-}
-
-/**
- * @deprecated MetaCombiner wurde in V4.0 entfernt
- */
-async function backtestMeta(
-  _markets: HistoricalMarket[],
-  _simulator: TradeSimulator,
-  _opts: BacktestOptions & typeof DEFAULT_BACKTEST_OPTIONS
-): Promise<BacktestTrade[]> {
-  logger.warn('backtestMeta ist deprecated (V4.0)');
-  return [];
-}
-
-// ═══════════════════════════════════════════════════════════════
 // SIGNAL SIMULATION
 // ═══════════════════════════════════════════════════════════════
 
@@ -353,17 +319,6 @@ function simulateTimeDelaySignal(
     ],
     createdAt: signalTime,
   };
-}
-
-/**
- * @deprecated MispricingEngine wurde in V4.0 entfernt
- * Diese Funktion wird nicht mehr aufgerufen.
- */
-function simulateMispricingSignal(
-  _market: HistoricalMarket,
-  _trades: HistoricalTrade[]
-): AlphaSignalV2 | null {
-  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════

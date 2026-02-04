@@ -5,10 +5,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { AlphaSignalV2, TimeDelayFeatures, SourceEvent, MarketQuality, SignalCertainty } from './types.js';
+import { AlphaSignalV2, TimeDelayFeatures, SourceEvent, SignalCertainty } from './types.js';
 import { Market } from '../types/index.js';
-import { fuzzyMatch, MatchResult, extractKeywords } from './matching.js';
-import { eventExists, getEventByHash } from '../storage/repositories/events.js';
+import { fuzzyMatch, MatchResult } from './matching.js';
+import { eventExists } from '../storage/repositories/events.js';
 import logger from '../utils/logger.js';
 import { llmMatcher, LLMMatchResult } from './llmMatcher.js';
 
@@ -499,7 +499,7 @@ export class TimeDelayEngine {
    * - "Putin tot" (Tier-1 Source, Breaking, extrem impactful)
    * - "Ukraine-Waffenstillstand unterzeichnet" (Breaking, Multi-Source)
    */
-  private calculateCertainty(features: TimeDelayFeatures, events: SourceEvent[]): SignalCertainty {
+  private calculateCertainty(features: TimeDelayFeatures, _events: SourceEvent[]): SignalCertainty {
     const f = features.features;
 
     // Kriterien für BREAKING_CONFIRMED

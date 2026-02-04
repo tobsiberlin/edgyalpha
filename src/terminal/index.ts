@@ -23,7 +23,7 @@ export function startTerminalUI(): void {
   // ═══════════════════════════════════════════════════════════════
   //                        HEADER
   // ═══════════════════════════════════════════════════════════════
-  const _header = grid.set(0, 0, 1, 12, blessed.box, {
+  grid.set(0, 0, 1, 12, blessed.box, {
     content:
       '{center}{bold}{green-fg}⚡ POLYMARKET ALPHA SCANNER ⚡{/green-fg}{/bold}{/center}',
     tags: true,

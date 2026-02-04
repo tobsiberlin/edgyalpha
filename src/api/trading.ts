@@ -13,7 +13,7 @@ import {
   recordTradeFailure,
   isForcePaperModeActive,
 } from '../alpha/riskGates.js';
-import { calculatePositionSize, estimateSlippage, SizingResult } from '../alpha/sizing.js';
+import { calculatePositionSize, SizingResult } from '../alpha/sizing.js';
 import { polymarketClient } from './polymarket.js';
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
@@ -821,7 +821,7 @@ export class TradingClient extends EventEmitter {
     }
 
     // Für jeden Token: Entry vs Exit berechnen
-    for (const [tokenId, tokenTrades] of byToken) {
+    for (const tokenTrades of byToken.values()) {
       const buys = tokenTrades.filter(t => t.side === 'BUY');
       const sells = tokenTrades.filter(t => t.side === 'SELL');
 
