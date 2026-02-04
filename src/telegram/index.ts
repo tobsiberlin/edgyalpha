@@ -280,16 +280,35 @@ ${this.DIVIDER}
     const killSwitchEmoji = state.killSwitchActive ? '🔴' : '🟢';
     const modeEmoji = state.executionMode === 'live' ? '🚀' : state.executionMode === 'shadow' ? '👻' : '📝';
 
+    // Quick-Status für Strategien
+    const arbEmoji = runtimeSettings.arbitrageEnabled ? '🟢' : '⚫';
+    const lateEmoji = runtimeSettings.lateEntryEnabled ? '🟢' : '⚫';
+    const autoEmoji = runtimeSettings.autoBetOnSafeBet ? '🟢' : '⚫';
+
     return {
       inline_keyboard: [
+        // === TRADING ===
         [
           { text: '🔥 SCAN', callback_data: 'action:scan' },
-          { text: '📊 Status', callback_data: 'action:status' },
+          { text: '🎯 Signals', callback_data: 'action:signals' },
         ],
         [
-          { text: '🎯 Signals', callback_data: 'action:signals' },
           { text: '💰 Wallet', callback_data: 'action:wallet' },
+          { text: '📜 History', callback_data: 'action:history' },
         ],
+        // === EINSTELLUNGEN (NEU: PROMINENT) ===
+        [{ text: '═══ ⚙️ EINSTELLUNGEN ═══', callback_data: 'action:settings' }],
+        [
+          { text: `${modeEmoji} ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
+          { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
+        ],
+        [
+          { text: `${arbEmoji} Arbitrage`, callback_data: 'toggle:arbitrage' },
+          { text: `${lateEmoji} Late-Entry`, callback_data: 'toggle:lateEntry' },
+          { text: `${autoEmoji} Auto`, callback_data: 'toggle:autoBet' },
+        ],
+        // === RESEARCH ===
+        [{ text: '═══ 📊 RESEARCH ═══', callback_data: 'noop' }],
         [
           { text: '📡 LIVE FEED', callback_data: 'action:ticker' },
           { text: '📰 DE News', callback_data: 'action:news' },
@@ -298,16 +317,13 @@ ${this.DIVIDER}
           { text: '🇩🇪 Polls', callback_data: 'action:polls' },
           { text: '⚡ Time Edge', callback_data: 'action:edge' },
         ],
-        [
-          { text: `🛡️ Risk ${killSwitchEmoji}`, callback_data: 'action:risk' },
-          { text: `${modeEmoji} ${state.executionMode.toUpperCase()}`, callback_data: 'action:mode' },
-        ],
+        // === STATS & MEHR ===
         [
           { text: '📈 Stats', callback_data: 'action:stats' },
-          { text: '📜 History', callback_data: 'action:history' },
+          { text: '📊 Status', callback_data: 'action:status' },
         ],
         [
-          { text: '⚙️ Settings', callback_data: 'action:settings' },
+          { text: '⚙️ Alle Settings', callback_data: 'action:settings' },
           { text: '🖥️ Dashboard', url: this.getWebDashboardUrl() },
         ],
       ],

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0a0a0a">
     <title>EDGY ALPHA CONSOLE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1164,16 +1164,17 @@ body {
     .sidebar-nav {
         position: fixed;
         left: -280px;
-        top: 36px;
-        width: 260px;
-        height: calc(100vh - 36px);
-        z-index: 1000;
-        transition: left 0.3s ease;
+        top: max(36px, env(safe-area-inset-top, 36px));
+        width: min(260px, 80vw);
+        height: calc(100vh - max(36px, env(safe-area-inset-top, 36px)));
+        z-index: 1002; /* ÜBER Overlay (1001) */
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         background: var(--bg-panel);
         border-right: 1px solid var(--border-mid);
         box-shadow: 4px 0 20px rgba(0,0,0,0.5);
         display: flex !important;
         flex-direction: column;
+        padding-bottom: env(safe-area-inset-bottom, 0);
     }
 
     .sidebar-nav.open {
@@ -1184,32 +1185,37 @@ body {
     .mobile-overlay {
         display: none;
         position: fixed;
-        top: 36px;
+        top: max(36px, env(safe-area-inset-top, 36px));
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 999;
+        background: rgba(0,0,0,0.6);
+        z-index: 1001; /* ÜBER Sidebar (1000) */
+        -webkit-backdrop-filter: blur(2px);
+        backdrop-filter: blur(2px);
     }
 
     .mobile-overlay.active {
         display: block;
     }
 
-    /* Hamburger Button */
+    /* Hamburger Button - Touch-Target 44x44 */
     .mobile-menu-btn {
         display: flex !important;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 28px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
         background: var(--bg-elevated);
         border: 1px solid var(--border-mid);
-        border-radius: 4px;
+        border-radius: 6px;
         cursor: pointer;
         transition: all 0.15s;
         color: var(--text-secondary);
-        font-size: 16px;
+        font-size: 18px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .mobile-menu-btn:hover,
@@ -1319,10 +1325,18 @@ body {
         display: none;
     }
 
-    /* Buttons größer für Touch */
+    /* Buttons größer für Touch - Apple HIG 44px minimum */
     .btn, .status-badge {
-        min-height: 36px;
-        padding: var(--sp-xs) var(--sp-sm);
+        min-height: 44px;
+        min-width: 44px;
+        padding: var(--sp-sm) var(--sp-md);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Input/Select Font 16px verhindert iOS Auto-Zoom */
+    input, select, textarea {
+        font-size: 16px !important;
+        min-height: 44px;
     }
 
     /* Panel kompakter */
@@ -2985,9 +2999,32 @@ function updateKillSwitchUI(active) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//                        VIEWS
+//                        VIEWS (Zentrales Hook-System)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Zentrales Registry für View-spezifische Handler
+const viewHandlers = {
+    signals: [],
+    markets: [],
+    risk: [],
+    performance: [],
+    backtest: [],
+    history: [],
+    almanien: [],
+    ticker: [],
+    console: [],
+    settings: []
+};
+
+// Handler registrieren (statt showView zu überschreiben)
+function registerViewHandler(viewId, handler) {
+    if (!viewHandlers[viewId]) {
+        viewHandlers[viewId] = [];
+    }
+    viewHandlers[viewId].push(handler);
+}
+
+// Zentrale showView Funktion - EINMALIG definiert
 function showView(viewId) {
     // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -3009,11 +3046,27 @@ function showView(viewId) {
         resetDrilldown();
     }
 
-    // View-spezifische Aktionen
-    if (viewId === 'almanien') {
-        loadAlmanienMatches();
+    // Mobile Menü schließen wenn View gewechselt wird
+    if (window.innerWidth <= 768) {
+        closeMobileMenu();
     }
+
+    // Alle registrierten Handler für diese View ausführen
+    const handlers = viewHandlers[viewId] || [];
+    handlers.forEach(handler => {
+        try {
+            handler();
+        } catch (e) {
+            console.error('View handler error for', viewId, e);
+        }
+    });
 }
+
+// Global verfügbar machen
+window.showView = showView;
+
+// Standard-Handler registrieren
+registerViewHandler('almanien', () => loadAlmanienMatches());
 
 // Drilldown schliessen und zuruecksetzen
 function closeDrilldown() {
@@ -4101,16 +4154,9 @@ if (typeof socket !== 'undefined') {
     });
 }
 
-// Load data when switching views
-const origShowView = showView;
-showView = function(viewId) {
-    origShowView(viewId);
-    if (viewId === 'backtest') {
-        loadBacktestData();
-    } else if (viewId === 'markets') {
-        loadPipelineHealth();
-    }
-};
+// Handler für Backtest und Markets Views registrieren
+registerViewHandler('backtest', () => loadBacktestData());
+registerViewHandler('markets', () => loadPipelineHealth());
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //                        PIPELINE HEALTH
@@ -4551,14 +4597,8 @@ function updateRecommendations(recommendations) {
     `).join('');
 }
 
-// Load performance when switching to view
-const origShowViewPerf = showView;
-showView = function(viewId) {
-    origShowViewPerf(viewId);
-    if (viewId === 'performance') {
-        loadPerformanceData();
-    }
-};
+// Handler für Performance View registrieren
+registerViewHandler('performance', () => loadPerformanceData());
 
 // Auto-refresh performance every 60 seconds when on that view
 setInterval(() => {
@@ -5297,24 +5337,11 @@ function resetSettingsToDefaults() {
 }
 
 // =====================================================================================
-//                        SHOW VIEW HOOK FOR SETTINGS
+//                        SETTINGS VIEW HANDLER
 // =====================================================================================
 
-// Erweitere showView um Settings-Laden
-(function() {
-    const originalShowViewFn = showView;
-    window.showView = function(viewId) {
-        originalShowViewFn(viewId);
-        // Settings laden wenn Settings-View angezeigt wird
-        if (viewId === 'settings') {
-            loadSettings();
-        }
-        // Mobile Menü schließen wenn View gewechselt wird
-        if (window.innerWidth <= 768) {
-            closeMobileMenu();
-        }
-    };
-})();
+// Handler für Settings View registrieren
+registerViewHandler('settings', () => loadSettings());
 
 // =====================================================================================
 //                        MOBILE MENU FUNCTIONS
@@ -5625,14 +5652,8 @@ function exportHistoryCSV() {
     showToast('CSV exportiert', 'success');
 }
 
-// Load history when view is shown
-const originalShowView = window.showView || showView;
-window.showView = function(viewId) {
-    originalShowView(viewId);
-    if (viewId === 'history') {
-        loadHistory(0);
-    }
-};
+// Handler für History View registrieren
+registerViewHandler('history', () => loadHistory(0));
 
     </script>
 </body>

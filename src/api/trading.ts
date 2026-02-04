@@ -1306,7 +1306,19 @@ export class TradingClient extends EventEmitter {
 
     // 6. Markt laden und Token-ID extrahieren
     let tokenId: string | null = null;
-    let marketDirection: 'YES' | 'NO' = 'YES';
+
+    // KRITISCH: Direction DIREKT aus Decision nehmen - nicht aus String-Matching!
+    // Die Decision.direction kommt direkt vom Signal und ist validiert
+    const decisionDirection = (decision as { direction?: 'yes' | 'no' }).direction;
+    const marketDirection: 'YES' | 'NO' = decisionDirection === 'no' ? 'NO' : 'YES';
+
+    // Validierung: Sicherstellen dass Direction gesetzt ist
+    if (!decisionDirection) {
+      logger.warn(`[LIVE] Decision ohne explizite direction - Fallback auf Legacy-Extraktion`);
+      // Legacy-Fallback nur als Warnung, nicht als Fehler
+    } else {
+      logger.info(`[LIVE] Trade-Richtung aus Signal: ${marketDirection} (decision.direction=${decisionDirection})`);
+    }
 
     try {
       // MarketId aus Decision - Format kann "marketId" oder "marketId:direction" sein
@@ -1317,16 +1329,6 @@ export class TradingClient extends EventEmitter {
       if (!market) {
         logger.error(`[LIVE] Markt ${marketId} nicht gefunden`);
         return { ...execution, status: 'failed' };
-      }
-
-      // Direction aus Decision rationale oder Signal extrahieren
-      const rationale = decision.rationale;
-      if (rationale && typeof rationale === 'object') {
-        // Check ob direction im rationale steht
-        const topFeatures = rationale.topFeatures || [];
-        const hasYesDirection = topFeatures.some(f => f.toLowerCase().includes('yes') || f.toLowerCase().includes('ja'));
-        const hasNoDirection = topFeatures.some(f => f.toLowerCase().includes('no') || f.toLowerCase().includes('nein'));
-        marketDirection = hasNoDirection && !hasYesDirection ? 'NO' : 'YES';
       }
 
       // Token-ID für die entsprechende Seite

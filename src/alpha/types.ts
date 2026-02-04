@@ -114,6 +114,7 @@ export interface Decision {
   decisionId: string;
   signalId: string;
   action: 'show' | 'watch' | 'trade' | 'high_conviction' | 'reject';
+  direction: 'yes' | 'no';  // EXPLIZITE RICHTUNG - nicht aus String-Matching!
   sizeUsdc: number | null;
   riskChecks: RiskChecks;
   rationale: Rationale;
@@ -135,6 +136,7 @@ export interface Rationale {
   confidence: number;
   topFeatures: string[];
   rejectionReasons?: string[];
+  direction?: 'yes' | 'no';  // Gespeichert für Backwards-Compatibility
 }
 
 // Execution

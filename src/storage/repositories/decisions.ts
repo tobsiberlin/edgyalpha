@@ -10,10 +10,21 @@ import type { Decision, RiskChecks, Rationale } from '../../alpha/types.js';
  * Konvertiert Datenbank-Row zu Decision
  */
 function rowToDecision(row: Record<string, unknown>): Decision {
+  const rationale = JSON.parse(row.risk_checks as string) as Rationale & { direction?: 'yes' | 'no' };
+
+  // Direction aus DB-Spalte oder aus Rationale extrahieren (Backwards-Compatibility)
+  let direction: 'yes' | 'no' = 'yes';
+  if (row.direction) {
+    direction = row.direction as 'yes' | 'no';
+  } else if (rationale.direction) {
+    direction = rationale.direction;
+  }
+
   return {
     decisionId: row.decision_id as string,
     signalId: row.signal_id as string,
     action: row.action as Decision['action'],
+    direction,
     sizeUsdc: row.size_usdc as number | null,
     riskChecks: JSON.parse(row.risk_checks as string) as RiskChecks,
     rationale: JSON.parse(row.rationale as string) as Rationale,
@@ -26,6 +37,12 @@ function rowToDecision(row: Record<string, unknown>): Decision {
  */
 export function insertDecision(decision: Decision): void {
   const db = getDatabase();
+
+  // Direction in Rationale speichern für Backwards-Compatibility
+  const rationaleWithDirection = {
+    ...decision.rationale,
+    direction: decision.direction,
+  };
 
   const stmt = db.prepare(`
     INSERT INTO decisions (
@@ -44,7 +61,7 @@ export function insertDecision(decision: Decision): void {
     decision.action,
     decision.sizeUsdc,
     JSON.stringify(decision.riskChecks),
-    JSON.stringify(decision.rationale),
+    JSON.stringify(rationaleWithDirection),
     decision.createdAt.toISOString()
   );
 }
