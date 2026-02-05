@@ -1153,6 +1153,70 @@ body {
     .console-app.show-drilldown .drilldown-panel {
         display: none;
     }
+
+    /* Sidebar als Slide-In Menü (wie bei Mobile) */
+    .sidebar-nav {
+        position: fixed;
+        left: -280px;
+        top: max(36px, env(safe-area-inset-top, 36px));
+        width: min(260px, 80vw);
+        height: calc(100vh - max(36px, env(safe-area-inset-top, 36px)));
+        z-index: 1002;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: var(--bg-panel);
+        border-right: 1px solid var(--border-mid);
+        box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+        display: flex !important;
+        flex-direction: column;
+    }
+
+    .sidebar-nav.open {
+        left: 0;
+    }
+
+    /* Text wieder einblenden im Slide-In Menü */
+    .nav-item span:not(.nav-icon):not(.nav-count) {
+        display: inline !important;
+    }
+
+    .nav-header {
+        display: block !important;
+    }
+
+    /* Hamburger Button sichtbar */
+    .mobile-menu-btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-mid);
+        border-radius: 6px;
+        cursor: pointer;
+        color: var(--text-secondary);
+        font-size: 18px;
+    }
+
+    .mobile-menu-btn:hover,
+    .mobile-menu-btn.active {
+        border-color: var(--green-dim);
+        color: var(--green-profit);
+    }
+
+    /* Overlay für Menü */
+    .mobile-overlay.active {
+        display: block;
+        position: fixed;
+        top: max(36px, env(safe-area-inset-top, 36px));
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 1001;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1179,6 +1243,15 @@ body {
 
     .sidebar-nav.open {
         left: 0;
+    }
+
+    /* TEXT WIEDER EINBLENDEN im Slide-In Menü! */
+    .nav-item span:not(.nav-icon):not(.nav-count) {
+        display: inline !important;
+    }
+
+    .nav-header {
+        display: block !important;
     }
 
     /* Overlay wenn Menü offen */
@@ -1644,8 +1717,8 @@ body {
     }
 }
 
-/* Desktop: Hamburger verstecken */
-@media (min-width: 769px) {
+/* Desktop: Hamburger verstecken (ab 901px, da Sidebar bei ≤900px versteckt wird) */
+@media (min-width: 901px) {
     .mobile-menu-btn {
         display: none !important;
     }
