@@ -4353,7 +4353,7 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
   // ═══════════════════════════════════════════════════════════════
 
   private async sendTimeDelayAlert(notification: PushReadyNotification): Promise<void> {
-    const { candidate, market, whyNow } = notification;
+    const { candidate, market } = notification;
 
     // Prüfe Deutschland-Bezug - nur bei Relevanz senden
     if (!hasGermanyRelevance(market.question)) {
@@ -4366,27 +4366,27 @@ _Suche jetzt nach passenden Polymarket-Wetten..._`;
       ? `https://polymarket.com/event/${market.marketId}`
       : '';
 
-    // Verbesserte "Why now?" Texte - keine falsche US-Medien Logik
-    const improvedWhyNow = [
-      `Deutsche Quelle: ${candidate.sourceName}`,
-      `Markt hat noch nicht reagiert`,
-      ...whyNow.filter(r => !r.includes('vor US-Medien') && !r.includes('Min vor')),
-    ];
+    // Fallback URL: Google-Suche wenn keine direkte Quelle
+    const sourceUrl = candidate.url || `https://www.google.com/search?q=${encodeURIComponent(candidate.title + ' ' + candidate.sourceName)}`;
 
     const message = `
 ⚡ *EUSSR-TRACKER ALERT* ⚡
 
 ${this.DIVIDER}
 
-📊 *Markt:*
+📰 *Breaking News:*
+\`\`\`
+${candidate.title.substring(0, 120)}${candidate.title.length > 120 ? '...' : ''}
+\`\`\`
+_via ${candidate.sourceName}_
+
+${this.DIVIDER}
+
+📊 *Passender Markt:*
 \`\`\`
 ${market.question.substring(0, 100)}${market.question.length > 100 ? '...' : ''}
 \`\`\`
 
-${this.DIVIDER}
-
-⏰ *Zeitvorsprung aktiv\\!*
-📰 *Quelle:* ${candidate.sourceName}
 💰 *Volume:* $${(market.totalVolume / 1000).toFixed(0)}k
 📈 *Preis:* ${(market.currentPrice * 100).toFixed(1)}%
 ${candidate.suggestedDirection ? `🎯 *KI-Empfehlung:* ${candidate.suggestedDirection === 'yes' ? '🟢 YES kaufen' : '🔴 NO kaufen'}` : ''}
@@ -4394,10 +4394,7 @@ ${candidate.llmReasoning ? `💡 *Grund:* ${candidate.llmReasoning}` : ''}
 
 ${this.DIVIDER}
 
-🎯 *Why now?*
-${improvedWhyNow.map(r => `• ${r}`).join('\n')}
-
-${candidate.url ? `🔗 [Quelle](${candidate.url})` : ''}
+🔗 [Quelle öffnen](${sourceUrl})
 ${marketUrl ? `📊 [Polymarket](${marketUrl})` : ''}`;
 
     // Quick-Buy Buttons mit LLM-bestimmter Richtung
