@@ -64,7 +64,9 @@ src/
 2. **DutchBookEngine** - Arbitrage (YES + NO < $1.00)
 3. **LateEntryEngine** - 15-Min Crypto, Einstieg in letzten 4min
 
-**WICHTIG**: Scanner generiert KEINE eigenen "preis-basierten" Signale mehr!
+Der Scanner generiert keine eigenen "preis-basierten" Signale mehr.
+
+**Warum:** Solche Signale liefern keinen echten Wissensvorsprung und werden ausschließlich über die drei aktiven Strategien (TimeDelay, DutchBook, LateEntry) erzeugt.
 
 ## Bekannte Fehler & Lösungen
 
